@@ -242,6 +242,28 @@ vrai SSO de recette (section 012). Pour repartir d'un premier lancement : quitte
   texte, cartes lisibles), la saisie Basic et la fenêtre de détail aussi. Ouvrir une compilation de débogage
   (outils de développement actifs) : la console ne montre aucune violation de CSP.
 
+## 017 — ui — onglet MCP
+
+Appli compilée sous Windows, profil « Développeur » (DEV, INT et REC exposés), un client LLM branché sur le pont
+(Claude Desktop ou VS Code), et pour la liste réelle au moins une instance joignable.
+
+- [ ] **EX-017-08** — Onglet MCP, pastille INT : elle passe en contour, le compteur d'outils baisse ; recharger la
+  liste d'outils côté client (VS Code : « MCP: List Servers », redémarrer le serveur ; Claude Desktop : nouvelle
+  conversation) : aucun outil `int_…` n'y figure, et un appel à un ancien nom `int_…` est refusé (« inconnu ou non
+  exposé »). Pastille PROD : un dialogue demande « Exposer PROD aux clients LLM ? » ; « Annuler » ne change rien,
+  « Exposer » ajoute les outils `prod_…`, sous les verrous de la config (colonne Politique). Redémarrer l'appli :
+  l'exposition est gardée ; le Journal (spec 018) ou le fichier de log montre « environnement « PROD » exposé par
+  l'utilisateur ».
+- [ ] **EX-017-09** — Interrupteur « Exposé » de Kibana Logs en DEV : il se coupe sur toutes les lignes de Kibana
+  Logs (état « coupé »), et seuls les outils `*_kibana_*` disparaissent du client après rechargement de sa liste ;
+  ceux de GitLab Ops et des autres MCP restent. Le rétablir les fait revenir. Sur une ligne de PRA (non exposé),
+  l'interrupteur est grisé et son infobulle dit « PRA n'est pas exposé : exposez-le d'abord avec sa pastille. »
+- [ ] **EX-017-12** — Dans la fenêtre de l'appli, en clair puis en sombre : infobulles (Politique, État, compteur,
+  pastilles) et menu du filtre d'environnement s'affichent sans erreur de CSP dans la console (compilation de
+  débogage) ; la recherche « kibána index » déplie les lignes de Kibana Logs et surligne « index » ; une instance
+  injoignable montre « injoignable » en rouge et sa dernière erreur dans la ligne dépliée, « Recharger la liste »
+  relance la lecture. Exposer tous les environnements : le compteur passe à l'orange au-delà de 100 outils.
+
 ## 025 — Module MCP local d'exemple (`jira-local`)
 
 À dérouler quand l'appli (spec 011) et les fenêtres de saisie Basic (spec 012) existent, avec une config dont

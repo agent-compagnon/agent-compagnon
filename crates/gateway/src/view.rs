@@ -7,7 +7,9 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use mcp_proxy_core::config::{Category, Config, McpKind, SessionId, SessionScope};
+use mcp_proxy_core::config::{Category, Channel, Config, Decision, EnvId, McpId, McpKind, SessionId, SessionScope};
+use mcp_proxy_core::module::ToolHints;
+use mcp_proxy_core::policy::PolicyEngine;
 use mcp_proxy_core::session::{AuthKind, SessionInfo, SessionState};
 use mcp_proxy_core::settings::UserSettings;
 use serde::Serialize;
@@ -188,16 +190,81 @@ pub struct SessionView {
     pub services: Vec<ServiceView>,
 }
 
+/// A decision of the policy engine, as the MCP tab shows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DecisionKind {
+    Allow,
+    ConfirmElicitation,
+    ConfirmNotification,
+    Deny,
+}
+
+impl From<Decision> for DecisionKind {
+    fn from(decision: Decision) -> Self {
+        match decision {
+            Decision::Allow => Self::Allow,
+            Decision::Confirm(Channel::Elicitation) => Self::ConfirmElicitation,
+            Decision::Confirm(Channel::Notification) => Self::ConfirmNotification,
+            Decision::Deny => Self::Deny,
+        }
+    }
+}
+
+/// A decision and why it was taken, in French (`Resolution::describe`, the text of the journal).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyView {
+    pub decision: DecisionKind,
+    /// « autorisé », « confirmation (notification) »…
+    pub label: String,
+    pub explanation: String,
+}
+
+impl PolicyView {
+    /// Without a policy engine (a configuration without a `strictest` profile, which validation rejects): every
+    /// call is refused, and the window says so.
+    fn no_engine() -> Self {
+        Self {
+            decision: DecisionKind::Deny,
+            label: Decision::Deny.label().to_owned(),
+            explanation: "refusé — aucun profil de politique applicable".to_owned(),
+        }
+    }
+
+    fn of(decision: Decision, explanation: String) -> Self {
+        Self {
+            decision: decision.into(),
+            label: decision.label().to_owned(),
+            explanation,
+        }
+    }
+}
+
+/// Default policy of an instance (`PolicyEngine::summary`): the decision for a declared tool of each category
+/// without a rule of its own, user hardening included.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicySummaryView {
+    pub read: PolicyView,
+    pub write: PolicyView,
+    pub destructive: PolicyView,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolView {
     pub exposed_name: String,
     pub name: String,
     pub title: String,
+    /// Given by the server, already filtered; empty without one.
+    pub description: String,
     pub category: String,
     /// Declared in the configuration.
     pub known: bool,
     pub exposed: bool,
+    /// The decision a call to this tool gets now.
+    pub policy: PolicyView,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -214,6 +281,9 @@ pub struct UpdateView {
 pub struct InstanceView {
     pub environment: String,
     pub exposed: bool,
+    /// The session its calls use; `None` for an instance without one.
+    pub session: Option<String>,
+    pub policy: PolicySummaryView,
     pub state: String,
     pub state_label: String,
     /// Where the tools come from: `embedded`, `cache`, `live`, or `None` without any list.
@@ -332,12 +402,33 @@ fn session_state(state: SessionState, utc_offset: i32, requested_by: Option<&Str
     }
 }
 
+fn policy_summary(engine: Option<&PolicyEngine<'_>>, config: &Config, env: &EnvId, mcp: &McpId) -> PolicySummaryView {
+    let Some(engine) = engine else {
+        return PolicySummaryView {
+            read: PolicyView::no_engine(),
+            write: PolicyView::no_engine(),
+            destructive: PolicyView::no_engine(),
+        };
+    };
+    let summary = engine.summary(env, mcp);
+    let view = |category| {
+        let entry = summary.get(category);
+        PolicyView::of(entry.decision, entry.describe(config))
+    };
+    PolicySummaryView {
+        read: view(Category::Read),
+        write: view(Category::Write),
+        destructive: view(Category::Destructive),
+    }
+}
+
 impl AppSnapshot {
     pub fn build(inputs: &SnapshotInputs<'_>) -> Self {
         let config = inputs.config;
         let registry = inputs.registry;
         let exposure = registry.exposure();
         let chosen = inputs.settings.chosen_profile(config);
+        let engine = inputs.settings.engine(config);
 
         let profile = ProfileView {
             chosen: chosen.map(|p| p.id.to_string()),
@@ -422,6 +513,8 @@ impl AppSnapshot {
                         InstanceView {
                             environment: env.to_string(),
                             exposed,
+                            session: config.session_for(&mcp.id, env).map(|s| s.id.to_string()),
+                            policy: policy_summary(engine.as_ref(), config, env, &mcp.id),
                             state: status.map_or("catalogue", |s| state_key(s.state)).to_owned(),
                             state_label: status
                                 .map_or(InstanceState::Catalogue.label(), |s| s.state.label())
@@ -435,9 +528,22 @@ impl AppSnapshot {
                                     exposed_name: t.exposed_name.clone(),
                                     name: t.original_name.to_string(),
                                     title: t.title.clone(),
+                                    description: t.server_description.clone().unwrap_or_default(),
                                     category: category_key(t.category).to_owned(),
                                     known: t.known,
                                     exposed,
+                                    policy: engine.as_ref().map_or_else(PolicyView::no_engine, |engine| {
+                                        let resolution = engine.resolve(
+                                            env,
+                                            &mcp.id,
+                                            &t.original_name,
+                                            t.server_annotations
+                                                .as_ref()
+                                                .map(ToolHints::policy_annotations)
+                                                .as_ref(),
+                                        );
+                                        PolicyView::of(resolution.decision, resolution.describe(config))
+                                    }),
                                 })
                                 .collect(),
                             update: inputs

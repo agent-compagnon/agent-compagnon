@@ -16,18 +16,27 @@ describe("the application's backend", () => {
   })
 
   // Exigence : EX-016-07
+  // Exigence : EX-017-04
   it('sends each command of the window with identifiers only', async () => {
     await tauriBackend.connectSession('sso-dev')
     await tauriBackend.disconnectSession('sso-dev')
     await tauriBackend.setProfile('support')
     await tauriBackend.resumeGateway()
     await tauriBackend.showConfirmations()
+    await tauriBackend.setEnvironmentExposed('prod', true)
+    await tauriBackend.setMcpExposed('kibana-logs', false)
+    await tauriBackend.acknowledgeMcpUpdate('dev', 'gitlab-ops')
+    await tauriBackend.reloadMcp('dev', 'gitlab-ops')
     expect(invoke.mock.calls).toEqual([
       ['connect_session', { session: 'sso-dev' }],
       ['disconnect_session', { session: 'sso-dev' }],
       ['set_profile', { profile: 'support' }],
       ['resume_gateway'],
       ['show_confirmations'],
+      ['set_environment_exposed', { environment: 'prod', exposed: true }],
+      ['set_mcp_exposed', { mcp: 'kibana-logs', exposed: false }],
+      ['acknowledge_mcp_update', { environment: 'dev', mcp: 'gitlab-ops' }],
+      ['reload_mcp', { environment: 'dev', mcp: 'gitlab-ops' }],
     ])
     // Every command is declared by the application and granted to the main window, and to it only.
     for (const [command] of invoke.mock.calls) {

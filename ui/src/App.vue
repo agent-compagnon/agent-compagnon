@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, provide } from 'vue'
 import AppHeader from '@/components/AppHeader.vue'
 import GlobalBanners from '@/components/banners/GlobalBanners.vue'
 import ConnectionsTab from '@/components/connections/ConnectionsTab.vue'
+import McpTab from '@/components/mcp/McpTab.vue'
 import FirstLaunchDialog from '@/components/profile/FirstLaunchDialog.vue'
 import ShellTab from '@/components/ShellTab.vue'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -59,7 +60,7 @@ onBeforeUnmount(() => {
               <ConnectionsTab :snapshot="store.state.snapshot" />
             </TabsContent>
             <TabsContent value="mcp">
-              <ShellTab :text="fr.shells.mcp" />
+              <McpTab :snapshot="store.state.snapshot" />
             </TabsContent>
             <TabsContent value="journal">
               <ShellTab :text="fr.shells.journal" />

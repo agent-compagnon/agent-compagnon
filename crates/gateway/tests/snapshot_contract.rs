@@ -14,12 +14,13 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use mcp_proxy_core::config::{EnvId, McpId, ProfileId, SessionId, ToolName};
 use mcp_proxy_core::filter::OutputFilter;
+use mcp_proxy_core::module::{ToolDefinition, ToolHints};
 use mcp_proxy_core::secrets::SecretStore;
 use mcp_proxy_core::session::{SessionRegistry, SessionState};
 use mcp_proxy_core::settings::UserSettings;
 use mcp_proxy_gateway::registry::{EmbeddedCatalog, InstanceId, NoCatalogCache, Registry};
 use mcp_proxy_gateway::updates::{InstanceState, InstanceStatus, McpUpdate};
-use mcp_proxy_gateway::view::{Alert, AlertKind, AlertLevel, AppSnapshot, SnapshotInputs};
+use mcp_proxy_gateway::view::{Alert, AlertKind, AlertLevel, AppSnapshot, DecisionKind, SnapshotInputs};
 
 /// Sun, 22 Nov 2026 14:00:00 UTC.
 const NOW_SECS: u64 = 1_795_356_000;
@@ -44,6 +45,29 @@ fn example_snapshot() -> AppSnapshot {
     settings.choose_profile(&config.profiles[&ProfileId::new("developpeur").unwrap()]);
     settings.exposed_environments.insert(EnvId::new("prod").unwrap());
     registry.apply_settings(&settings);
+
+    // The live list of GitLab Ops in DEV: `retry_job` is gone, `list_runners` is new and unknown to the config.
+    let mut live: Vec<ToolDefinition> =
+        serde_json::from_str(include_str!("../../../config/catalog/gitlab-ops.json")).unwrap();
+    live.retain(|t| t.name != "retry_job");
+    live.push(ToolDefinition {
+        name: "list_runners".to_owned(),
+        title: Some("List runners".to_owned()),
+        description: Some("Lists the CI runners available to a project.".to_owned()),
+        input_schema: serde_json::json!({ "type": "object", "properties": { "project": { "type": "string" } } }),
+        output_schema: None,
+        annotations: Some(ToolHints {
+            read_only_hint: Some(true),
+            ..ToolHints::default()
+        }),
+    });
+    let diff = registry
+        .apply_live_list(
+            &InstanceId::new(EnvId::new("dev").unwrap(), McpId::new("gitlab-ops").unwrap()),
+            live,
+        )
+        .unwrap();
+    assert_eq!(diff.added, [ToolName::new("list_runners").unwrap()]);
 
     let sessions = SessionRegistry::from_config(&config).snapshot();
     let states = [
@@ -152,4 +176,48 @@ fn the_interface_reads_the_snapshot_of_the_example_configuration() {
             .flat_map(|m| &m.instances)
             .any(|i| i.last_error.is_some())
     );
+}
+
+// Exigence : EX-017-10
+#[test]
+fn each_instance_and_each_tool_carries_its_policy_its_session_and_its_description() {
+    let snapshot = example_snapshot();
+    let mcp = |id: &str| snapshot.mcps.iter().find(|m| m.id == id).unwrap();
+    let instance = |id: &str, env: &str| mcp(id).instances.iter().find(|i| i.environment == env).unwrap().clone();
+
+    let gitlab = instance("gitlab-ops", "dev");
+    assert_eq!(gitlab.session.as_deref(), Some("sso-corp"), "a global session");
+    assert_eq!(instance("kibana-logs", "prod").session.as_deref(), Some("sso-prod"));
+    assert_eq!(gitlab.policy.read.decision, DecisionKind::Allow);
+    assert_eq!(gitlab.policy.destructive.decision, DecisionKind::ConfirmElicitation);
+    assert_eq!(
+        gitlab.policy.destructive.explanation,
+        "confirmation (elicitation) — règle « destructive » de DEV, profil « Développeur »"
+    );
+
+    // The new tool: unknown, hence destructive, raised to a notification by the profile.
+    let runners = gitlab.tools.iter().find(|t| t.name == "list_runners").unwrap();
+    assert!(!runners.known);
+    assert_eq!(runners.category, "destructive");
+    assert_eq!(runners.description, "Lists the CI runners available to a project.");
+    assert_eq!(runners.policy.decision, DecisionKind::ConfirmNotification);
+    assert_eq!(runners.policy.label, "confirmation (notification)");
+    assert_eq!(
+        runners.policy.explanation,
+        "confirmation (notification) — outil inconnu de la config, profil « Développeur »"
+    );
+
+    // A locked rule of the base wins over the profile, and the window shows why.
+    let delete = instance("kibana-logs", "prod")
+        .tools
+        .into_iter()
+        .find(|t| t.name == "delete_index")
+        .unwrap();
+    assert_eq!(delete.policy.decision, DecisionKind::Deny);
+    assert!(
+        delete.policy.explanation.contains("verrouillée"),
+        "{}",
+        delete.policy.explanation
+    );
+    assert!(!delete.description.is_empty());
 }

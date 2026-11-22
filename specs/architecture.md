@@ -30,7 +30,7 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 | Mises à jour | `ed25519-dalek` 3, `self-replace` 1.5, `semver` |
 | Filtre de sortie | `memchr` 2.8, `regex` 1.13 (motifs génériques seulement), `serde_json` 1.0 |
 | Logs | `tracing`, `tracing-subscriber` 0.3, `tracing-appender` |
-| Front | Vue 3, Vite, TypeScript, Tailwind CSS 4, shadcn-vue (Reka UI), `@lucide/vue`, `valibot` (schémas de l'instantané), `@tauri-apps/api`, TanStack Table, npm ; Vitest et Playwright pour les tests |
+| Front | Vue 3, Vite, TypeScript, Tailwind CSS 4, shadcn-vue (Reka UI), `@lucide/vue`, `valibot` (schémas de l'instantané), `@tauri-apps/api`, TanStack Table (`@tanstack/vue-table` 8), npm ; Vitest et Playwright pour les tests |
 
 ## Architecture
 
@@ -260,3 +260,6 @@ du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
   Vitest, Playwright). Les commandes de la fenêtre principale vivent dans `mcp_proxy_gateway::interface` ; le contrat
   de l'instantané est figé par `ui/src/api/snapshot.example.json`, écrit par un test de la passerelle et lu par les
   tests de `ui/`. Le backend simulé de l'interface n'existe que dans la construction `--mode mock`.
+- **2026-11-22** — Spec 017 : TanStack Table précisé (`@tanstack/vue-table` 8, base du Data Table de shadcn-vue).
+  Constaté par Playwright : le `SelectViewport` de Reka UI 2.11 insère un élément `<style>` que la CSP de l'appli
+  refuse ; les listes de choix passent par le menu déroulant à boutons radio.

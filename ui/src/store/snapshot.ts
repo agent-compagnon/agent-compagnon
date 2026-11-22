@@ -67,6 +67,12 @@ export function createStore(backend: Backend) {
     setProfile: (profile: string) => run(() => backend.setProfile(profile)),
     resume: () => run(() => backend.resumeGateway()),
     showConfirmations: () => run(() => backend.showConfirmations()),
+    setEnvironmentExposed: (environment: string, exposed: boolean) =>
+      run(() => backend.setEnvironmentExposed(environment, exposed)),
+    setMcpExposed: (mcp: string, exposed: boolean) => run(() => backend.setMcpExposed(mcp, exposed)),
+    acknowledgeMcpUpdate: (environment: string, mcp: string) =>
+      run(() => backend.acknowledgeMcpUpdate(environment, mcp)),
+    reloadMcp: (environment: string, mcp: string) => run(() => backend.reloadMcp(environment, mcp)),
     dismissError: () => {
       state.commandError = null
     },

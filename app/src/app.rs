@@ -126,7 +126,11 @@ pub fn run() -> ExitCode {
             interface::disconnect_session,
             interface::set_profile,
             interface::resume_gateway,
-            interface::show_confirmations
+            interface::show_confirmations,
+            interface::set_environment_exposed,
+            interface::set_mcp_exposed,
+            interface::acknowledge_mcp_update,
+            interface::reload_mcp
         ])
         .setup(|app| {
             // Tauri panics on a setup error: a failure here is explained, then the application exits.

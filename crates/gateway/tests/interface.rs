@@ -375,3 +375,156 @@ async fn see_opens_the_detail_windows_and_answers_nothing_and_resume_lifts_the_s
     assert!(!resumed.gateway_suspended);
     assert_eq!(resumed.pending_confirmations, 0);
 }
+
+fn exposed_environments(snapshot: &mcp_proxy_gateway::view::AppSnapshot) -> Vec<&str> {
+    snapshot
+        .environments
+        .iter()
+        .filter(|e| e.exposed)
+        .map(|e| e.id.as_str())
+        .collect()
+}
+
+// Exigence : EX-017-11
+#[tokio::test(flavor = "multi_thread")]
+async fn the_mcp_tab_exposes_an_environment_cuts_an_mcp_and_refuses_unknown_identifiers() {
+    let dir = TempDir::new();
+    let s = start(&dir).await;
+    let gateway = &s.gateway;
+
+    // Unknown identifiers are refused, never echoed back.
+    assert_eq!(
+        gateway.known_environment("staging"),
+        Err(InterfaceError::UnknownEnvironment)
+    );
+    assert_eq!(
+        gateway.known_environment("../prod"),
+        Err(InterfaceError::UnknownEnvironment)
+    );
+    assert_eq!(gateway.known_mcp("grafana"), Err(InterfaceError::UnknownMcp));
+    assert_eq!(
+        gateway.known_instance("dev", "inconnu"),
+        Err(InterfaceError::UnknownMcp)
+    );
+    assert_eq!(
+        gateway.known_instance("dev", "jira"),
+        Err(InterfaceError::UnknownInstance),
+        "Jira has no instance in DEV"
+    );
+    assert_eq!(
+        InterfaceError::UnknownInstance.to_string(),
+        "ce MCP n'existe pas dans cet environnement"
+    );
+
+    // Before a profile is chosen, nothing can be exposed.
+    let prod = gateway.known_environment("prod").unwrap();
+    assert_eq!(
+        gateway.set_environment_exposed(&prod, true).await,
+        Err(InterfaceError::NoProfile)
+    );
+    assert!(exposed_environments(&gateway.snapshot().await).is_empty());
+
+    gateway
+        .set_profile(&gateway.known_profile("developpeur").unwrap())
+        .await
+        .unwrap();
+    let before = gateway.snapshot().await;
+    assert_eq!(exposed_environments(&before), ["dev", "int", "rec"]);
+
+    // Exposing PROD: its tools reach the clients, under the rules of the profile and the base.
+    gateway.set_environment_exposed(&prod, true).await.unwrap();
+    let exposed = gateway.snapshot().await;
+    assert_eq!(exposed_environments(&exposed), ["dev", "int", "rec", "prod"]);
+    let kibana_prod = exposed
+        .mcps
+        .iter()
+        .find(|m| m.id == "kibana-logs")
+        .unwrap()
+        .instances
+        .iter()
+        .find(|i| i.environment == "prod")
+        .unwrap();
+    assert!(kibana_prod.exposed);
+    assert!(kibana_prod.tools.iter().all(|t| t.exposed));
+    assert!(exposed.exposed_tools > before.exposed_tools);
+    // Asking again changes nothing and journals nothing.
+    gateway.set_environment_exposed(&prod, true).await.unwrap();
+
+    // Cutting Kibana Logs withdraws its tools only, in every environment.
+    let kibana = gateway.known_mcp("kibana-logs").unwrap();
+    gateway.set_mcp_exposed(&kibana, false).await.unwrap();
+    // The list watcher marks the instances « coupé » when it sees the settings change.
+    let mut cut = gateway.snapshot().await;
+    for _ in 0..500 {
+        let kibana_view = cut.mcps.iter().find(|m| m.id == "kibana-logs").unwrap();
+        if kibana_view.instances.iter().all(|i| i.state == "disabled") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        cut = gateway.snapshot().await;
+    }
+    let kibana_view = cut.mcps.iter().find(|m| m.id == "kibana-logs").unwrap();
+    assert!(kibana_view.disabled);
+    assert!(
+        kibana_view
+            .instances
+            .iter()
+            .all(|i| !i.exposed && i.state == "disabled")
+    );
+    let kibana_tools = kibana_view
+        .instances
+        .iter()
+        .filter(|i| ["dev", "int", "rec", "prod"].contains(&i.environment.as_str()))
+        .map(|i| i.tools.len())
+        .sum::<usize>();
+    assert_eq!(cut.exposed_tools, exposed.exposed_tools - kibana_tools);
+    let gitlab_dev = cut
+        .mcps
+        .iter()
+        .find(|m| m.id == "gitlab-ops")
+        .unwrap()
+        .instances
+        .iter()
+        .find(|i| i.environment == "dev")
+        .unwrap();
+    assert!(gitlab_dev.exposed, "the other MCPs stay exposed");
+
+    // Reloading is for what is exposed and not cut.
+    let kibana_dev = gateway.known_instance("dev", "kibana-logs").unwrap();
+    assert_eq!(gateway.reload_mcp(&kibana_dev).await, Err(InterfaceError::Disabled));
+    let gitlab_rec = gateway.known_instance("rec", "gitlab-ops").unwrap();
+    gateway.reload_mcp(&gitlab_rec).await.unwrap();
+    let k8s_pra = gateway.known_instance("pra", "k8s-admin").unwrap();
+    assert_eq!(gateway.reload_mcp(&k8s_pra).await, Err(InterfaceError::NotExposed));
+
+    // Nothing pending: acknowledging does nothing.
+    gateway.acknowledge_mcp_update(&kibana_dev);
+
+    gateway.set_mcp_exposed(&kibana, true).await.unwrap();
+    gateway.set_environment_exposed(&prod, false).await.unwrap();
+    assert_eq!(exposed_environments(&gateway.snapshot().await), ["dev", "int", "rec"]);
+    gateway.set_environment_exposed(&prod, true).await.unwrap();
+    gateway.set_mcp_exposed(&kibana, false).await.unwrap();
+
+    assert_eq!(
+        events(gateway)
+            .into_iter()
+            .filter(|e| e.starts_with("environnement") || e.starts_with("MCP"))
+            .collect::<Vec<_>>(),
+        [
+            "environnement « PROD » exposé par l'utilisateur",
+            "MCP « Kibana Logs » coupé par l'utilisateur",
+            "MCP « Kibana Logs » rétabli par l'utilisateur",
+            "environnement « PROD » retiré par l'utilisateur",
+            "environnement « PROD » exposé par l'utilisateur",
+            "MCP « Kibana Logs » coupé par l'utilisateur",
+        ]
+    );
+    drop(s);
+
+    // Sealed: both choices survive a restart.
+    let s = start(&dir).await;
+    let restarted = s.gateway.snapshot().await;
+    assert_eq!(exposed_environments(&restarted), ["dev", "int", "rec", "prod"]);
+    assert!(restarted.mcps.iter().find(|m| m.id == "kibana-logs").unwrap().disabled);
+}

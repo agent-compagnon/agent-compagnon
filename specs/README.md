@@ -67,7 +67,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [014](014-reglages-scelles.md) | 5d | Réglages scellés (HMAC + DPAPI) | implémentée | 004, 005, 011 | 8 |
 | [015](015-arret-urgence.md) | 5e | Arrêt d'urgence dans le menu de l'icône | implémentée | 007, 010, 011, 012 | 9 |
 | [016](016-ui-socle-connexions.md) | 6a | ui — socle Vue/shadcn-vue, en-tête et profil, onglet Connexions | implémentée | 011 | 10 |
-| [017](017-ui-mcp.md) | 6b | ui — onglet MCP | en cours | 008, 016 | 9 |
+| [017](017-ui-mcp.md) | 6b | ui — onglet MCP | en cours | 008, 016 | 12 |
 | [018](018-ui-journal.md) | 6c | ui — onglet Journal | prévue | 009, 016 | 9 |
 | [019](019-installation.md) | 7a | Installation au premier lancement | prévue | 011 | 8 |
 | [020](020-updater.md) | 7b | Updater Artifactory : signature ed25519, self-replace, canal bêta | prévue | 011, 019 | 11 |

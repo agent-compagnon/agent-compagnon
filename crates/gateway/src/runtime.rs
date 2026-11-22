@@ -336,6 +336,10 @@ impl Gateway {
         &self.authenticator
     }
 
+    pub(crate) fn registry(&self) -> &Arc<RwLock<Registry>> {
+        &self.registry
+    }
+
     pub fn watcher(&self) -> &ListWatcher {
         &self.watcher
     }

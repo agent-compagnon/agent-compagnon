@@ -20,6 +20,14 @@ export interface Backend {
   resumeGateway(): Promise<void>
   /** « Voir » in the banner of the waiting confirmations: their detail windows. Answers nothing. */
   showConfirmations(): Promise<void>
+  /** A pastille of the MCP tab: exposes the environment to the LLM clients, or withdraws it. */
+  setEnvironmentExposed(environment: string, exposed: boolean): Promise<void>
+  /** The switch of a row of the MCP tab: cuts the MCP in every environment, or puts it back. */
+  setMcpExposed(mcp: string, exposed: boolean): Promise<void>
+  /** « J'ai vu » in the banner of an updated MCP. */
+  acknowledgeMcpUpdate(environment: string, mcp: string): Promise<void>
+  /** « Recharger la liste » of an exposed instance. */
+  reloadMcp(environment: string, mcp: string): Promise<void>
 }
 
 /** The French reason of a refused command, as the application words it; a fixed text otherwise. */

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The MCP and Journal tabs arrive with specs 017 and 018.
+// The Journal tab arrives with spec 018.
 defineProps<{ text: string }>()
 </script>
 

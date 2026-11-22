@@ -26,6 +26,7 @@ export const AuthMethodSchema = v.picklist(['jwtHeader', 'cookie', 'basic'])
 export const CategorySchema = v.picklist(['read', 'write', 'destructive'])
 export const InstanceStateSchema = v.picklist(['catalogue', 'connected', 'sessionRequired', 'unreachable', 'disabled'])
 export const CatalogSourceSchema = v.picklist(['embedded', 'cache', 'live'])
+export const DecisionKindSchema = v.picklist(['allow', 'confirmElicitation', 'confirmNotification', 'deny'])
 
 export const AlertSchema = v.strictObject({
   level: AlertLevelSchema,
@@ -80,13 +81,30 @@ export const SessionViewSchema = v.strictObject({
   services: v.array(ServiceViewSchema),
 })
 
+/** A decision of the policy engine and why, in French (the text of the journal). */
+export const PolicyViewSchema = v.strictObject({
+  decision: DecisionKindSchema,
+  label: text,
+  explanation: text,
+})
+
+/** Default policy of an instance: the decision for a declared tool of each category without a rule of its own. */
+export const PolicySummaryViewSchema = v.strictObject({
+  read: PolicyViewSchema,
+  write: PolicyViewSchema,
+  destructive: PolicyViewSchema,
+})
+
 export const ToolViewSchema = v.strictObject({
   exposedName: text,
   name: text,
   title: text,
+  /** Given by the server, already filtered; empty without one. Shown as text, never as HTML. */
+  description: text,
   category: CategorySchema,
   known: v.boolean(),
   exposed: v.boolean(),
+  policy: PolicyViewSchema,
 })
 
 export const UpdateViewSchema = v.strictObject({
@@ -99,6 +117,9 @@ export const UpdateViewSchema = v.strictObject({
 export const InstanceViewSchema = v.strictObject({
   environment: text,
   exposed: v.boolean(),
+  /** The session its calls use; `null` without one. */
+  session: nullableText,
+  policy: PolicySummaryViewSchema,
   state: InstanceStateSchema,
   stateLabel: text,
   source: v.nullable(CatalogSourceSchema),
@@ -143,6 +164,11 @@ export type SessionStateKind = v.InferOutput<typeof SessionStateKindSchema>
 export type SessionStateView = v.InferOutput<typeof SessionStateViewSchema>
 export type ServiceView = v.InferOutput<typeof ServiceViewSchema>
 export type SessionView = v.InferOutput<typeof SessionViewSchema>
+export type Category = v.InferOutput<typeof CategorySchema>
+export type InstanceState = v.InferOutput<typeof InstanceStateSchema>
+export type DecisionKind = v.InferOutput<typeof DecisionKindSchema>
+export type PolicyView = v.InferOutput<typeof PolicyViewSchema>
+export type PolicySummaryView = v.InferOutput<typeof PolicySummaryViewSchema>
 export type ToolView = v.InferOutput<typeof ToolViewSchema>
 export type UpdateView = v.InferOutput<typeof UpdateViewSchema>
 export type InstanceView = v.InferOutput<typeof InstanceViewSchema>

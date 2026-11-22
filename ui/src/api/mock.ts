@@ -7,7 +7,7 @@
 
 import type { Backend } from './backend'
 import example from './snapshot.example.json'
-import { type AppSnapshot, type SessionStateView, parseSnapshot } from './types'
+import { type AppSnapshot, type McpView, type SessionStateView, type ToolView, parseSnapshot } from './types'
 
 /** Marker searched for in the application's build by `scripts/check-dist.mjs`. */
 export const MOCK_MARKER = 'mcp-proxy-simulated-backend'
@@ -21,6 +21,9 @@ export const SCENARIOS = [
   'reglages-reinitialises',
   'profil-webview',
   'mcp-mis-a-jour',
+  'seuil',
+  'volumineux',
+  'rien-expose',
 ] as const
 
 export type Scenario = (typeof SCENARIOS)[number]
@@ -146,13 +149,179 @@ export function scenario(name: Scenario, now: number): AppSnapshot {
             null,
         })),
       }))
+      addNewTools(snapshot, 'kibana-logs', 'rec', now)
+      return snapshot
+    }
+    case 'seuil': {
+      const snapshot = working(now)
+      snapshot.environments = snapshot.environments.map((e) => ({ ...e, exposed: true }))
+      return snapshot
+    }
+    case 'volumineux': {
+      const snapshot = working(now, 'support')
+      snapshot.environments = snapshot.environments.map((e) => ({ ...e, exposed: e.id !== 'pra' }))
+      snapshot.mcps.push(synthetic(snapshot, 'grafana', 'grafana', 'Grafana Dashboards', GRAFANA_TOOLS))
+      snapshot.mcps.push(synthetic(snapshot, 'vault-read', 'vault', 'Vault (lecture)', VAULT_TOOLS))
+      return snapshot
+    }
+    case 'rien-expose': {
+      const snapshot = working(now)
+      snapshot.environments = snapshot.environments.map((e) => ({ ...e, exposed: false }))
       return snapshot
     }
   }
 }
 
-/** Status of the icon, as `AppStatus::of` computes it. */
+/** Two tools listed by the server since the last visit, unknown to the configuration. */
+function addNewTools(snapshot: AppSnapshot, mcp: string, environment: string, now: number) {
+  const instance = snapshot.mcps.find((m) => m.id === mcp)?.instances.find((i) => i.environment === environment)
+  const label = snapshot.environments.find((e) => e.id === environment)?.label ?? environment
+  if (!instance) return
+  const fresh: [string, string][] = [
+    ['export_logs', 'Exports the matching log entries as a CSV file.'],
+    ['tail_logs', 'Streams the newest log entries of an index for a few seconds.'],
+  ]
+  for (const [name, description] of fresh) {
+    instance.tools.push({
+      exposedName: `${environment}_kibana_${name}`,
+      name,
+      title: `${label} · Kibana Logs · ${name}`,
+      description,
+      category: 'destructive',
+      known: false,
+      exposed: instance.exposed,
+      policy: {
+        decision: 'confirmNotification',
+        label: 'confirmation (notification)',
+        explanation: 'confirmation (notification) — outil inconnu de la config, profil « Développeur »',
+      },
+    })
+  }
+  instance.state = 'connected'
+  instance.source = 'live'
+  instance.refreshedAt = now - 120_000
+  instance.update = { added: fresh.map(([n]) => n), modified: ['search_logs'], removed: [], at: now - 120_000 }
+}
+
+const GRAFANA_TOOLS = [
+  'list_dashboards',
+  'get_dashboard',
+  'search_panels',
+  'query_datasource',
+  'list_datasources',
+  'get_alert_rules',
+  'list_alerts',
+  'silence_alert',
+  'create_annotation',
+  'list_annotations',
+  'get_panel_image',
+  'list_folders',
+  'get_folder',
+  'list_teams',
+  'get_team',
+  'list_users',
+  'get_user',
+  'update_dashboard',
+  'delete_dashboard',
+  'export_dashboard',
+]
+
+const VAULT_TOOLS = [
+  'list_mounts',
+  'list_secrets_paths',
+  'read_metadata',
+  'list_policies',
+  'read_policy',
+  'list_roles',
+  'read_role',
+  'audit_devices',
+  'health',
+  'leader',
+  'seal_status',
+  'list_leases',
+]
+
+/** An MCP that the example configuration does not have, in every environment, to see the table at scale. */
+function synthetic(snapshot: AppSnapshot, id: string, alias: string, label: string, names: string[]): McpView {
+  const model = snapshot.mcps.find((m) => m.id === 'kibana-logs')
+  return {
+    id,
+    alias,
+    label,
+    local: false,
+    disabled: false,
+    instances: snapshot.environments.map((environment) => {
+      const like = model?.instances.find((i) => i.environment === environment.id)
+      const policy = like?.policy ?? snapshot.mcps[0]?.instances[0]?.policy
+      if (!policy) throw new Error('snapshot.example.json has no instance')
+      const tools: ToolView[] = names.map((name) => {
+        const category = /^(delete|silence|update|create)/.test(name)
+          ? 'destructive'
+          : /^export/.test(name)
+            ? 'write'
+            : 'read'
+        return {
+          exposedName: `${environment.id}_${alias}_${name}`,
+          name,
+          title: `${environment.label} · ${label} · ${name}`,
+          description: `${name.replaceAll('_', ' ')} (${label}).`,
+          category,
+          known: true,
+          exposed: false,
+          policy: policy[category],
+        }
+      })
+      return {
+        environment: environment.id,
+        exposed: false,
+        session: like?.session ?? null,
+        policy,
+        state: 'catalogue' as const,
+        stateLabel: 'catalogue',
+        source: 'embedded' as const,
+        refreshedAt: null,
+        lastError: null,
+        tools,
+        update: null,
+      }
+    }),
+  }
+}
+
+/**
+ * Exposure, tool counter and threshold alert, as the gateway computes them: a tool is exposed when a profile is
+ * chosen, its environment is exposed and its MCP is not cut. A cut MCP shows « coupé »; put back, it shows
+ * « catalogue » (the gateway keeps the state of its last reload, the simulation does not).
+ */
+function withExposure(snapshot: AppSnapshot): AppSnapshot {
+  const exposedEnvironments = new Set(
+    snapshot.profile.chosen === null ? [] : snapshot.environments.filter((e) => e.exposed).map((e) => e.id),
+  )
+  let count = 0
+  for (const mcp of snapshot.mcps) {
+    for (const instance of mcp.instances) {
+      instance.exposed = exposedEnvironments.has(instance.environment) && !mcp.disabled
+      for (const tool of instance.tools) tool.exposed = instance.exposed
+      if (instance.exposed) count += instance.tools.length
+      if (mcp.disabled) instance.state = 'disabled'
+      else if (instance.state === 'disabled') instance.state = 'catalogue'
+    }
+  }
+  snapshot.exposedTools = count
+  snapshot.alerts = snapshot.alerts.filter((a) => a.kind !== 'toolThreshold')
+  if (count > snapshot.exposedToolsThreshold) {
+    snapshot.alerts.push({
+      level: 'attention',
+      kind: 'toolThreshold',
+      message: `${String(count)} outils exposés, au-delà du seuil de ${String(snapshot.exposedToolsThreshold)} : certains clients LLM en ignorent une partie.`,
+    })
+  }
+  return snapshot
+}
+
+/** Status of the icon, as `AppStatus::of` computes it, once the exposure is computed. */
 function withStatus(snapshot: AppSnapshot): AppSnapshot {
+  withExposure(snapshot)
   const waiting = snapshot.sessions.filter((s) => s.state.kind === 'loginRequested').length
   const errors = snapshot.alerts.filter((a) => a.level === 'error').length
   snapshot.status = snapshot.gatewaySuspended
@@ -165,6 +334,21 @@ function withStatus(snapshot: AppSnapshot): AppSnapshot {
   return snapshot
 }
 
+/** A command of the simulation: a thrown error is its refusal. */
+function attempt(action: () => void): Promise<void> {
+  try {
+    action()
+    return Promise.resolve()
+  } catch (error) {
+    return Promise.reject(error instanceof Error ? error : new Error(String(error)))
+  }
+}
+
+/** The snapshot of a scenario as the simulated backend first sends it: exposure, counter and status computed. */
+export function initialSnapshot(name: Scenario, now: number): AppSnapshot {
+  return withStatus(scenario(name, now))
+}
+
 export function scenarioOf(search: string): Scenario {
   const name = new URLSearchParams(search).get('scenario')
   return SCENARIOS.find((s) => s === name) ?? 'sessions'
@@ -172,7 +356,7 @@ export function scenarioOf(search: string): Scenario {
 
 /** A backend that answers like the application, from `scenario`, with a login that succeeds after a moment. */
 export function createMockBackend(name: Scenario, clock: () => number = Date.now): Backend {
-  let current = withStatus(scenario(name, clock()))
+  let current = initialSnapshot(name, clock())
   const listeners = new Set<(snapshot: AppSnapshot) => void>()
 
   function publish(change: (snapshot: AppSnapshot) => void) {
@@ -184,6 +368,15 @@ export function createMockBackend(name: Scenario, clock: () => number = Date.now
 
   function known(session: string) {
     if (!current.sessions.some((s) => s.id === session)) throw new Error('session inconnue')
+  }
+
+  function instance(environment: string, mcp: string) {
+    if (!current.environments.some((e) => e.id === environment)) throw new Error('environnement inconnu')
+    const found = current.mcps.find((m) => m.id === mcp)
+    if (!found) throw new Error('MCP inconnu')
+    const at = found.instances.find((i) => i.environment === environment)
+    if (!at) throw new Error("ce MCP n'existe pas dans cet environnement")
+    return { mcp: found, instance: at }
   }
 
   return {
@@ -241,6 +434,49 @@ export function createMockBackend(name: Scenario, clock: () => number = Date.now
       // The detail windows belong to the application; nothing is answered here either.
       console.info(MOCK_MARKER, 'show_confirmations')
       return Promise.resolve()
+    },
+    setEnvironmentExposed(environment, exposed) {
+      if (!current.environments.some((e) => e.id === environment))
+        return Promise.reject(new Error('environnement inconnu'))
+      if (exposed && current.profile.chosen === null) return Promise.reject(new Error("choisissez d'abord un profil"))
+      publish((s) => {
+        s.environments = s.environments.map((e) => (e.id === environment ? { ...e, exposed } : e))
+      })
+      return Promise.resolve()
+    },
+    setMcpExposed(mcp, exposed) {
+      if (!current.mcps.some((m) => m.id === mcp)) return Promise.reject(new Error('MCP inconnu'))
+      publish((s) => {
+        s.mcps = s.mcps.map((m) => (m.id === mcp ? { ...m, disabled: !exposed } : m))
+      })
+      return Promise.resolve()
+    },
+    acknowledgeMcpUpdate(environment, mcp) {
+      return attempt(() => {
+        instance(environment, mcp)
+        publish((s) => {
+          const target = s.mcps.find((m) => m.id === mcp)?.instances.find((i) => i.environment === environment)
+          if (target) target.update = null
+        })
+      })
+    },
+    reloadMcp(environment, mcp) {
+      return attempt(() => {
+        const found = instance(environment, mcp)
+        if (found.mcp.disabled) throw new Error("ce MCP est coupé, sa liste n'est pas rechargée")
+        if (!found.instance.exposed)
+          throw new Error("ce MCP n'est pas exposé dans cet environnement, sa liste n'est pas rechargée")
+        publish((s) => {
+          const target = s.mcps.find((m) => m.id === mcp)?.instances.find((i) => i.environment === environment)
+          if (target) {
+            target.state = 'connected'
+            target.stateLabel = 'connecté'
+            target.lastError = null
+            target.source = 'live'
+            target.refreshedAt = clock()
+          }
+        })
+      })
     },
   }
 }

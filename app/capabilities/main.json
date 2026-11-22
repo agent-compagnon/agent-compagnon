@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Main window of MCP Proxy: reads the snapshot, listens to its changes, and sends the commands of the interface (spec 016): log in or out of a session, choose the profile, resume the gateway, show the waiting confirmations. Never answers a confirmation. No remote URL.",
+  "description": "Main window of MCP Proxy: reads the snapshot, listens to its changes, and sends the commands of the interface: log in or out of a session, choose the profile, resume the gateway, show the waiting confirmations (spec 016); expose an environment, cut an MCP, acknowledge the update of an MCP, reload its list (spec 017). Never answers a confirmation. No remote URL.",
   "windows": ["main"],
   "permissions": [
     "allow-get-snapshot",
@@ -10,6 +10,10 @@
     "allow-set-profile",
     "allow-resume-gateway",
     "allow-show-confirmations",
+    "allow-set-environment-exposed",
+    "allow-set-mcp-exposed",
+    "allow-acknowledge-mcp-update",
+    "allow-reload-mcp",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

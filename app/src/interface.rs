@@ -1,4 +1,4 @@
-//! Commands of the main window (spec 016), each declared in `build.rs` and granted to the window `main` alone by
+//! Commands of the main window (specs 016 and 017), each declared in `build.rs` and granted to the window `main` alone by
 //! `capabilities/main.json`. Wiring only: the checks and the effects live in `mcp_proxy_gateway::interface`. An
 //! error is a French text without any secret, shown by the window.
 
@@ -67,4 +67,40 @@ pub async fn show_confirmations(window: WebviewWindow) -> Result<(), String> {
     let gateway = gateway_for(&window)?;
     gateway.show_confirmations().await;
     Ok(())
+}
+
+/// A pastille of the MCP tab: exposes the environment, or withdraws it.
+#[tauri::command]
+pub async fn set_environment_exposed(window: WebviewWindow, environment: String, exposed: bool) -> Result<(), String> {
+    let gateway = gateway_for(&window)?;
+    let id = gateway.known_environment(&environment).map_err(|e| e.to_string())?;
+    gateway
+        .set_environment_exposed(&id, exposed)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// The switch of a row of the MCP tab: cuts the MCP in every environment, or puts it back.
+#[tauri::command]
+pub async fn set_mcp_exposed(window: WebviewWindow, mcp: String, exposed: bool) -> Result<(), String> {
+    let gateway = gateway_for(&window)?;
+    let id = gateway.known_mcp(&mcp).map_err(|e| e.to_string())?;
+    gateway.set_mcp_exposed(&id, exposed).await.map_err(|e| e.to_string())
+}
+
+/// « J'ai vu » in the banner of an updated MCP.
+#[tauri::command]
+pub async fn acknowledge_mcp_update(window: WebviewWindow, environment: String, mcp: String) -> Result<(), String> {
+    let gateway = gateway_for(&window)?;
+    let instance = gateway.known_instance(&environment, &mcp).map_err(|e| e.to_string())?;
+    gateway.acknowledge_mcp_update(&instance);
+    Ok(())
+}
+
+/// « Recharger » in the row of an exposed instance: its list is read again.
+#[tauri::command]
+pub async fn reload_mcp(window: WebviewWindow, environment: String, mcp: String) -> Result<(), String> {
+    let gateway = gateway_for(&window)?;
+    let instance = gateway.known_instance(&environment, &mcp).map_err(|e| e.to_string())?;
+    gateway.reload_mcp(&instance).await.map_err(|e| e.to_string())
 }

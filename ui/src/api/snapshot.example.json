@@ -347,6 +347,24 @@
         {
           "environment": "dev",
           "exposed": true,
+          "session": "sso-dev",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « default » de DEV, profil « Développeur »"
+            },
+            "destructive": {
+              "decision": "confirmElicitation",
+              "label": "confirmation (elicitation)",
+              "explanation": "confirmation (elicitation) — règle « destructive » de DEV, profil « Développeur »"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -357,33 +375,57 @@
               "exposedName": "dev_kibana_delete_index",
               "name": "delete_index",
               "title": "DEV · Kibana Logs · delete_index",
+              "description": "Deletes a log index and all its documents.",
               "category": "destructive",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmElicitation",
+                "label": "confirmation (elicitation)",
+                "explanation": "confirmation (elicitation) — règle « destructive » de DEV, profil « Développeur »"
+              }
             },
             {
               "exposedName": "dev_kibana_get_log_entry",
               "name": "get_log_entry",
               "title": "DEV · Kibana Logs · get_log_entry",
+              "description": "Returns one log entry by index and identifier.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "dev_kibana_list_indices",
               "name": "list_indices",
               "title": "DEV · Kibana Logs · list_indices",
+              "description": "Lists the log indices with their size and document count.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "dev_kibana_search_logs",
               "name": "search_logs",
               "title": "DEV · Kibana Logs · search_logs",
+              "description": "Searches log entries matching a Lucene query over a time range.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             }
           ],
           "update": null
@@ -391,6 +433,24 @@
         {
           "environment": "int",
           "exposed": true,
+          "session": "sso-int",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « default » de INT, profil « Développeur »"
+            },
+            "destructive": {
+              "decision": "confirmElicitation",
+              "label": "confirmation (elicitation)",
+              "explanation": "confirmation (elicitation) — règle « destructive » de INT, profil « Développeur »"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -401,33 +461,57 @@
               "exposedName": "int_kibana_delete_index",
               "name": "delete_index",
               "title": "INT · Kibana Logs · delete_index",
+              "description": "Deletes a log index and all its documents.",
               "category": "destructive",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmElicitation",
+                "label": "confirmation (elicitation)",
+                "explanation": "confirmation (elicitation) — règle « destructive » de INT, profil « Développeur »"
+              }
             },
             {
               "exposedName": "int_kibana_get_log_entry",
               "name": "get_log_entry",
               "title": "INT · Kibana Logs · get_log_entry",
+              "description": "Returns one log entry by index and identifier.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "int_kibana_list_indices",
               "name": "list_indices",
               "title": "INT · Kibana Logs · list_indices",
+              "description": "Lists the log indices with their size and document count.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "int_kibana_search_logs",
               "name": "search_logs",
               "title": "INT · Kibana Logs · search_logs",
+              "description": "Searches log entries matching a Lucene query over a time range.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             }
           ],
           "update": null
@@ -435,6 +519,24 @@
         {
           "environment": "qua",
           "exposed": false,
+          "session": "sso-qua",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "confirmNotification",
+              "label": "confirmation (notification)",
+              "explanation": "confirmation (notification) — règle « default » de la racine"
+            },
+            "destructive": {
+              "decision": "deny",
+              "label": "refusé",
+              "explanation": "refusé — règle « destructive » de la racine"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -445,33 +547,57 @@
               "exposedName": "qua_kibana_delete_index",
               "name": "delete_index",
               "title": "QUA · Kibana Logs · delete_index",
+              "description": "Deletes a log index and all its documents.",
               "category": "destructive",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "deny",
+                "label": "refusé",
+                "explanation": "refusé — règle « destructive » de la racine"
+              }
             },
             {
               "exposedName": "qua_kibana_get_log_entry",
               "name": "get_log_entry",
               "title": "QUA · Kibana Logs · get_log_entry",
+              "description": "Returns one log entry by index and identifier.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "qua_kibana_list_indices",
               "name": "list_indices",
               "title": "QUA · Kibana Logs · list_indices",
+              "description": "Lists the log indices with their size and document count.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "qua_kibana_search_logs",
               "name": "search_logs",
               "title": "QUA · Kibana Logs · search_logs",
+              "description": "Searches log entries matching a Lucene query over a time range.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             }
           ],
           "update": null
@@ -479,6 +605,24 @@
         {
           "environment": "rec",
           "exposed": true,
+          "session": "sso-rec",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « default » de REC, profil « Développeur »"
+            },
+            "destructive": {
+              "decision": "confirmElicitation",
+              "label": "confirmation (elicitation)",
+              "explanation": "confirmation (elicitation) — règle « destructive » de REC, profil « Développeur »"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -489,33 +633,57 @@
               "exposedName": "rec_kibana_delete_index",
               "name": "delete_index",
               "title": "REC · Kibana Logs · delete_index",
+              "description": "Deletes a log index and all its documents.",
               "category": "destructive",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmElicitation",
+                "label": "confirmation (elicitation)",
+                "explanation": "confirmation (elicitation) — règle « destructive » de REC, profil « Développeur »"
+              }
             },
             {
               "exposedName": "rec_kibana_get_log_entry",
               "name": "get_log_entry",
               "title": "REC · Kibana Logs · get_log_entry",
+              "description": "Returns one log entry by index and identifier.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "rec_kibana_list_indices",
               "name": "list_indices",
               "title": "REC · Kibana Logs · list_indices",
+              "description": "Lists the log indices with their size and document count.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "rec_kibana_search_logs",
               "name": "search_logs",
               "title": "REC · Kibana Logs · search_logs",
+              "description": "Searches log entries matching a Lucene query over a time range.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             }
           ],
           "update": null
@@ -523,6 +691,24 @@
         {
           "environment": "perf",
           "exposed": false,
+          "session": "sso-perf",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "confirmNotification",
+              "label": "confirmation (notification)",
+              "explanation": "confirmation (notification) — règle « default » de la racine"
+            },
+            "destructive": {
+              "decision": "deny",
+              "label": "refusé",
+              "explanation": "refusé — règle « destructive » de la racine"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -533,33 +719,57 @@
               "exposedName": "perf_kibana_delete_index",
               "name": "delete_index",
               "title": "PERF · Kibana Logs · delete_index",
+              "description": "Deletes a log index and all its documents.",
               "category": "destructive",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "deny",
+                "label": "refusé",
+                "explanation": "refusé — règle « destructive » de la racine"
+              }
             },
             {
               "exposedName": "perf_kibana_get_log_entry",
               "name": "get_log_entry",
               "title": "PERF · Kibana Logs · get_log_entry",
+              "description": "Returns one log entry by index and identifier.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "perf_kibana_list_indices",
               "name": "list_indices",
               "title": "PERF · Kibana Logs · list_indices",
+              "description": "Lists the log indices with their size and document count.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "perf_kibana_search_logs",
               "name": "search_logs",
               "title": "PERF · Kibana Logs · search_logs",
+              "description": "Searches log entries matching a Lucene query over a time range.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             }
           ],
           "update": null
@@ -567,6 +777,24 @@
         {
           "environment": "pprod",
           "exposed": false,
+          "session": "sso-pprod",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "confirmNotification",
+              "label": "confirmation (notification)",
+              "explanation": "confirmation (notification) — règle « write » de PPROD, verrouillée"
+            },
+            "destructive": {
+              "decision": "deny",
+              "label": "refusé",
+              "explanation": "refusé — règle « destructive » de la racine"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -577,33 +805,57 @@
               "exposedName": "pprod_kibana_delete_index",
               "name": "delete_index",
               "title": "PPROD · Kibana Logs · delete_index",
+              "description": "Deletes a log index and all its documents.",
               "category": "destructive",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "deny",
+                "label": "refusé",
+                "explanation": "refusé — règle « destructive » de la racine"
+              }
             },
             {
               "exposedName": "pprod_kibana_get_log_entry",
               "name": "get_log_entry",
               "title": "PPROD · Kibana Logs · get_log_entry",
+              "description": "Returns one log entry by index and identifier.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "pprod_kibana_list_indices",
               "name": "list_indices",
               "title": "PPROD · Kibana Logs · list_indices",
+              "description": "Lists the log indices with their size and document count.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "pprod_kibana_search_logs",
               "name": "search_logs",
               "title": "PPROD · Kibana Logs · search_logs",
+              "description": "Searches log entries matching a Lucene query over a time range.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             }
           ],
           "update": null
@@ -611,6 +863,24 @@
         {
           "environment": "prod",
           "exposed": true,
+          "session": "sso-prod",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "confirmNotification",
+              "label": "confirmation (notification)",
+              "explanation": "confirmation (notification) — règle « write » de PROD, verrouillée"
+            },
+            "destructive": {
+              "decision": "deny",
+              "label": "refusé",
+              "explanation": "refusé — règle « destructive » de la racine"
+            }
+          },
           "state": "unreachable",
           "stateLabel": "injoignable",
           "source": "embedded",
@@ -621,33 +891,57 @@
               "exposedName": "prod_kibana_delete_index",
               "name": "delete_index",
               "title": "PROD · Kibana Logs · delete_index",
+              "description": "Deletes a log index and all its documents.",
               "category": "destructive",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "deny",
+                "label": "refusé",
+                "explanation": "refusé — règle de l'outil « delete_index » de Kibana Logs en PROD, verrouillée"
+              }
             },
             {
               "exposedName": "prod_kibana_get_log_entry",
               "name": "get_log_entry",
               "title": "PROD · Kibana Logs · get_log_entry",
+              "description": "Returns one log entry by index and identifier.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "prod_kibana_list_indices",
               "name": "list_indices",
               "title": "PROD · Kibana Logs · list_indices",
+              "description": "Lists the log indices with their size and document count.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "prod_kibana_search_logs",
               "name": "search_logs",
               "title": "PROD · Kibana Logs · search_logs",
+              "description": "Searches log entries matching a Lucene query over a time range.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             }
           ],
           "update": null
@@ -655,6 +949,24 @@
         {
           "environment": "pra",
           "exposed": false,
+          "session": "sso-pra",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "confirmNotification",
+              "label": "confirmation (notification)",
+              "explanation": "confirmation (notification) — règle « default » de la racine"
+            },
+            "destructive": {
+              "decision": "deny",
+              "label": "refusé",
+              "explanation": "refusé — règle « destructive » de la racine"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -665,33 +977,57 @@
               "exposedName": "pra_kibana_delete_index",
               "name": "delete_index",
               "title": "PRA · Kibana Logs · delete_index",
+              "description": "Deletes a log index and all its documents.",
               "category": "destructive",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "deny",
+                "label": "refusé",
+                "explanation": "refusé — règle « destructive » de la racine"
+              }
             },
             {
               "exposedName": "pra_kibana_get_log_entry",
               "name": "get_log_entry",
               "title": "PRA · Kibana Logs · get_log_entry",
+              "description": "Returns one log entry by index and identifier.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "pra_kibana_list_indices",
               "name": "list_indices",
               "title": "PRA · Kibana Logs · list_indices",
+              "description": "Lists the log indices with their size and document count.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "pra_kibana_search_logs",
               "name": "search_logs",
               "title": "PRA · Kibana Logs · search_logs",
+              "description": "Searches log entries matching a Lucene query over a time range.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             }
           ],
           "update": null
@@ -708,9 +1044,27 @@
         {
           "environment": "dev",
           "exposed": true,
+          "session": "sso-corp",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « default » de DEV, profil « Développeur »"
+            },
+            "destructive": {
+              "decision": "confirmElicitation",
+              "label": "confirmation (elicitation)",
+              "explanation": "confirmation (elicitation) — règle « destructive » de DEV, profil « Développeur »"
+            }
+          },
           "state": "connected",
           "stateLabel": "connecté",
-          "source": "embedded",
+          "source": "live",
           "refreshedAt": 1795355940000,
           "lastError": null,
           "tools": [
@@ -718,57 +1072,99 @@
               "exposedName": "dev_gitlab_add_merge_request_note",
               "name": "add_merge_request_note",
               "title": "DEV · GitLab Ops · add_merge_request_note",
+              "description": "Adds a comment to a merge request.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « default » de DEV, profil « Développeur »"
+              }
             },
             {
               "exposedName": "dev_gitlab_cancel_pipeline",
               "name": "cancel_pipeline",
               "title": "DEV · GitLab Ops · cancel_pipeline",
+              "description": "Cancels a running pipeline.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « default » de DEV, profil « Développeur »"
+              }
             },
             {
               "exposedName": "dev_gitlab_delete_branch",
               "name": "delete_branch",
               "title": "DEV · GitLab Ops · delete_branch",
+              "description": "Deletes a branch of a project.",
               "category": "destructive",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmElicitation",
+                "label": "confirmation (elicitation)",
+                "explanation": "confirmation (elicitation) — règle « destructive » de DEV, profil « Développeur »"
+              }
             },
             {
               "exposedName": "dev_gitlab_get_job_log",
               "name": "get_job_log",
               "title": "DEV · GitLab Ops · get_job_log",
+              "description": "Returns the trace of a CI job.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "dev_gitlab_get_merge_request",
               "name": "get_merge_request",
               "title": "DEV · GitLab Ops · get_merge_request",
+              "description": "Returns a merge request with its description, approvals and pipeline status.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "dev_gitlab_list_pipelines",
               "name": "list_pipelines",
               "title": "DEV · GitLab Ops · list_pipelines",
+              "description": "Lists the latest pipelines of a project, optionally filtered by ref and status.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
-              "exposedName": "dev_gitlab_retry_job",
-              "name": "retry_job",
-              "title": "DEV · GitLab Ops · retry_job",
-              "category": "write",
-              "known": true,
-              "exposed": true
+              "exposedName": "dev_gitlab_list_runners",
+              "name": "list_runners",
+              "title": "DEV · GitLab Ops · list_runners",
+              "description": "Lists the CI runners available to a project.",
+              "category": "destructive",
+              "known": false,
+              "exposed": true,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — outil inconnu de la config, profil « Développeur »"
+              }
             }
           ],
           "update": {
@@ -785,6 +1181,24 @@
         {
           "environment": "rec",
           "exposed": true,
+          "session": "sso-corp",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « default » de REC, profil « Développeur »"
+            },
+            "destructive": {
+              "decision": "confirmElicitation",
+              "label": "confirmation (elicitation)",
+              "explanation": "confirmation (elicitation) — règle « destructive » de REC, profil « Développeur »"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -795,57 +1209,99 @@
               "exposedName": "rec_gitlab_add_merge_request_note",
               "name": "add_merge_request_note",
               "title": "REC · GitLab Ops · add_merge_request_note",
+              "description": "Adds a comment to a merge request.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « default » de REC, profil « Développeur »"
+              }
             },
             {
               "exposedName": "rec_gitlab_cancel_pipeline",
               "name": "cancel_pipeline",
               "title": "REC · GitLab Ops · cancel_pipeline",
+              "description": "Cancels a running pipeline.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « default » de REC, profil « Développeur »"
+              }
             },
             {
               "exposedName": "rec_gitlab_delete_branch",
               "name": "delete_branch",
               "title": "REC · GitLab Ops · delete_branch",
+              "description": "Deletes a branch of a project.",
               "category": "destructive",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmElicitation",
+                "label": "confirmation (elicitation)",
+                "explanation": "confirmation (elicitation) — règle « destructive » de REC, profil « Développeur »"
+              }
             },
             {
               "exposedName": "rec_gitlab_get_job_log",
               "name": "get_job_log",
               "title": "REC · GitLab Ops · get_job_log",
+              "description": "Returns the trace of a CI job.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "rec_gitlab_get_merge_request",
               "name": "get_merge_request",
               "title": "REC · GitLab Ops · get_merge_request",
+              "description": "Returns a merge request with its description, approvals and pipeline status.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "rec_gitlab_list_pipelines",
               "name": "list_pipelines",
               "title": "REC · GitLab Ops · list_pipelines",
+              "description": "Lists the latest pipelines of a project, optionally filtered by ref and status.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "rec_gitlab_retry_job",
               "name": "retry_job",
               "title": "REC · GitLab Ops · retry_job",
+              "description": "Retries a failed or canceled CI job.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « default » de REC, profil « Développeur »"
+              }
             }
           ],
           "update": null
@@ -853,6 +1309,24 @@
         {
           "environment": "prod",
           "exposed": true,
+          "session": "sso-corp",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "confirmNotification",
+              "label": "confirmation (notification)",
+              "explanation": "confirmation (notification) — règle « write » de PROD, verrouillée"
+            },
+            "destructive": {
+              "decision": "deny",
+              "label": "refusé",
+              "explanation": "refusé — règle « destructive » de la racine"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -863,57 +1337,99 @@
               "exposedName": "prod_gitlab_add_merge_request_note",
               "name": "add_merge_request_note",
               "title": "PROD · GitLab Ops · add_merge_request_note",
+              "description": "Adds a comment to a merge request.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — règle « write » de PROD, verrouillée"
+              }
             },
             {
               "exposedName": "prod_gitlab_cancel_pipeline",
               "name": "cancel_pipeline",
               "title": "PROD · GitLab Ops · cancel_pipeline",
+              "description": "Cancels a running pipeline.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — règle « write » de PROD, verrouillée"
+              }
             },
             {
               "exposedName": "prod_gitlab_delete_branch",
               "name": "delete_branch",
               "title": "PROD · GitLab Ops · delete_branch",
+              "description": "Deletes a branch of a project.",
               "category": "destructive",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "deny",
+                "label": "refusé",
+                "explanation": "refusé — règle « destructive » de la racine"
+              }
             },
             {
               "exposedName": "prod_gitlab_get_job_log",
               "name": "get_job_log",
               "title": "PROD · GitLab Ops · get_job_log",
+              "description": "Returns the trace of a CI job.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "prod_gitlab_get_merge_request",
               "name": "get_merge_request",
               "title": "PROD · GitLab Ops · get_merge_request",
+              "description": "Returns a merge request with its description, approvals and pipeline status.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "prod_gitlab_list_pipelines",
               "name": "list_pipelines",
               "title": "PROD · GitLab Ops · list_pipelines",
+              "description": "Lists the latest pipelines of a project, optionally filtered by ref and status.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "prod_gitlab_retry_job",
               "name": "retry_job",
               "title": "PROD · GitLab Ops · retry_job",
+              "description": "Retries a failed or canceled CI job.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — règle « write » de PROD, verrouillée"
+              }
             }
           ],
           "update": null
@@ -930,6 +1446,24 @@
         {
           "environment": "dev",
           "exposed": true,
+          "session": "sso-dev",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « default » de DEV, profil « Développeur »"
+            },
+            "destructive": {
+              "decision": "confirmElicitation",
+              "label": "confirmation (elicitation)",
+              "explanation": "confirmation (elicitation) — règle « destructive » de DEV, profil « Développeur »"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -940,41 +1474,71 @@
               "exposedName": "dev_k8s_delete_pod",
               "name": "delete_pod",
               "title": "DEV · Kubernetes Admin · delete_pod",
+              "description": "Deletes a pod; its controller may recreate it.",
               "category": "destructive",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmElicitation",
+                "label": "confirmation (elicitation)",
+                "explanation": "confirmation (elicitation) — règle « destructive » de DEV, profil « Développeur »"
+              }
             },
             {
               "exposedName": "dev_k8s_get_pod_logs",
               "name": "get_pod_logs",
               "title": "DEV · Kubernetes Admin · get_pod_logs",
+              "description": "Returns the last lines of a container's logs.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "dev_k8s_list_pods",
               "name": "list_pods",
               "title": "DEV · Kubernetes Admin · list_pods",
+              "description": "Lists the pods of a namespace with their status and restarts.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "dev_k8s_restart_deployment",
               "name": "restart_deployment",
               "title": "DEV · Kubernetes Admin · restart_deployment",
+              "description": "Triggers a rolling restart of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « default » de DEV, profil « Développeur »"
+              }
             },
             {
               "exposedName": "dev_k8s_scale_deployment",
               "name": "scale_deployment",
               "title": "DEV · Kubernetes Admin · scale_deployment",
+              "description": "Sets the number of replicas of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « default » de DEV, profil « Développeur »"
+              }
             }
           ],
           "update": null
@@ -982,6 +1546,24 @@
         {
           "environment": "int",
           "exposed": true,
+          "session": "sso-int",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « default » de INT, profil « Développeur »"
+            },
+            "destructive": {
+              "decision": "confirmElicitation",
+              "label": "confirmation (elicitation)",
+              "explanation": "confirmation (elicitation) — règle « destructive » de INT, profil « Développeur »"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -992,41 +1574,71 @@
               "exposedName": "int_k8s_delete_pod",
               "name": "delete_pod",
               "title": "INT · Kubernetes Admin · delete_pod",
+              "description": "Deletes a pod; its controller may recreate it.",
               "category": "destructive",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmElicitation",
+                "label": "confirmation (elicitation)",
+                "explanation": "confirmation (elicitation) — règle « destructive » de INT, profil « Développeur »"
+              }
             },
             {
               "exposedName": "int_k8s_get_pod_logs",
               "name": "get_pod_logs",
               "title": "INT · Kubernetes Admin · get_pod_logs",
+              "description": "Returns the last lines of a container's logs.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "int_k8s_list_pods",
               "name": "list_pods",
               "title": "INT · Kubernetes Admin · list_pods",
+              "description": "Lists the pods of a namespace with their status and restarts.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "int_k8s_restart_deployment",
               "name": "restart_deployment",
               "title": "INT · Kubernetes Admin · restart_deployment",
+              "description": "Triggers a rolling restart of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « default » de INT, profil « Développeur »"
+              }
             },
             {
               "exposedName": "int_k8s_scale_deployment",
               "name": "scale_deployment",
               "title": "INT · Kubernetes Admin · scale_deployment",
+              "description": "Sets the number of replicas of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « default » de INT, profil « Développeur »"
+              }
             }
           ],
           "update": null
@@ -1034,6 +1646,24 @@
         {
           "environment": "rec",
           "exposed": true,
+          "session": "sso-rec",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « default » de REC, profil « Développeur »"
+            },
+            "destructive": {
+              "decision": "confirmElicitation",
+              "label": "confirmation (elicitation)",
+              "explanation": "confirmation (elicitation) — règle « destructive » de REC, profil « Développeur »"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -1044,41 +1674,71 @@
               "exposedName": "rec_k8s_delete_pod",
               "name": "delete_pod",
               "title": "REC · Kubernetes Admin · delete_pod",
+              "description": "Deletes a pod; its controller may recreate it.",
               "category": "destructive",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmElicitation",
+                "label": "confirmation (elicitation)",
+                "explanation": "confirmation (elicitation) — règle « destructive » de REC, profil « Développeur »"
+              }
             },
             {
               "exposedName": "rec_k8s_get_pod_logs",
               "name": "get_pod_logs",
               "title": "REC · Kubernetes Admin · get_pod_logs",
+              "description": "Returns the last lines of a container's logs.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "rec_k8s_list_pods",
               "name": "list_pods",
               "title": "REC · Kubernetes Admin · list_pods",
+              "description": "Lists the pods of a namespace with their status and restarts.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "rec_k8s_restart_deployment",
               "name": "restart_deployment",
               "title": "REC · Kubernetes Admin · restart_deployment",
+              "description": "Triggers a rolling restart of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « default » de REC, profil « Développeur »"
+              }
             },
             {
               "exposedName": "rec_k8s_scale_deployment",
               "name": "scale_deployment",
               "title": "REC · Kubernetes Admin · scale_deployment",
+              "description": "Sets the number of replicas of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « default » de REC, profil « Développeur »"
+              }
             }
           ],
           "update": null
@@ -1086,6 +1746,24 @@
         {
           "environment": "perf",
           "exposed": false,
+          "session": "sso-perf",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "confirmNotification",
+              "label": "confirmation (notification)",
+              "explanation": "confirmation (notification) — règle « default » de la racine"
+            },
+            "destructive": {
+              "decision": "deny",
+              "label": "refusé",
+              "explanation": "refusé — règle « destructive » de la racine"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -1096,41 +1774,71 @@
               "exposedName": "perf_k8s_delete_pod",
               "name": "delete_pod",
               "title": "PERF · Kubernetes Admin · delete_pod",
+              "description": "Deletes a pod; its controller may recreate it.",
               "category": "destructive",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "deny",
+                "label": "refusé",
+                "explanation": "refusé — règle « destructive » de la racine"
+              }
             },
             {
               "exposedName": "perf_k8s_get_pod_logs",
               "name": "get_pod_logs",
               "title": "PERF · Kubernetes Admin · get_pod_logs",
+              "description": "Returns the last lines of a container's logs.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "perf_k8s_list_pods",
               "name": "list_pods",
               "title": "PERF · Kubernetes Admin · list_pods",
+              "description": "Lists the pods of a namespace with their status and restarts.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "perf_k8s_restart_deployment",
               "name": "restart_deployment",
               "title": "PERF · Kubernetes Admin · restart_deployment",
+              "description": "Triggers a rolling restart of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — règle « default » de la racine"
+              }
             },
             {
               "exposedName": "perf_k8s_scale_deployment",
               "name": "scale_deployment",
               "title": "PERF · Kubernetes Admin · scale_deployment",
+              "description": "Sets the number of replicas of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — règle « default » de la racine"
+              }
             }
           ],
           "update": null
@@ -1138,6 +1846,24 @@
         {
           "environment": "pprod",
           "exposed": false,
+          "session": "sso-pprod",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "confirmNotification",
+              "label": "confirmation (notification)",
+              "explanation": "confirmation (notification) — règle « write » de PPROD, verrouillée"
+            },
+            "destructive": {
+              "decision": "deny",
+              "label": "refusé",
+              "explanation": "refusé — règle « destructive » de la racine"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -1148,41 +1874,71 @@
               "exposedName": "pprod_k8s_delete_pod",
               "name": "delete_pod",
               "title": "PPROD · Kubernetes Admin · delete_pod",
+              "description": "Deletes a pod; its controller may recreate it.",
               "category": "destructive",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "deny",
+                "label": "refusé",
+                "explanation": "refusé — règle « destructive » de la racine"
+              }
             },
             {
               "exposedName": "pprod_k8s_get_pod_logs",
               "name": "get_pod_logs",
               "title": "PPROD · Kubernetes Admin · get_pod_logs",
+              "description": "Returns the last lines of a container's logs.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "pprod_k8s_list_pods",
               "name": "list_pods",
               "title": "PPROD · Kubernetes Admin · list_pods",
+              "description": "Lists the pods of a namespace with their status and restarts.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "pprod_k8s_restart_deployment",
               "name": "restart_deployment",
               "title": "PPROD · Kubernetes Admin · restart_deployment",
+              "description": "Triggers a rolling restart of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — règle « write » de PPROD, verrouillée"
+              }
             },
             {
               "exposedName": "pprod_k8s_scale_deployment",
               "name": "scale_deployment",
               "title": "PPROD · Kubernetes Admin · scale_deployment",
+              "description": "Sets the number of replicas of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — règle « write » de PPROD, verrouillée"
+              }
             }
           ],
           "update": null
@@ -1190,6 +1946,24 @@
         {
           "environment": "prod",
           "exposed": true,
+          "session": "sso-prod",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "confirmNotification",
+              "label": "confirmation (notification)",
+              "explanation": "confirmation (notification) — règle « write » de PROD, verrouillée"
+            },
+            "destructive": {
+              "decision": "deny",
+              "label": "refusé",
+              "explanation": "refusé — règle « destructive » de Kubernetes Admin en PROD, verrouillée"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -1200,41 +1974,71 @@
               "exposedName": "prod_k8s_delete_pod",
               "name": "delete_pod",
               "title": "PROD · Kubernetes Admin · delete_pod",
+              "description": "Deletes a pod; its controller may recreate it.",
               "category": "destructive",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "deny",
+                "label": "refusé",
+                "explanation": "refusé — règle « destructive » de Kubernetes Admin en PROD, verrouillée"
+              }
             },
             {
               "exposedName": "prod_k8s_get_pod_logs",
               "name": "get_pod_logs",
               "title": "PROD · Kubernetes Admin · get_pod_logs",
+              "description": "Returns the last lines of a container's logs.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "prod_k8s_list_pods",
               "name": "list_pods",
               "title": "PROD · Kubernetes Admin · list_pods",
+              "description": "Lists the pods of a namespace with their status and restarts.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "prod_k8s_restart_deployment",
               "name": "restart_deployment",
               "title": "PROD · Kubernetes Admin · restart_deployment",
+              "description": "Triggers a rolling restart of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — règle « write » de PROD, verrouillée"
+              }
             },
             {
               "exposedName": "prod_k8s_scale_deployment",
               "name": "scale_deployment",
               "title": "PROD · Kubernetes Admin · scale_deployment",
+              "description": "Sets the number of replicas of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — règle « write » de PROD, verrouillée"
+              }
             }
           ],
           "update": null
@@ -1242,6 +2046,24 @@
         {
           "environment": "pra",
           "exposed": false,
+          "session": "sso-pra",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "confirmNotification",
+              "label": "confirmation (notification)",
+              "explanation": "confirmation (notification) — règle « default » de la racine"
+            },
+            "destructive": {
+              "decision": "deny",
+              "label": "refusé",
+              "explanation": "refusé — règle « destructive » de la racine"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -1252,41 +2074,71 @@
               "exposedName": "pra_k8s_delete_pod",
               "name": "delete_pod",
               "title": "PRA · Kubernetes Admin · delete_pod",
+              "description": "Deletes a pod; its controller may recreate it.",
               "category": "destructive",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "deny",
+                "label": "refusé",
+                "explanation": "refusé — règle « destructive » de la racine"
+              }
             },
             {
               "exposedName": "pra_k8s_get_pod_logs",
               "name": "get_pod_logs",
               "title": "PRA · Kubernetes Admin · get_pod_logs",
+              "description": "Returns the last lines of a container's logs.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "pra_k8s_list_pods",
               "name": "list_pods",
               "title": "PRA · Kubernetes Admin · list_pods",
+              "description": "Lists the pods of a namespace with their status and restarts.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "pra_k8s_restart_deployment",
               "name": "restart_deployment",
               "title": "PRA · Kubernetes Admin · restart_deployment",
+              "description": "Triggers a rolling restart of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — règle « default » de la racine"
+              }
             },
             {
               "exposedName": "pra_k8s_scale_deployment",
               "name": "scale_deployment",
               "title": "PRA · Kubernetes Admin · scale_deployment",
+              "description": "Sets the number of replicas of a deployment.",
               "category": "write",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — règle « default » de la racine"
+              }
             }
           ],
           "update": null
@@ -1303,6 +2155,24 @@
         {
           "environment": "int",
           "exposed": true,
+          "session": "sso-corp",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « default » de INT, profil « Développeur »"
+            },
+            "destructive": {
+              "decision": "confirmElicitation",
+              "label": "confirmation (elicitation)",
+              "explanation": "confirmation (elicitation) — règle « destructive » de INT, profil « Développeur »"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -1313,25 +2183,43 @@
               "exposedName": "int_db_describe_table",
               "name": "describe_table",
               "title": "INT · Base de données (lecture) · describe_table",
+              "description": "Returns the columns, types and indexes of a table.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "int_db_list_tables",
               "name": "list_tables",
               "title": "INT · Base de données (lecture) · list_tables",
+              "description": "Lists the tables of a schema.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "int_db_run_select",
               "name": "run_select",
               "title": "INT · Base de données (lecture) · run_select",
+              "description": "Runs a read-only SELECT statement and returns at most 500 rows.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             }
           ],
           "update": null
@@ -1339,6 +2227,24 @@
         {
           "environment": "rec",
           "exposed": true,
+          "session": "sso-corp",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « default » de REC, profil « Développeur »"
+            },
+            "destructive": {
+              "decision": "confirmElicitation",
+              "label": "confirmation (elicitation)",
+              "explanation": "confirmation (elicitation) — règle « destructive » de REC, profil « Développeur »"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -1349,25 +2255,43 @@
               "exposedName": "rec_db_describe_table",
               "name": "describe_table",
               "title": "REC · Base de données (lecture) · describe_table",
+              "description": "Returns the columns, types and indexes of a table.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "rec_db_list_tables",
               "name": "list_tables",
               "title": "REC · Base de données (lecture) · list_tables",
+              "description": "Lists the tables of a schema.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "rec_db_run_select",
               "name": "run_select",
               "title": "REC · Base de données (lecture) · run_select",
+              "description": "Runs a read-only SELECT statement and returns at most 500 rows.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             }
           ],
           "update": null
@@ -1375,6 +2299,24 @@
         {
           "environment": "pprod",
           "exposed": false,
+          "session": "sso-corp",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "confirmNotification",
+              "label": "confirmation (notification)",
+              "explanation": "confirmation (notification) — règle « write » de PPROD, verrouillée"
+            },
+            "destructive": {
+              "decision": "deny",
+              "label": "refusé",
+              "explanation": "refusé — règle « destructive » de la racine"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -1385,25 +2327,43 @@
               "exposedName": "pprod_db_describe_table",
               "name": "describe_table",
               "title": "PPROD · Base de données (lecture) · describe_table",
+              "description": "Returns the columns, types and indexes of a table.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "pprod_db_list_tables",
               "name": "list_tables",
               "title": "PPROD · Base de données (lecture) · list_tables",
+              "description": "Lists the tables of a schema.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "pprod_db_run_select",
               "name": "run_select",
               "title": "PPROD · Base de données (lecture) · run_select",
+              "description": "Runs a read-only SELECT statement and returns at most 500 rows.",
               "category": "read",
               "known": true,
-              "exposed": false
+              "exposed": false,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             }
           ],
           "update": null
@@ -1411,6 +2371,24 @@
         {
           "environment": "prod",
           "exposed": true,
+          "session": "sso-corp",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "confirmNotification",
+              "label": "confirmation (notification)",
+              "explanation": "confirmation (notification) — règle « write » de PROD, verrouillée"
+            },
+            "destructive": {
+              "decision": "deny",
+              "label": "refusé",
+              "explanation": "refusé — règle « destructive » de la racine"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -1421,25 +2399,43 @@
               "exposedName": "prod_db_describe_table",
               "name": "describe_table",
               "title": "PROD · Base de données (lecture) · describe_table",
+              "description": "Returns the columns, types and indexes of a table.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "prod_db_list_tables",
               "name": "list_tables",
               "title": "PROD · Base de données (lecture) · list_tables",
+              "description": "Lists the tables of a schema.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "prod_db_run_select",
               "name": "run_select",
               "title": "PROD · Base de données (lecture) · run_select",
+              "description": "Runs a read-only SELECT statement and returns at most 500 rows.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — règle de l'outil « run_select » de Base de données (lecture) en PROD"
+              }
             }
           ],
           "update": null
@@ -1456,6 +2452,24 @@
         {
           "environment": "rec",
           "exposed": true,
+          "session": "sso-tools",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « default » de REC, profil « Développeur »"
+            },
+            "destructive": {
+              "decision": "confirmElicitation",
+              "label": "confirmation (elicitation)",
+              "explanation": "confirmation (elicitation) — règle « destructive » de REC, profil « Développeur »"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -1466,25 +2480,43 @@
               "exposedName": "rec_jira_add_comment",
               "name": "add_comment",
               "title": "REC · Jira · add_comment",
+              "description": "Adds a comment to a Jira issue, as the connected user. The text is posted as is (Jira wiki markup). Returns the id and date of the new comment.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « default » de REC, profil « Développeur »"
+              }
             },
             {
               "exposedName": "rec_jira_get_issue",
               "name": "get_issue",
               "title": "REC · Jira · get_issue",
+              "description": "Returns one Jira issue: summary, status, type, priority, assignee, reporter, dates, description and its last comments. Long texts are shortened.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "rec_jira_search_issues",
               "name": "search_issues",
               "title": "REC · Jira · search_issues",
+              "description": "Searches Jira issues with a JQL query and returns, for each match, its key, summary, status, type, priority, assignee and last update, most recently updated first unless the query has an ORDER BY. Example: project = OPS AND status != Done ORDER BY updated DESC.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             }
           ],
           "update": null
@@ -1492,6 +2524,24 @@
         {
           "environment": "prod",
           "exposed": true,
+          "session": "sso-tools",
+          "policy": {
+            "read": {
+              "decision": "allow",
+              "label": "autorisé",
+              "explanation": "autorisé — règle « read » de la racine"
+            },
+            "write": {
+              "decision": "confirmNotification",
+              "label": "confirmation (notification)",
+              "explanation": "confirmation (notification) — règle « write » de PROD, verrouillée"
+            },
+            "destructive": {
+              "decision": "deny",
+              "label": "refusé",
+              "explanation": "refusé — règle « destructive » de la racine"
+            }
+          },
           "state": "catalogue",
           "stateLabel": "catalogue",
           "source": "embedded",
@@ -1502,25 +2552,43 @@
               "exposedName": "prod_jira_add_comment",
               "name": "add_comment",
               "title": "PROD · Jira · add_comment",
+              "description": "Adds a comment to a Jira issue, as the connected user. The text is posted as is (Jira wiki markup). Returns the id and date of the new comment.",
               "category": "write",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "confirmNotification",
+                "label": "confirmation (notification)",
+                "explanation": "confirmation (notification) — règle « write » de PROD, verrouillée"
+              }
             },
             {
               "exposedName": "prod_jira_get_issue",
               "name": "get_issue",
               "title": "PROD · Jira · get_issue",
+              "description": "Returns one Jira issue: summary, status, type, priority, assignee, reporter, dates, description and its last comments. Long texts are shortened.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             },
             {
               "exposedName": "prod_jira_search_issues",
               "name": "search_issues",
               "title": "PROD · Jira · search_issues",
+              "description": "Searches Jira issues with a JQL query and returns, for each match, its key, summary, status, type, priority, assignee and last update, most recently updated first unless the query has an ORDER BY. Example: project = OPS AND status != Done ORDER BY updated DESC.",
               "category": "read",
               "known": true,
-              "exposed": true
+              "exposed": true,
+              "policy": {
+                "decision": "allow",
+                "label": "autorisé",
+                "explanation": "autorisé — règle « read » de la racine"
+              }
             }
           ],
           "update": null

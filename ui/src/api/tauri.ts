@@ -45,6 +45,18 @@ export const tauriBackend: Backend = {
   async showConfirmations() {
     await invoke('show_confirmations')
   },
+  async setEnvironmentExposed(environment, exposed) {
+    await invoke('set_environment_exposed', { environment, exposed })
+  },
+  async setMcpExposed(mcp, exposed) {
+    await invoke('set_mcp_exposed', { mcp, exposed })
+  },
+  async acknowledgeMcpUpdate(environment, mcp) {
+    await invoke('acknowledge_mcp_update', { environment, mcp })
+  },
+  async reloadMcp(environment, mcp) {
+    await invoke('reload_mcp', { environment, mcp })
+  },
 }
 
 /** Whether the page runs in a window of the application (the IPC of Tauri is there). */
