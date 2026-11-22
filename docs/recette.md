@@ -3,11 +3,16 @@
 Vérifications qui ne peuvent pas être exécutées dans le conteneur Linux (le code Windows y est seulement compilé).
 À dérouler sur un poste Windows avec la chaîne Rust du projet.
 
-## Étape 2a — secrets en mémoire
+Une section par spec qui a des critères `(manuel)`, une case par critère. Chaque ligne cite l'identifiant du
+critère : `cargo xtask trace` vérifie que tous les critères manuels d'une spec implémentée figurent ici.
 
-1. `cargo test -p mcp-proxy-core platform::windows` : les 2 tests passent (aller-retour `CryptProtectMemory` /
-   `CryptUnprotectMemory` avec un tampon effectivement modifié par le chiffrement ; tampon non aligné refusé).
-2. `cargo test -p mcp-proxy-core secrets` : tous les tests passent. `platform_store_round_trip` y utilise
-   `WindowsMemoryProtector` ; les tests du client HTTP passent par SChannel (requêtes `http` en boucle locale).
-3. Aucun message « secrets en mémoire NON chiffrés » dans la sortie : le protecteur de développement n'existe pas
-   sous Windows.
+## 002 — core — store de secrets en mémoire
+
+- [ ] **EX-002-07** — `cargo test -p mcp-proxy-core platform::windows` : les 2 tests passent (aller-retour
+  `CryptProtectMemory` / `CryptUnprotectMemory` avec un tampon effectivement modifié par le chiffrement ; tampon non
+  aligné refusé).
+- [ ] **EX-002-08** — `cargo test -p mcp-proxy-core secrets` : tous les tests passent. `platform_store_round_trip`
+  y utilise `WindowsMemoryProtector` ; les tests du client HTTP passent par SChannel (requêtes `http` en boucle
+  locale).
+- [ ] **EX-002-09** — Aucun message « secrets en mémoire NON chiffrés » dans la sortie : le protecteur de
+  développement n'existe pas sous Windows.

@@ -83,6 +83,7 @@ fn token_of(store: &SecretStore, session: &SessionId) -> Result<String, SecretEr
 
 // --- Memory protection ---------------------------------------------------------------------------------------------
 
+// Exigence : EX-002-01
 #[cfg(not(windows))]
 #[test]
 fn insecure_dev_protector_round_trip_and_alignment() {
@@ -97,6 +98,7 @@ fn insecure_dev_protector_round_trip_and_alignment() {
     assert_eq!(protector.unprotect(&mut []), misaligned);
 }
 
+// Exigence : EX-002-01
 #[test]
 fn sealed_secret_round_trip_with_padding() {
     for len in [0usize, 1, 15, 16, 17, 31, 32, 100] {
@@ -122,6 +124,7 @@ fn sealed_secret_refuses_oversized_values() {
     );
 }
 
+// Exigence : EX-002-01
 #[test]
 fn platform_store_round_trip() {
     let store = SecretStore::for_platform();
@@ -130,6 +133,7 @@ fn platform_store_round_trip() {
     assert_eq!(token_of(&store, &s).unwrap(), SENTINEL);
 }
 
+// Exigence : EX-002-04
 #[test]
 fn sealed_buffer_is_zeroed_on_drop() {
     let sealed = SealedSecret::seal(&XorProtector, SENTINEL.as_bytes()).unwrap();
@@ -140,6 +144,7 @@ fn sealed_buffer_is_zeroed_on_drop() {
     assert!(last.iter().all(|b| *b == 0));
 }
 
+// Exigence : EX-002-04
 #[test]
 fn replaced_and_wiped_secrets_are_zeroed() {
     let store = store();
@@ -211,6 +216,7 @@ fn outputs_with_secret(value: &str) -> Vec<String> {
     out
 }
 
+// Exigence : EX-002-02
 #[test]
 fn no_secret_in_debug_or_display() {
     for output in outputs_with_secret(SENTINEL) {
@@ -222,6 +228,7 @@ fn no_secret_in_debug_or_display() {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
+    // Exigence : EX-002-02
     #[test]
     fn no_secret_in_any_output(value in "[!-:<-~]{12,64}") {
         for output in outputs_with_secret(&value) {
@@ -230,6 +237,7 @@ proptest! {
     }
 }
 
+// Exigence : EX-002-02
 #[test]
 fn authenticated_client_debug_has_no_secret() {
     let s = sid("sso-corp");
@@ -242,6 +250,7 @@ fn authenticated_client_debug_has_no_secret() {
 
 // --- Store -----------------------------------------------------------------------------------------------------------
 
+// Exigence : EX-002-03
 #[test]
 fn put_replaces_the_session_secret() {
     let store = store();
@@ -256,6 +265,7 @@ fn put_replaces_the_session_secret() {
         .unwrap();
 }
 
+// Exigence : EX-002-03
 #[test]
 fn wipe_empties_only_that_session() {
     let store = store();
@@ -271,6 +281,7 @@ fn wipe_empties_only_that_session() {
     store.with_variants(|v| assert!(v.is_empty())).unwrap();
 }
 
+// Exigence : EX-002-03
 #[test]
 fn with_exposed_on_empty_session_fails_without_detail() {
     let store = store();
@@ -401,6 +412,7 @@ fn guard_for(session: &SessionId, origins: &[&str]) -> OriginGuard {
     OriginGuard::new([(session.clone(), origins)])
 }
 
+// Exigence : EX-002-05
 #[test]
 fn authorize_accepts_only_declared_origins() {
     let s = sid("sso-corp");
@@ -445,6 +457,7 @@ fn authorize_accepts_only_declared_origins() {
     );
 }
 
+// Exigence : EX-002-05
 #[test]
 fn origins_are_per_session() {
     let (a, b) = (sid("sso-corp"), sid("sso-prod"));
@@ -560,6 +573,7 @@ async fn assert_no_connection(listener: &TcpListener) {
     assert!(accepted.is_err(), "a connection was made");
 }
 
+// Exigence : EX-002-06
 #[tokio::test]
 async fn injects_each_credential_kind() {
     let server = TestServer::start(ok_response("")).await;
@@ -607,6 +621,7 @@ async fn injects_each_credential_kind() {
     assert_eq!(header_value(&requests[2], "authorization"), None);
 }
 
+// Exigence : EX-002-06
 #[tokio::test]
 async fn redirect_to_another_origin_is_not_followed() {
     let elsewhere = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -629,6 +644,7 @@ async fn redirect_to_another_origin_is_not_followed() {
     assert_no_connection(&elsewhere).await;
 }
 
+// Exigence : EX-002-06
 #[tokio::test]
 async fn credential_headers_are_removed_from_the_response() {
     let server = TestServer::start(ok_response(
@@ -652,6 +668,7 @@ async fn credential_headers_are_removed_from_the_response() {
     assert_eq!(headers.get("x-kept").unwrap(), "yes");
 }
 
+// Exigence : EX-002-06
 #[tokio::test]
 async fn undeclared_origin_is_refused_before_sending() {
     let declared = TestServer::start(ok_response("")).await;

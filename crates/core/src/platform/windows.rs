@@ -42,6 +42,7 @@ impl MemoryProtector for WindowsMemoryProtector {
 mod tests {
     use super::*;
 
+    // Exigence : EX-002-01
     #[test]
     fn round_trip_encrypts_in_place() {
         let original: Vec<u8> = (0u8..64).collect();
@@ -52,6 +53,7 @@ mod tests {
         assert_eq!(buf, original);
     }
 
+    // Exigence : EX-002-01
     #[test]
     fn misaligned_buffer_is_refused() {
         let mut buf = [0u8; 15];
