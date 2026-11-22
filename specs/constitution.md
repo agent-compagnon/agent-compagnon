@@ -15,13 +15,17 @@ l'emporte, et la spec est à corriger.
 - **INV-6** — L'utilisateur peut durcir une règle, jamais l'assouplir.
 - **INV-7** — Aucun remplacement de l'exe sans signature ed25519 valide, version cohérente et strictement
   supérieure à la version courante.
-- **INV-8** — Les pages distantes (login) n'ont accès à aucune commande de l'appli.
+- **INV-8** — Les pages distantes (login) n'ont accès à aucune commande de l'appli, **à une exception près** : la
+  commande de dépôt d'en-tête de la fenêtre de login en cours, qui n'accepte qu'une valeur candidate et ne renvoie
+  rien (amendement du 2026-11-22).
 - **INV-9** — Aucune télémétrie : l'appli ne contacte que les MCP configurés et Artifactory.
 
 ## Règles de code
 
 - Pas de `unwrap()`, `expect()` ni `panic!` hors des tests.
-- `unsafe` confiné aux modules de plateforme, chaque bloc avec son commentaire `// SAFETY:`.
+- Aucun `unsafe` dans le code du dépôt : le workspace l'interdit (`unsafe_code = "forbid"`). Une API Windows qui
+  n'existe qu'en `unsafe` se remplace par une API sûre — projection WinRT du crate `windows`, API sûres de tokio et
+  de Tauri, registre par `winreg` — ou ne s'utilise pas.
 - TLS : magasin de certificats de Windows, vérification jamais désactivée, aucune redirection suivie avec des
   identifiants.
 - `app/` ne contient que du câblage Windows ; toute logique testable vit dans `crates/` et se teste sous Linux.
@@ -48,4 +52,14 @@ s'ajoute à `DECISIONS.md`. Le texte d'un invariant n'est pas réécrit en silen
 
 ## Amendements
 
-_Aucun pour l'instant._
+- **2026-11-22** — Règles de code : `unsafe` n'est plus confiné aux modules de plateforme, il est **interdit** dans
+  tout le dépôt (`forbid` au niveau du workspace). Raison : décision de l'utilisateur (D18) ; un bloc `unsafe` est
+  une promesse que ni le compilateur ni les tests sous Linux ne vérifient, et le code Windows n'est jamais exécuté
+  ici. Conséquences : chiffrement mémoire par enveloppe DPAPI (spec 002), named pipe par l'API sûre de tokio avec
+  preuve mutuelle DPAPI (spec 011), capture du JWT par script injecté (spec 012), exclusion des rapports d'erreur
+  par le registre.
+- **2026-11-22** — INV-8 : une exception, la commande de dépôt d'en-tête de la fenêtre de login en cours. Raison :
+  sans `unsafe`, l'API COM de WebView2 qui permettait de lire les en-têtes des requêtes au niveau du navigateur est
+  hors de portée (D18) ; le JWT ne peut être capturé que par un script injecté dans la page, qui doit le remettre à
+  l'appli. La commande est créée à l'exécution pour la seule fenêtre de login et les hôtes de
+  `allowed_navigation`, n'accepte qu'une valeur candidate, ne renvoie rien, et le Rust revérifie tout (spec 012).

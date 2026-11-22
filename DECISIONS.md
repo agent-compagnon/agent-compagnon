@@ -25,13 +25,14 @@ viennent du cadrage du 2026-11-22 ; la dernière section est alimentée à chaqu
 | D15 | Exe de test | Cross-compilation à la demande, pas à chaque étape |
 | D16 | Implémentation | Opus, issue après issue, piloté et relu dans la session de cadrage |
 | D17 | Organisation des specs (décidé en conversation le 2026-11-22, hors QCM) | Le dépôt est la seule mémoire du projet : specs dans `specs/`, critères d'acceptation numérotés (`EX-NNN-nn`) cités par les tests et vérifiés par `cargo xtask trace`, amendements datés, commits terminés par `Spec: NNN`. Les tickets GitHub ne sont que des pointeurs. Raisons : ne pas perdre la mémoire en changeant de plateforme, garder specs et code alignés, pouvoir retracer un changement |
+| D18 | `unsafe` (demande de l'utilisateur, 2026-11-22) | Aucun `unsafe` dans le code du dépôt (`unsafe_code = "forbid"` au niveau du workspace). Conséquences : le chiffrement mémoire devient une enveloppe, une clé de session aléatoire scelle les secrets par AEAD et n'est gardée qu'enveloppée par DPAPI utilisateur via WinRT (spec 002). Le JWT est capturé par un script injecté dans la fenêtre de login, qui le remet à une commande de dépôt sans retour, seule exception à INV-8 (spec 012). Le named pipe est créé par l'API sûre de tokio, sans ACL sur mesure ni vérification du binaire client, et chaque côté prouve son identité par un défi DPAPI utilisateur avant tout octet MCP (spec 011). L'exclusion des rapports d'erreur Windows passe par le registre (`winreg`) au lieu de `WerAddExcludedApplication` |
 
 ## Décisions prises par défaut (option la plus sûre)
 
 | # | Décision |
 |---|---|
 | S1 | Un exe, trois modes : appli (instance unique), `stdio` (pont), commandes internes (`--install`, `--uninstall`, `doctor`) |
-| S2 | IPC par named pipe propre à l'utilisateur : ACL sur le SID courant, clients distants rejetés, première instance exigée, binaire client vérifié. Aucun port TCP |
+| S2 | IPC par named pipe propre à l'utilisateur : ACL sur le SID courant, clients distants rejetés, première instance exigée, binaire client vérifié. Aucun port TCP — remplacée en partie par D18 |
 | S3 | Les deux générations de MCP sont gérées des deux côtés : handshake `initialize` (2025-11-25 et antérieures) et 2026-07-28 sans session |
 | S4 | Budget de 50 s par appel pour les attentes utilisateur, parce que Claude Desktop coupe vers 60 s. Au-delà : erreur claire invitant à réessayer, la fenêtre de login restant ouverte |
 | S5 | Canal elicitation seulement si la politique l'autorise, si le client l'annonce et s'il figure dans `elicitation_clients`. Sinon : notification Windows |
@@ -48,7 +49,7 @@ viennent du cadrage du 2026-11-22 ; la dernière section est alimentée à chaqu
 | S16 | Signature de mise à jour : manifeste signé (version, sha256, critique), ce qui empêche le retour à une ancienne version. Deux emplacements de clé publique. Build de release refusé avec la clé de développement |
 | S17 | Fenêtres de login : navigation limitée aux domaines déclarés, aucune capacité IPC |
 | S18 | « Déconnecter » efface les secrets de la session et les cookies de ses domaines |
-| S19 | Pas de dump mémoire (exclusion WER), hook de panic filtré, `Debug` masqué sur les types secrets |
+| S19 | Pas de dump mémoire (exclusion WER), hook de panic filtré, `Debug` masqué sur les types secrets — remplacée en partie par D18 |
 | S20 | Identifiants provisoires à confirmer : identifiant Tauri `com.mcpproxy.app`, AUMID `McpProxy.Desktop` |
 | S21 | Aucune télémétrie : l'appli ne contacte que les MCP configurés et Artifactory |
 | S22 | Messages d'erreur au LLM en français, explicites, actionnables, sans secret |
@@ -132,8 +133,8 @@ viennent du cadrage du 2026-11-22 ; la dernière section est alimentée à chaqu
 
 | # | Décision |
 |---|---|
-| I2a.1 | Tout vit dans `mcp_proxy_core::secrets` ; le seul code `unsafe` est `core::platform::windows` (`WindowsMemoryProtector`). `InsecureDevProtector` est dans `secrets`, compilé sous `cfg(not(windows))`, et émet un `tracing::warn!` à sa construction. `platform_protector()` et `SecretStore::for_platform()` choisissent le protecteur de la plateforme. |
-| I2a.2 | `MemoryProtector` exige `Send + Sync`. Taille de bloc : constante `PROTECT_BLOCK_SIZE = 16`, dont l'égalité avec `CRYPTPROTECTMEMORY_BLOCK_SIZE` est vérifiée à la compilation. Tous les protecteurs, y compris celui de développement, refusent un tampon vide ou non aligné, pour qu'une erreur d'alignement se voie dès les tests Linux. Un secret vide occupe un bloc. |
+| I2a.1 | Tout vit dans `mcp_proxy_core::secrets` ; le seul code `unsafe` est `core::platform::windows` (`WindowsMemoryProtector`). `InsecureDevProtector` est dans `secrets`, compilé sous `cfg(not(windows))`, et émet un `tracing::warn!` à sa construction. `platform_protector()` et `SecretStore::for_platform()` choisissent le protecteur de la plateforme. — remplacée en partie par D18 |
+| I2a.2 | `MemoryProtector` exige `Send + Sync`. Taille de bloc : constante `PROTECT_BLOCK_SIZE = 16`, dont l'égalité avec `CRYPTPROTECTMEMORY_BLOCK_SIZE` est vérifiée à la compilation. Tous les protecteurs, y compris celui de développement, refusent un tampon vide ou non aligné, pour qu'une erreur d'alignement se voie dès les tests Linux. Un secret vide occupe un bloc. — remplacée en partie par D18 |
 | I2a.3 | Le tampon scellé n'est jamais déchiffré en place : `with_exposed` et `with_variants` déchiffrent une copie `Zeroizing`, et le verrou du store est relâché avant d'appeler la closure (pas d'interblocage si elle rappelle le store, pas de fenêtre où le tampon scellé serait en clair). |
 | I2a.4 | Verrou empoisonné : récupéré plutôt que propagé, pour que `wipe` et `wipe_all` fonctionnent toujours. |
 | I2a.5 | Accès de test « tampon à zéro après `Drop` » : sous `cfg(test)`, `Drop` recopie l'état final du tampon (après effacement) dans une variable locale au thread. Aucune lecture de mémoire libérée. |
@@ -231,3 +232,15 @@ viennent du cadrage du 2026-11-22 ; la dernière section est alimentée à chaqu
 | I002.7 | **Écart d'API** : `SecretStore::new(Box<dyn KeyWrapper>)` et `SecretStore::for_platform()` renvoient `Result<SecretStore, SecretError>`. L'aller-retour d'essai est fait par `new`, donc pour tout enrobage ; un échec y devient `SecretError::KeyProtectionUnavailable(ProtectionFailure)` (« protection des secrets indisponible … aucun secret ne sera gardé »), y compris `RoundTrip` si l'enrobage rend une autre clé. L'appelant (étape 5a) doit refuser de démarrer la gestion des secrets plutôt que de se replier. |
 | I002.8 | Un déballage par usage, fait **hors du verrou** du store ; la clé en clair (`ClearKey`, effacée au `Drop`) est relâchée dès que les valeurs sont scellées ou déchiffrées, donc **avant** la closure (plus strict que « après »). Chaque opération AEAD construit son propre `XChaCha20Poly1305`, qui efface sa copie de la clé au `Drop` (feature `zeroize`). `with_exposed` vérifie d'abord la présence d'un secret : aucun appel DPAPI pour une session vide. Accès de test : `key_probe` (état de chaque `ClearKey` au `Drop`), comme `drop_probe`. |
 | I002.9 | Limite connue : les tampons WinRT (`IBuffer`) qui portent la clé en clair vers et depuis DPAPI sont libérés par le runtime sans être effacés, et rien ne permet de les effacer sans `unsafe` ; seules les copies faites par le code (tableau intermédiaire, `Zeroizing`) le sont. Chaque usage laisse donc brièvement une copie de la clé de session dans un tampon libéré du tas WinRT. Le texte chiffré reste protégé par l'AEAD et la clé enveloppée n'est lisible que par l'utilisateur Windows courant (portée moins étroite que `CRYPTPROTECTMEMORY_SAME_PROCESS`). |
+
+### D18 — application aux specs non encore implémentées (2026-11-22)
+
+| # | Décision |
+|---|---|
+| I-D18.1 | Spec 011, nom du pipe : `mcp-proxy.<domaine>.<utilisateur>` réduits à `[a-z0-9._-]` (le SID n'est lisible qu'en `unsafe`). Deux comptes qui donneraient le même nom ne font qu'échouer fermé : première instance refusée au démarrage, ou preuve DPAPI échouée. |
+| I-D18.2 | Spec 011, descripteur de sécurité par défaut : il accorde la lecture à « Tout le monde ». Un autre utilisateur peut donc ouvrir le pipe ; il est rejeté par la preuve mutuelle, avant tout octet MCP. `EX-011-08` (« ne peut pas ouvrir ») devient faux et est retiré. Limite connue : un autre utilisateur peut occuper des connexions et gêner le service (déni de service), sans rien lire. |
+| I-D18.3 | Spec 011, preuve mutuelle : défi = DPAPI utilisateur de (rôle ‖ nonce de 32 octets), rôle `serveur` ou `pont` ; un défi portant le rôle du destinataire est refusé (attaque par réflexion). Messages encadrés par leur longueur, 4 Kio au plus, délai total 5 s, comparaison en temps constant. Aucun octet MCP avant la fin de la preuve des deux côtés. |
+| I-D18.4 | Spec 011 : un `SecretStore::for_platform` en erreur arrête l'appli avec une boîte de message (pas de passerelle sans protection des secrets, I002.7). Un échec de l'exclusion WER est journalisé et signalé par `doctor` sans arrêter l'appli (option retenue : elle durcit, mais son absence ne fait pas fuir de secret par elle-même). |
+| I-D18.5 | Spec 012, commande de dépôt : valeur candidate de 16 Kio au plus, aucune réponse (ni succès ni erreur, pour que la page n'apprenne rien), seul le premier jeton valide retenu. La capacité `remote` est créée à l'ouverture de la fenêtre et retirée à sa fermeture. Le script n'est injecté que pour la méthode `jwt_header`. |
+| I-D18.6 | Spec 012 : toutes les fenêtres de login et la gardienne reçoivent exactement les mêmes arguments de navigateur et le même dossier de données, faute de quoi WebView2 refuse de partager le dossier. Le point « InPrivate effectif » de la sonde vérifie aussi l'absence de cookie de la session dans le dossier de données. |
+| I-D18.7 | Spec 024 : le rapport va toujours sur la sortie standard (perdue sans redirection, l'exe étant fenêtré) et dans `logs\doctor-<horodatage>.txt`. « Sans redirection » se détecte sans `unsafe` : poignée de sortie standard absente (`std::io::stdout().as_raw_handle()` nulle, simple comparaison). Dans ce cas seulement, une boîte de message indique le chemin du fichier, pour ne jamais bloquer un script qui redirige la sortie. |

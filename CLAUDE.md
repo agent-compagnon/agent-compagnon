@@ -28,8 +28,9 @@ conversation.
 
 ## Règles de code
 
-- Pas de `unwrap()`, `expect()` ni `panic!` hors des tests. `unsafe` uniquement dans les modules de plateforme,
-  avec `// SAFETY:`.
+- Pas de `unwrap()`, `expect()` ni `panic!` hors des tests.
+- Aucun `unsafe` (`forbid` au niveau du workspace) : une API Windows qui n'existe qu'en `unsafe` se remplace par une
+  API sûre (WinRT du crate `windows`, tokio, Tauri, `winreg`) ou ne s'utilise pas.
 - Aucun secret dans un log, une erreur, un `Debug` ou un message renvoyé au LLM.
 - Code, commentaires et commits en anglais. Textes destinés à l'utilisateur, specs et décisions en français.
 - `app/` ne contient que du câblage Windows. La logique testable vit dans `crates/`.

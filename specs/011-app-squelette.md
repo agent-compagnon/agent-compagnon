@@ -20,7 +20,9 @@ en lançant le même exe en mode `stdio`.
 
 - Windows uniquement : `compile_error!` sur les autres systèmes. Ajouté au workspace, exclu de `default-members`.
 - `#![windows_subsystem = "windows"]` hors debug. Le mode `stdio` fonctionne avec les poignées héritées du client.
-- `unsafe` autorisé uniquement dans `app/src/platform/`, avec commentaires `// SAFETY:`.
+- Aucun `unsafe` dans `app/`, comme dans tout le dépôt (`forbid` au niveau du workspace, D18). Une API Windows
+  qui n'existe qu'en `unsafe` se remplace par une API sûre (WinRT du crate `windows`, tokio, Tauri, `winreg`) ou ne
+  s'utilise pas.
 - **Câblage seulement.** Toute logique testable vit dans `crates/` : si un morceau de cette issue peut être testé
   sous Linux, il va dans un crate.
 
@@ -52,25 +54,52 @@ Les commandes internes (`--install`, `--uninstall`, `doctor`) arrivent aux étap
 
 ### Named pipe
 
-- Nom : `\\.\pipe\mcp-proxy.<SID de l'utilisateur>`.
-- Sécurité : DACL limitée au SID courant, `PIPE_REJECT_REMOTE_CLIENTS`, `FILE_FLAG_FIRST_PIPE_INSTANCE`. À chaque
-  connexion, vérifier que le processus client est bien ce même exe (`GetNamedPipeClientProcessId` puis
-  `QueryFullProcessImageNameW`) ; sinon, fermer.
-- Chaque connexion acceptée devient un `GatewayServer::serve(pipe)`.
+- Nom : `\\.\pipe\mcp-proxy.<utilisateur>`, où `<utilisateur>` est le domaine et le nom de l'utilisateur
+  Windows, réduits à `[a-z0-9._-]`. Une collision de noms ne peut qu'empêcher le démarrage ou la connexion (voir
+  plus bas), jamais donner accès à l'appli d'un autre utilisateur.
+- Création par l'API sûre de tokio : `tokio::net::windows::named_pipe::ServerOptions::new()
+  .first_pipe_instance(true).reject_remote_clients(true).create(name)`, avec le **descripteur de sécurité par
+  défaut**. Plus de DACL sur mesure ni de vérification du binaire client (`GetNamedPipeClientProcessId` n'existe
+  qu'en `unsafe`, D18).
+- Si le pipe existe déjà au démarrage (première instance refusée) : **échec fermé**, boîte de message claire
+  (« un autre programme occupe le canal de MCP Proxy… ») et arrêt. L'instance unique (`tauri-plugin-single-instance`)
+  a déjà traité le cas d'un second lancement de l'appli elle-même.
+- **Preuve mutuelle par DPAPI**, avant tout octet MCP, à chaque connexion :
+  1. chaque côté tire un nonce aléatoire de 32 octets, le protège par DPAPI utilisateur
+     (`mcp_proxy_core::platform::windows::protect`) avec son rôle (`serveur` ou `pont`) et envoie ce **défi** ;
+  2. chaque côté ouvre le défi reçu (`unprotect`), vérifie que le rôle est celui de l'autre côté (un défi renvoyé
+     tel quel est refusé) et renvoie le nonce ;
+  3. chaque côté compare en temps constant la réponse reçue à son propre nonce.
+
+  Seul un processus du même utilisateur Windows peut ouvrir un défi. Cela protège le pont contre un pipe usurpé par
+  un autre utilisateur, et l'appli contre un client d'un autre utilisateur. Messages encadrés par leur longueur,
+  4 Kio au plus ; délai total de 5 s. Échec, message mal formé ou délai dépassé : connexion fermée, sans aucun
+  octet MCP échangé, événement journalisé (sans nonce).
+- La logique de la preuve vit dans `gateway::bridge`, générique sur un trait de preuve (`PeerProof` : protéger,
+  ouvrir) : DPAPI sous Windows, faux en test. L'appli et le pont n'en font que le câblage.
+- Chaque connexion acceptée et prouvée devient un `GatewayServer::serve(pipe)`.
 - Identité du client : `clientInfo` MCP, complété si possible par le nom du processus parent du pont.
 
 ### Mode `stdio`
 
 - Se connecte au pipe. S'il n'existe pas : lance l'appli (même exe, sans argument, détachée) et attend le pipe
   jusqu'à 15 s.
-- Relais par `gateway::bridge::relay`. En cas d'échec : message clair sur stderr, code de sortie non nul.
+- Preuve mutuelle (ci-dessus), puis relais par `gateway::bridge::relay`. Preuve échouée : message clair sur
+  stderr (« le canal de MCP Proxy n'appartient pas à l'utilisateur courant »), code de sortie non nul. En cas d'échec : message clair sur stderr, code de sortie non nul.
 
 ### Assemblage au démarrage
 
-1. Config : erreurs de validation affichées dans une boîte de message native et journalisées, puis arrêt.
-2. Runtime WebView2 absent : boîte de message explicite, puis arrêt.
-3. Journal fichier filtré, hook de panic, exclusion des rapports d'erreur Windows (`WerAddExcludedApplication`).
-4. `SecretStore`, `OutputFilter`, `PolicyEngine`, `SettingsStore` (fichier JSON simple), `ToolRegistry` avec cache
+Les boîtes de message passent par une API sûre (dialogue de Tauri ou crate équivalent, choisi à l'implémentation),
+jamais par `MessageBoxW`.
+
+1. Config : erreurs de validation affichées dans une boîte de message et journalisées, puis arrêt.
+2. Runtime WebView2 absent, détecté par `tauri::webview_version()` (erreur ou version illisible) : boîte de message
+   explicite, puis arrêt.
+3. Journal fichier filtré, hook de panic, exclusion des rapports d'erreur Windows **par le registre** : valeur DWORD
+   `1` nommée d'après l'exe sous `HKCU\Software\Microsoft\Windows\Windows Error Reporting\ExcludedApplications`
+   (`winreg`), idempotente. Un échec est journalisé et signalé par `doctor` (spec 024), sans empêcher le démarrage.
+4. `SecretStore::for_platform` : s'il renvoie une erreur (DPAPI ne répond pas), boîte de message explicite, puis
+   arrêt ; aucun repli (spec 002). Puis `OutputFilter`, `PolicyEngine`, `SettingsStore` (fichier JSON simple), `ToolRegistry` avec cache
    fichier, `SessionRegistry`, `OnDemandAuthenticator`, chaîne de middlewares, serveur de pipe.
 5. `AuthUi` et `ConfirmationBroker` provisoires qui **échouent fermé** (connexion impossible, confirmation refusée)
    jusqu'aux étapes 5b et 5c.
@@ -86,6 +115,10 @@ Les commandes internes (`--install`, `--uninstall`, `doctor`) arrivent aux étap
 - **EX-011-01** — `AppStatus` : neutre, attention, erreur selon les sessions, confirmations et erreurs en attente.
 - **EX-011-02** — `AppSnapshot` : contenu attendu pour la config d'exemple ; aucun champ secret (test avec valeur sentinelle).
 - **EX-011-03** — Analyse des arguments de lancement.
+- **EX-011-09** — Preuve mutuelle de `gateway::bridge`, avec une fausse preuve et des flux en mémoire : deux côtés
+  du même « utilisateur » passent puis relaient ; avec un côté d'un autre « utilisateur » (défi impossible à
+  ouvrir), une réponse fausse, un défi renvoyé tel quel, un message trop long ou mal formé, ou un délai dépassé, la
+  connexion est fermée **sans qu'aucun octet MCP soit relayé** dans un sens ou dans l'autre.
 
 ## Vérification
 
@@ -97,8 +130,28 @@ Les commandes internes (`--install`, `--uninstall`, `doctor`) arrivent aux étap
 - **EX-011-05** (manuel) — Un second lancement ne crée pas de seconde instance et affiche la fenêtre.
 - **EX-011-06** (manuel) — Un client MCP configuré avec `mcp-proxy.exe stdio` liste les outils du catalogue.
 - **EX-011-07** (manuel) — Si l'appli n'est pas lancée, `mcp-proxy.exe stdio` la démarre.
-- **EX-011-08** (manuel) — Un autre utilisateur de la machine ne peut pas ouvrir le pipe.
+- ~~**EX-011-08** (manuel) — Un autre utilisateur de la machine ne peut pas ouvrir le pipe.~~ (retiré le
+  2026-11-22 : D18, le descripteur de sécurité par défaut laisse un autre utilisateur ouvrir le pipe ; c'est la
+  preuve mutuelle qui le rejette, voir `EX-011-09` et `EX-011-11`)
+
+- **EX-011-10** (manuel) — Pipe déjà créé par un autre programme avant le lancement de l'appli : l'appli affiche le
+  message d'échec et s'arrête, sans servir de connexion.
+- **EX-011-11** (manuel) — Depuis une session d'un autre utilisateur Windows : un client qui ouvre le pipe de
+  l'utilisateur est déconnecté avant tout octet MCP ; un pont lancé face à un pipe créé par un autre utilisateur
+  refuse de relayer et sort en erreur.
+- **EX-011-12** (manuel) — Après le premier démarrage, la valeur `mcp-proxy.exe` = 1 existe sous
+  `HKCU\Software\Microsoft\Windows\Windows Error Reporting\ExcludedApplications`.
 
 ## Hors périmètre
 
 Fenêtres de login (5b), notifications (5c), contenu de l'interface (6).
+
+## Amendements
+
+- **2026-11-22** — Aucun `unsafe` dans `app/` (D18, demande de l'utilisateur). Le pipe est créé par l'API sûre de
+  tokio (première instance exigée, clients distants rejetés, descripteur de sécurité par défaut) ; la DACL sur
+  mesure et la vérification du binaire client (`GetNamedPipeClientProcessId`, `QueryFullProcessImageNameW`)
+  disparaissent, remplacées par une preuve mutuelle par DPAPI dans `gateway::bridge`. Pipe déjà présent au
+  démarrage : échec fermé. Exclusion WER par le registre au lieu de `WerAddExcludedApplication`, détection du
+  runtime WebView2 par `tauri::webview_version()`, boîtes de message par une API sûre, arrêt si
+  `SecretStore::for_platform` échoue. Critère retiré : `EX-011-08` ; ajoutés : `EX-011-09` à `EX-011-12`.

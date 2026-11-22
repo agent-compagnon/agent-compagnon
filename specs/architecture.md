@@ -23,9 +23,9 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 |---|---|
 | Rust | 1.97.0 épinglé, édition 2024, workspace Cargo |
 | MCP | `rmcp` 3.11 — features `server`, `client`, `transport-io`, `transport-streamable-http-client-reqwest`, `reqwest-native-tls`, `elicitation`, `request-state` ; `transport-streamable-http-server` pour les tests |
-| Appli | Tauri 2.12 (`tray-icon`, `wry`), `webview2-com` 0.39, `windows` 0.62 |
+| Appli | Tauri 2.12 (`tray-icon`, `wry`), `windows` 0.62 (projection WinRT seulement), `winreg` 0.56 |
 | HTTP/TLS | `reqwest` 0.13 en `native-tls` : SChannel et magasin de certificats Windows, aucune chaîne d'outils C |
-| Secrets | `secrecy` 0.10, `zeroize` 1.9, `CryptProtectMemory` |
+| Secrets | `secrecy` 0.10, `zeroize` 1.9, enveloppe : `chacha20poly1305` 0.11 (XChaCha20-Poly1305), `getrandom` 0.4, clé de session enveloppée par DPAPI utilisateur (WinRT `DataProtectionProvider`) |
 | Mises à jour | `ed25519-dalek` 3, `self-replace` 1.5, `semver` |
 | Filtre de sortie | `memchr` 2.8, `regex` 1.13 (motifs génériques seulement), `serde_json` 1.0 |
 | Logs | `tracing`, `tracing-subscriber` 0.3, `tracing-appender` |
@@ -35,13 +35,14 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 
 ```
 Client LLM ──stdio──▶ mcp-proxy.exe stdio          (pont : aucun secret, aucune logique)
-                          │ named pipe \\.\pipe\mcp-proxy.<SID>   (ACL : utilisateur courant)
+                          │ named pipe \\.\pipe\mcp-proxy.<utilisateur>   (tokio, première instance, clients
+                          │   distants rejetés ; preuve mutuelle DPAPI avant tout octet MCP)
                           ▼
                   mcp-proxy.exe                     (instance unique, icône de notification)
                   ├─ gateway  serveur MCP par connexion · registre d'outils · chaîne de middlewares
                   ├─ auth     méthodes d'authentification · authentification à la demande
                   ├─ core     sessions · secrets en mémoire · filtre de sortie · politiques · config · traces
-                  ├─ UI Vue (WebView locale)  ·  fenêtres de login (WebView distante, sans IPC)
+                  ├─ UI Vue (WebView locale)  ·  fenêtres de login (WebView distante, une seule commande : dépôt d'en-tête)
                   └─ amont    client MCP HTTP streamable par (environnement, MCP)  ·  modules locaux
 ```
 
@@ -105,17 +106,38 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
 **Tauri 2.12 / wry 0.57 / WebView2**
 - `on_web_resource_request` ne voit que le protocole `tauri://`, pas les pages distantes. Pour capturer des
   en-têtes : `with_webview` → `controller()`, puis `ICoreWebView2_22::AddWebResourceRequestedFilterWithRequestSourceKinds`
-  (repli `AddWebResourceRequestedFilter`) et `add_WebResourceRequested`.
+  (repli `AddWebResourceRequestedFilter`) et `add_WebResourceRequested`. **Toujours vrai, mais plus utilisé** :
+  ces appels COM n'existent qu'en `unsafe` (D18). Le JWT est capturé par un script injecté (spec 012).
 - `cookies_for_url(url)` renvoie aussi les cookies HttpOnly et Secure. Blocage garanti s'il est appelé depuis une
   commande synchrone ou un gestionnaire d'événement sous Windows : l'appeler depuis une tâche asynchrone.
 - `incognito(true)` active `IsInPrivateModeEnabled`, mais est **ignoré en silence** si le runtime WebView2 est trop
   ancien : vérifier à l'exécution et échouer fermé.
 - wry crée un `ICoreWebView2Environment` par WebView. Pour partager un profil entre fenêtres, créer l'environnement
   soi-même et le passer avec `with_environment`. C'est aussi le seul moyen de régler
-  `AllowSingleSignOnUsingOSPrimaryAccount`.
+  `AllowSingleSignOnUsingOSPrimaryAccount`. **Toujours vrai, mais plus utilisé** (création COM, donc `unsafe`, D18) :
+  chaque fenêtre de login reçoit le même `data_directory(..)` et `incognito(true)`, et le SSO du compte Windows passe
+  par `additional_browser_args` (spec 012).
 - Le partage des cookies InPrivate entre fenêtres d'un même environnement n'est pas attesté par les sources : c'est
   le premier point à valider en recette (étape 5b), avec repli `ephemeral_disk`.
 - Une page distante n'a accès à aucune commande tant qu'aucune capacité `remote` n'est déclarée.
+
+**API sûres vérifiées** (compilation en cible Windows sous `#![forbid(unsafe_code)]` et clippy `-D warnings`, le
+2026-11-22 ; rien n'a été exécuté, le comportement réel se valide en recette)
+- DPAPI utilisateur par WinRT (`windows` 0.62, features `Foundation`, `Security_Cryptography`,
+  `Security_Cryptography_DataProtection`, `Storage_Streams`) :
+  `DataProtectionProvider::CreateOverloadExplicit(&HSTRING::from("LOCAL=user"))?.ProtectAsync(&buffer)?.join()?`,
+  `DataProtectionProvider::new()?.UnprotectAsync(&buffer)?.join()?` ; tampons par
+  `CryptographicBuffer::CreateFromByteArray(&[u8])` et `CryptographicBuffer::CopyToByteArray(&buffer, &mut
+  Array::<u8>::new())`. Les `IBuffer` intermédiaires ne peuvent pas être effacés sans `unsafe`.
+- État des toasts : `ToastNotificationManager::CreateToastNotifierWithId(..)?.Setting()?` (feature
+  `UI_Notifications`).
+- Named pipe : `tokio::net::windows::named_pipe::ServerOptions::new().first_pipe_instance(true)
+  .reject_remote_clients(true).create(name)` (descripteur de sécurité par défaut).
+- Exclusion des rapports d'erreur Windows : valeur DWORD `1` nommée d'après l'exe sous
+  `HKCU\Software\Microsoft\Windows\Windows Error Reporting\ExcludedApplications`, avec `winreg` 0.56.
+- Hors de portée sans `unsafe` : tout appel Win32 ou COM direct, donc `CryptProtectMemory`, `CryptProtectData`,
+  `GetNamedPipeClientProcessId`, `SetCurrentProcessExplicitAppUserModelID`, `AttachConsole`, `IShellLinkW`, et toute
+  l'API COM de WebView2 (`with_webview`, `add_WebResourceRequested`, création d'un `ICoreWebView2Environment`).
 - `tauri-winrt-notification` 0.8 : `add_button(texte, action)`, `on_activated(Fn(Option<String>))` reçoit l'action du
   bouton, `on_dismissed` donne la raison. Pas d'API pour savoir si les toasts sont désactivés ni pour retirer un
   toast : passer par le crate `windows` pour ces deux besoins.
@@ -126,3 +148,12 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
 - Claude Desktop coupe un appel d'outil vers 60 s, ne recharge pas fiablement la liste après `list_changed` et peut
   annoncer l'elicitation sans l'afficher.
 - VS Code/Copilot plafonne à 128 outils par requête.
+
+## Amendements
+
+- **2026-11-22** — Aucun `unsafe` dans le dépôt (D18). Ligne « Secrets » : enveloppe AEAD + DPAPI WinRT au lieu de
+  `CryptProtectMemory` ; ligne « Appli » : plus de `webview2-com`, ajout de `winreg`. Schéma : le pipe n'a plus
+  d'ACL sur mesure (nom par utilisateur, première instance, clients distants rejetés, preuve mutuelle DPAPI) et les
+  fenêtres de login ont une seule commande, le dépôt d'en-tête (exception à INV-8). Faits techniques : les faits sur
+  le crochet natif et l'environnement WebView2 restent vrais mais ne sont plus utilisés ; ajout des API sûres
+  vérifiées.

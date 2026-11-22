@@ -25,9 +25,10 @@ Que l'appli se retire entièrement, depuis « Applications installées » de Win
 
 ### `mcp-proxy.exe --uninstall`
 
-1. Boîte de confirmation native.
+1. Boîte de confirmation, par une API sûre (dialogue de Tauri ou équivalent).
 2. Arrêt de l'instance en cours, s'il y en a une.
-3. Suppression : raccourci du menu Démarrer, démarrage automatique, clé AUMID, entrée de désinstallation, dossier
+3. Suppression : raccourci du menu Démarrer, démarrage automatique, clé AUMID, valeur d'exclusion WER (spec 011),
+   entrée de désinstallation, dossier
    de données `%LOCALAPPDATA%\MCP Proxy\` (logs, cache, profil WebView, réglages, téléchargements).
 4. Entrées ajoutées aux clients LLM (7e) : proposer de les retirer, case cochée par défaut.
 5. Suppression de l'exe et du dossier d'installation (`self_replace::self_delete_outside_path`).
@@ -38,7 +39,8 @@ Que l'appli se retire entièrement, depuis « Applications installées » de Win
 ### Organisation du code
 
 - `mcp_proxy_deploy::uninstall` : plan de désinstallation calculé par une fonction pure ; opérations derrière le
-  même trait qu'en 7a.
+  même trait qu'en 7a. Aucun `unsafe` (D18) : registre par `winreg` (entrée de désinstallation, clé `Run`, clé AUMID,
+  exclusion WER), raccourci supprimé comme un fichier, plus de `IShellLinkW`.
 
 ## Tests
 
@@ -56,3 +58,9 @@ Que l'appli se retire entièrement, depuis « Applications installées » de Win
 - **EX-022-04** (manuel) — Désinstaller : plus de raccourci, plus de démarrage automatique, plus de dossier d'installation ni de données,
   plus d'entrée dans la liste.
 - **EX-022-05** (manuel) — Aucune demande d'élévation.
+
+## Amendements
+
+- **2026-11-22** — Aucun `unsafe` (D18, demande de l'utilisateur) : registre par `winreg`, dialogue par une API
+  sûre, raccourci supprimé comme un simple fichier ; la valeur d'exclusion WER posée par l'appli (spec 011) est
+  retirée elle aussi. Aucun critère touché.

@@ -20,11 +20,13 @@ emplacement définitif.
 
 Au lancement, si l'exe ne s'exécute pas depuis `%LOCALAPPDATA%\Programs\MCP Proxy\` :
 
-1. **Aucune installation présente** : petite boîte de dialogue native « Installer MCP Proxy » avec la case
-   « Démarrer MCP Proxy avec Windows » (l'option de démarrage automatique). Puis :
+1. **Aucune installation présente** : petite boîte de dialogue « Installer MCP Proxy », par une API sûre (dialogue
+   de Tauri ou petite fenêtre locale de l'appli), avec la case « Démarrer MCP Proxy avec Windows » (l'option de
+   démarrage automatique). Puis :
    - copie de l'exe vers `%LOCALAPPDATA%\Programs\MCP Proxy\mcp-proxy.exe` ;
-   - raccourci `MCP Proxy.lnk` dans le menu Démarrer de l'utilisateur, portant l'AUMID
-     (`System.AppUserModel.ID`) ;
+   - raccourci `MCP Proxy.lnk` dans le menu Démarrer de l'utilisateur, écrit par un crate sûr (choisi à
+     l'implémentation, par exemple `mslnk`). S'il sait poser l'AUMID (`System.AppUserModel.ID`), le poser ; sinon,
+     raccourci sans AUMID : l'AUMID enregistré par le registre suffit aux toasts (spec 013) ;
    - démarrage automatique si coché (clé `Run` de `HKCU`, lancement avec `--autostart`) ;
    - **relance depuis le nouvel emplacement**, puis arrêt de l'exe d'origine.
 2. **Installation présente, exe lancé plus récent** (semver) : proposer de mettre à jour l'installation. Si
@@ -43,7 +45,8 @@ Au lancement, si l'exe ne s'exécute pas depuis `%LOCALAPPDATA%\Programs\MCP Pro
 - `mcp_proxy_deploy::install` : la décision (`InstallPlan` : installer, mettre à jour, déléguer, continuer) est
   une fonction pure des chemins et des versions, testée sous Linux.
 - Les opérations (copie, raccourci, registre) passent par un trait, avec une implémentation Windows et une fausse
-  pour les tests. Raccourci : `IShellLinkW` + `IPropertyStore`.
+  pour les tests. Aucun `unsafe` (D18) : registre par `winreg`, raccourci par un crate sûr, plus de `IShellLinkW` ni
+  de `IPropertyStore`.
 
 ## Tests
 
@@ -68,3 +71,9 @@ Au lancement, si l'exe ne s'exécute pas depuis `%LOCALAPPDATA%\Programs\MCP Pro
 ## Hors périmètre
 
 Mises à jour (7b). Désinstallation (7d).
+
+## Amendements
+
+- **2026-11-22** — Aucun `unsafe` (D18, demande de l'utilisateur). Raccourci par un crate sûr (par exemple
+  `mslnk`), sans AUMID s'il ne sait pas le poser, puisque le registre suffit ; registre par `winreg` ; dialogue
+  par une API sûre ; plus de `IShellLinkW`. Aucun critère touché.

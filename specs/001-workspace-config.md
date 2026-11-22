@@ -20,7 +20,7 @@ stricte et données d'exemple.
 
 - `Cargo.toml` racine : `resolver = "3"`, édition 2024, `[workspace.package]` (version `0.1.0`),
   `[workspace.dependencies]`, `[workspace.lints]` :
-  - rust : `unsafe_code = "deny"` ;
+  - rust : `unsafe_code = "forbid"` (aucun `unsafe` dans le dépôt, D18) ;
   - clippy en `deny` : `unwrap_used`, `expect_used`, `panic`, `dbg_macro`, `print_stdout`, `print_stderr`, `todo`,
     `unimplemented`.
   - `clippy.toml` : `allow-unwrap-in-tests`, `allow-expect-in-tests`, `allow-panic-in-tests`, `allow-dbg-in-tests`,
@@ -260,3 +260,5 @@ Secrets, filtre, politiques (étape 2). `app/` et `ui/` (étapes 5 et 6).
   - écarts de schéma (I1.10 à I1.12) et sous-commandes `ci lint` / `ci test` (I1.30).
 - **2026-11-22** — `cargo xtask ci` lance aussi la vérification de traçabilité, après la passe clippy en cible
   Windows ; elle fait partie de `ci test` (spec 030).
+- **2026-11-22** — `unsafe_code` passe de `deny` à `forbid` au niveau du workspace : aucun `unsafe` dans le dépôt,
+  plus d'exception pour les modules de plateforme (D18, demande de l'utilisateur). Aucun critère touché.

@@ -55,10 +55,10 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [008](008-mises-a-jour-serveurs.md) | 3d | gateway — mises à jour des serveurs MCP | prévue | 005, 006, 007 | 10 |
 | [009](009-tracing.md) | 3e | Tracing — spans, tampon circulaire, journal fichier filtré, export de diagnostic | prévue | 003, 007 | 8 |
 | [010](010-auth.md) | 4 | auth — méthodes d'authentification et authentification à la demande | prévue | 002, 006, 007 | 11 |
-| [011](011-app-squelette.md) | 5a | app — squelette Tauri, pont stdio (named pipe), instance unique, tray, réglages | prévue | 001 à 010 | 8 |
-| [012](012-fenetres-login.md) | 5b | app — fenêtres de login WebView2 (JWT, cookie, Basic), profil InPrivate | prévue | 010, 011 | 7 |
-| [013](013-notifications-confirmations.md) | 5c | app — notifications Windows et confirmations | prévue | 007, 011, 012 | 9 |
-| [014](014-reglages-scelles.md) | 5d | Réglages scellés (HMAC + DPAPI) | prévue | 004, 005, 011 | 6 |
+| [011](011-app-squelette.md) | 5a | app — squelette Tauri, pont stdio (named pipe), instance unique, tray, réglages | prévue | 001 à 010 | 11 |
+| [012](012-fenetres-login.md) | 5b | app — fenêtres de login WebView2 (JWT, cookie, Basic), profil InPrivate | prévue | 010, 011 | 10 |
+| [013](013-notifications-confirmations.md) | 5c | app — notifications Windows et confirmations | prévue | 007, 011, 012 | 11 |
+| [014](014-reglages-scelles.md) | 5d | Réglages scellés (HMAC + DPAPI) | prévue | 004, 005, 011 | 7 |
 | [015](015-arret-urgence.md) | 5e | Arrêt d'urgence dans le menu de l'icône | prévue | 007, 010, 011, 012 | 8 |
 | [016](016-ui-socle-connexions.md) | 6a | ui — socle Vue/shadcn-vue, en-tête et profil, onglet Connexions | prévue | 011 | 5 |
 | [017](017-ui-mcp.md) | 6b | ui — onglet MCP | prévue | 008, 016 | 9 |
@@ -68,7 +68,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [021](021-pipeline-gitlab.md) | 7c | Pipeline GitLab de release | prévue | 001, 020 | 6 |
 | [022](022-desinstallation.md) | 7d | Désinstallation propre | prévue | 019 | 5 |
 | [023](023-config-clients.md) | 7e | Configuration automatique des clients LLM | prévue | 016, 019 | 8 |
-| [024](024-doctor.md) | 7f | Auto-diagnostic (`doctor`) | prévue | 009, 011, 019, 020 | 7 |
+| [024](024-doctor.md) | 7f | Auto-diagnostic (`doctor`) | prévue | 009, 011, 019, 020 | 8 |
 | [025](025-module-jira-local.md) | 8 | Module MCP local d'exemple (`jira-local`) | prévue | 002, 007, 010 | 8 |
 | [026](026-pont-resilient.md) | — | Pont stdio résilient : survivre au redémarrage de l'appli | proposée | 011, 020 | 8 |
 | [027](027-config-signee.md) | — | Config signée téléchargée depuis Artifactory | backlog | — | 0 |

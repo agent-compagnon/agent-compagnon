@@ -18,15 +18,19 @@ confirmation. Sans réponse, c'est un refus.
 
 ### Identité de l'appli pour les toasts
 
-- Au démarrage : enregistrer l'AUMID sous `HKCU\Software\Classes\AppUserModelId\McpProxy.Desktop` (`DisplayName`,
-  `IconUri`) et appeler `SetCurrentProcessExplicitAppUserModelID`. Idempotent, sans droits admin, et sans dépendre
-  du raccourci du menu Démarrer.
+- Au démarrage : enregistrer l'AUMID **par le registre seulement** (`winreg`), sous
+  `HKCU\Software\Classes\AppUserModelId\McpProxy.Desktop` (`DisplayName`, `IconUri`). Idempotent, sans droits
+  admin, et sans dépendre du raccourci du menu Démarrer. Plus d'appel à `SetCurrentProcessExplicitAppUserModelID`,
+  qui n'existe qu'en `unsafe` (D18) : chaque toast est émis avec cet AUMID explicitement. Les valeurs à écrire sont
+  calculées par une fonction pure, dans un crate.
 
 ### Service de toasts
 
-- `tauri-winrt-notification` pour l'affichage et les boutons (`add_button(texte, action)`,
-  `on_activated(Fn(Option<String>))`, `on_dismissed`). Le crate `windows` pour ce qu'il ne couvre pas : savoir si
-  les toasts sont activés (`ToastNotifier::Setting`) et retirer un toast.
+- Toasts et état des notifications **par WinRT**, sans `unsafe` : `tauri-winrt-notification` pour l'affichage et
+  les boutons (`add_button(texte, action)`, `on_activated(Fn(Option<String>))`, `on_dismissed`), la projection WinRT
+  du crate `windows` (feature `UI_Notifications`) pour ce qu'il ne couvre pas : savoir si les toasts sont activés
+  (`ToastNotificationManager::CreateToastNotifierWithId(..)?.Setting()?`) et retirer un toast
+  (`ToastNotificationManager::History()`, à vérifier à l'implémentation).
 - Trois usages :
   - **Connexion demandée** : « Claude Desktop attend une connexion à SSO PROD ». Le clic met la fenêtre de login au
     premier plan.
@@ -65,6 +69,8 @@ confirmation. Sans réponse, c'est un refus.
   arrêt de l'appli avec des demandes en attente (toutes refusées).
 - **EX-013-02** — Règle « tient dans le toast » : arguments courts, longs, multi-lignes.
 - **EX-013-03** — Les textes du toast et de la fenêtre sont construits à partir d'arguments déjà filtrés (valeur sentinelle).
+- **EX-013-11** — Valeurs de registre de l'AUMID (clé, `DisplayName`, `IconUri` pointant l'exe installé) calculées
+  pour un chemin d'installation donné.
 
 ## Vérification
 
@@ -78,7 +84,15 @@ confirmation. Sans réponse, c'est un refus.
 - **EX-013-07** (manuel) — Sans réponse pendant 30 s : refus, toast retiré.
 - **EX-013-08** (manuel) — Avec « Ne pas déranger » activé : la fenêtre de détail s'ouvre seule.
 - **EX-013-09** (manuel) — L'icône est orange tant qu'une demande attend, puis redevient neutre.
+- **EX-013-10** (manuel) — Sans raccourci dans le menu Démarrer (exe lancé depuis un autre dossier), un toast
+  s'affiche avec le nom « MCP Proxy » et son icône : l'AUMID enregistré par le registre suffit.
 
 ## Hors périmètre
 
 Canal elicitation (fait en 3c). Bandeaux de l'interface (6a).
+
+## Amendements
+
+- **2026-11-22** — Aucun `unsafe` (D18, demande de l'utilisateur). Toasts et état des notifications par WinRT ;
+  AUMID enregistré par le registre (`winreg`) et passé explicitement à chaque toast ; plus de
+  `SetCurrentProcessExplicitAppUserModelID`. Aucun critère retiré ; ajoutés : `EX-013-10` et `EX-013-11`.

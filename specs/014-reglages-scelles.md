@@ -18,8 +18,9 @@ accès au disque, qui changerait le profil ou exposerait PROD.
 
 ## À faire
 
-- Clé HMAC aléatoire de 32 octets, protégée par DPAPI (`CryptProtectData`, portée utilisateur) et stockée dans
-  `%LOCALAPPDATA%\MCP Proxy\settings.key`.
+- Clé HMAC aléatoire de 32 octets, protégée par DPAPI au niveau utilisateur par l'enrobage WinRT du core
+  (`mcp_proxy_core::platform::windows::protect` / `unprotect`, spec 002), et stockée dans
+  `%LOCALAPPDATA%\MCP Proxy\settings.key`. Plus de `CryptProtectData`, qui n'existe qu'en `unsafe` (D18).
 - `settings.json` est accompagné d'un HMAC-SHA256 de son contenu canonique. Vérification à chaque chargement,
   comparaison en temps constant.
 - Fichier modifié hors de l'appli, HMAC absent ou clé illisible : **retour aux réglages les plus stricts** — profil
@@ -30,7 +31,8 @@ accès au disque, qui changerait le profil ou exposerait PROD.
 - Le même scellement protège les fichiers du **cache du catalogue** (3a). Un fichier de cache invalide est ignoré :
   retour à l'instantané embarqué.
 - Logique dans `core::sealed`, indépendante de la plateforme : `SealedStore` paramétré par un trait
-  `KeyProtector` — DPAPI sous Windows, implémentation de développement ailleurs.
+  `KeyProtector` — l'enrobage DPAPI WinRT du core sous Windows, implémentation de développement ailleurs. Réutiliser
+  `secrets::KeyWrapper` (spec 002) s'il convient tel quel.
 - `SealedSettingsStore` implémente `SettingsStore` et remplace le fichier JSON simple dans l'appli.
 - Limite à écrire dans `DECISIONS.md` : un programme qui tourne sous le compte de l'utilisateur peut lui aussi
   appeler DPAPI. Le scellement relève la barre, il ne la rend pas infranchissable.
@@ -52,3 +54,11 @@ accès au disque, qui changerait le profil ou exposerait PROD.
 - **EX-014-05** (manuel) — Modifier `settings.json` à la main (changer le profil) puis relancer : profil « Lecture seule », aucun
   environnement exposé, notification affichée.
 - **EX-014-06** (manuel) — Un usage normal (changer de profil dans l'appli, relancer) conserve les réglages.
+- **EX-014-07** (manuel) — `settings.key` ne contient pas la clé en clair ; copié avec `settings.json` dans le
+  profil d'un autre utilisateur Windows, il ne s'ouvre pas : réglages stricts et notification.
+
+## Amendements
+
+- **2026-11-22** — Aucun `unsafe` (D18, demande de l'utilisateur) : la clé HMAC est protégée par l'enrobage DPAPI
+  WinRT du core (spec 002), pas par `CryptProtectData`. `EX-014-04` reste vrai (tests DPAPI compilés en contrôle
+  croisé). Aucun critère retiré ; ajouté : `EX-014-07`.

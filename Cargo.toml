@@ -50,7 +50,7 @@ windows = "0.62.2"
 zeroize = "1.9.2"
 
 [workspace.lints.rust]
-unsafe_code = "deny"
+unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 unwrap_used = "deny"
