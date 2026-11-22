@@ -21,7 +21,9 @@ pub use model::{
     AuthConfig, Config, Environment, FilterConfig, GatewayConfig, Mcp, McpKind, Origin, Profile, RateLimit, Session,
     SessionRef, SessionScope, ToolConfig, TraceConfig, UpdateConfig, UrlPattern, WebviewConfig, WebviewProfile,
 };
-pub use policy::{Category, Channel, Decision, EnvPolicy, McpPolicy, PolicyTree, Rule, RuleSet};
+pub use policy::{
+    Category, Channel, Decision, EnvPolicy, Level, McpPolicy, PolicyTree, Rule, RulePosition, RuleSet, Selector,
+};
 pub use validate::SCHEMA_VERSION;
 
 /// The configuration compiled into the executable.

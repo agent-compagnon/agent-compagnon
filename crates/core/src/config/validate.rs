@@ -10,7 +10,9 @@ use super::model::{
     AuthConfig, Config, Environment, FilterConfig, GatewayConfig, Mcp, McpKind, Origin, Profile, RateLimit, Session,
     SessionRef, SessionScope, ToolConfig, TraceConfig, UpdateConfig, UrlPattern,
 };
-use super::policy::{Category, Channel, Decision, EnvPolicy, McpPolicy, PolicyTree, Rule, RuleSet};
+use super::policy::{
+    Category, Channel, Decision, EnvPolicy, McpPolicy, PolicyTree, Rule, RulePosition, RuleSet, Selector,
+};
 use super::raw::{
     RawAuth, RawConfig, RawEnvironment, RawMcp, RawPolicyEnv, RawPolicyMcp, RawPolicyRoot, RawProfile, RawRule,
     RawSession,
@@ -54,95 +56,61 @@ fn is_token(value: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || "!#$%&'*+-.^_`|~".contains(c))
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Selector<'a> {
-    Default,
-    Category(Category),
-    /// The tool's static category, `None` when only the server annotations will decide at run time.
-    Tool(&'a ToolName, Option<Category>),
-}
-
 /// A rule flattened out of a tree, for the locked-rule coverage check.
-struct FlatRule<'a> {
-    env: Option<&'a EnvId>,
-    mcp: Option<&'a McpId>,
-    selector: Selector<'a>,
+struct FlatRule {
+    position: RulePosition,
+    /// Static category of the tool, for a tool rule.
+    tool_category: Option<Category>,
     rule: Rule,
     path: String,
 }
 
-impl FlatRule<'_> {
+impl FlatRule {
     /// Whether `self`, if locked, is a candidate every time `other` is.
-    fn covers(&self, other: &FlatRule<'_>) -> bool {
-        let node = (self.env.is_none() || self.env == other.env) && (self.mcp.is_none() || self.mcp == other.mcp);
-        let selector = match (self.selector, other.selector) {
-            (Selector::Default, _) => true,
-            (Selector::Category(a), Selector::Category(b)) => a == b,
-            // Without a static category, whether a category rule applies is only known at run time.
-            (Selector::Category(a), Selector::Tool(_, Some(b))) => a == b,
-            (Selector::Tool(a, _), Selector::Tool(b, _)) => a == b,
-            _ => false,
-        };
-        node && selector
+    fn covers(&self, other: &FlatRule) -> bool {
+        self.position.covers(&other.position, other.tool_category)
     }
 }
 
-fn flatten<'a>(
-    tree: &'a PolicyTree,
+fn flatten(
+    tree: &PolicyTree,
     prefix: &str,
     categories: &BTreeMap<(McpId, ToolName), Option<Category>>,
-) -> Vec<FlatRule<'a>> {
-    fn push_set<'a>(
-        out: &mut Vec<FlatRule<'a>>,
-        set: &RuleSet,
-        env: Option<&'a EnvId>,
-        mcp: Option<&'a McpId>,
-        path: &str,
-    ) {
-        let entries = [
-            (Selector::Default, set.default, "default"),
-            (Selector::Category(Category::Read), set.read, "read"),
-            (Selector::Category(Category::Write), set.write, "write"),
-            (
-                Selector::Category(Category::Destructive),
-                set.destructive,
-                "destructive",
-            ),
-        ];
-        for (selector, rule, name) in entries {
-            if let Some(rule) = rule {
-                out.push(FlatRule {
-                    env,
-                    mcp,
-                    selector,
-                    rule,
-                    path: format!("{path}.{name}"),
-                });
-            }
-        }
-    }
-
+) -> Vec<FlatRule> {
     let mut out = Vec::new();
-    push_set(&mut out, &tree.rules, None, None, prefix);
-    for (env_id, env) in &tree.env {
-        let env_path = format!("{prefix}.env.{}", key(env_id.as_str()));
-        push_set(&mut out, &env.rules, Some(env_id), None, &env_path);
-        for (mcp_id, mcp) in &env.mcp {
-            let mcp_path = format!("{env_path}.mcp.{}", key(mcp_id.as_str()));
-            push_set(&mut out, &mcp.rules, Some(env_id), Some(mcp_id), &mcp_path);
-            for (tool, rule) in &mcp.tools {
+    for (position, rule) in tree.rules() {
+        let mut path = prefix.to_owned();
+        if let Some(env) = &position.env {
+            path.push_str(&format!(".env.{}", key(env.as_str())));
+        }
+        if let Some(mcp) = &position.mcp {
+            path.push_str(&format!(".mcp.{}", key(mcp.as_str())));
+        }
+        let tool_category = match &position.selector {
+            Selector::Default => {
+                path.push_str(".default");
+                None
+            }
+            Selector::Category(c) => {
+                path.push_str(&format!(".{}", c.key()));
+                None
+            }
+            Selector::Tool(tool) => {
+                path.push_str(&format!(".tool.{}.rule", key(tool.as_str())));
+                let Some(mcp) = &position.mcp else { continue };
                 // Tool rules only exist for declared tools.
-                if let Some(category) = categories.get(&(mcp_id.clone(), tool.clone())) {
-                    out.push(FlatRule {
-                        env: Some(env_id),
-                        mcp: Some(mcp_id),
-                        selector: Selector::Tool(tool, *category),
-                        rule: *rule,
-                        path: format!("{mcp_path}.tool.{}.rule", key(tool.as_str())),
-                    });
+                match categories.get(&(mcp.clone(), tool.clone())) {
+                    Some(category) => *category,
+                    None => continue,
                 }
             }
-        }
+        };
+        out.push(FlatRule {
+            position,
+            tool_category,
+            rule,
+            path,
+        });
     }
     out
 }
@@ -1123,7 +1091,7 @@ impl Validator {
 
     /// A rule softer than a locked rule covering it can never have its own decision applied (the floor always
     /// raises it): it is rejected rather than left to mislead the reader.
-    fn locked_coverage(&mut self, rules: &[FlatRule<'_>], locked_from: &[FlatRule<'_>]) {
+    fn locked_coverage(&mut self, rules: &[FlatRule], locked_from: &[FlatRule]) {
         for rule in rules {
             let floor = locked_from
                 .iter()
