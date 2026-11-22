@@ -8,11 +8,11 @@ critère : `cargo xtask trace` vérifie que tous les critères manuels d'une spe
 
 ## 002 — core — store de secrets en mémoire
 
-- [ ] **EX-002-07** — `cargo test -p mcp-proxy-core platform::windows` : les 2 tests passent (aller-retour
-  `CryptProtectMemory` / `CryptUnprotectMemory` avec un tampon effectivement modifié par le chiffrement ; tampon non
-  aligné refusé).
-- [ ] **EX-002-08** — `cargo test -p mcp-proxy-core secrets` : tous les tests passent. `platform_store_round_trip`
-  y utilise `WindowsMemoryProtector` ; les tests du client HTTP passent par SChannel (requêtes `http` en boucle
-  locale).
 - [ ] **EX-002-09** — Aucun message « secrets en mémoire NON chiffrés » dans la sortie : le protecteur de
   développement n'existe pas sous Windows.
+- [ ] **EX-002-16** — `cargo test -p mcp-proxy-core platform::windows` : les 2 tests passent (aller-retour DPAPI
+  utilisateur réel par WinRT ; données protégées différentes des données claires et sans la valeur en clair ;
+  données quelconques refusées ou rendues vides).
+- [ ] **EX-002-17** — `cargo test -p mcp-proxy-core secrets` : tous les tests passent. `platform_store_round_trip`
+  y utilise `DpapiKeyWrapper`, aller-retour d'essai de `SecretStore::for_platform` compris ; les tests du client HTTP
+  passent par SChannel (requêtes `http` en boucle locale).

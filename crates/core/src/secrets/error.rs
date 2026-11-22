@@ -2,13 +2,17 @@ use thiserror::Error;
 
 use crate::config::SessionId;
 
-/// Why the memory protection layer failed. Carries no data from the buffer.
+/// Why the memory protection layer failed. Carries no data from the secret nor from the key.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProtectionFailure {
-    /// The buffer length is not a multiple of `PROTECT_BLOCK_SIZE`.
-    Misaligned,
-    /// The buffer is too large for the platform API.
+    /// The value is too large to be sealed.
     TooLarge,
+    /// The operating system's random generator did not answer.
+    Random,
+    /// The key wrapper gave back a key of the wrong length.
+    InvalidKey,
+    /// The trial round trip of the key wrapper did not give the key back.
+    RoundTrip,
     /// Error code returned by the operating system (`HRESULT` on Windows).
     Os(i32),
 }
@@ -32,6 +36,13 @@ pub enum SecretError {
 
     #[error("protection mémoire du secret impossible ({0})")]
     Protection(ProtectionFailure),
+
+    /// Returned when a store is created: the session key cannot be wrapped and given back.
+    #[error(
+        "protection des secrets indisponible ({0}) : la clé de session ne peut pas être protégée, aucun secret ne \
+         sera gardé"
+    )]
+    KeyProtectionUnavailable(ProtectionFailure),
 
     #[error("secret illisible après déchiffrement")]
     Corrupted,
@@ -61,8 +72,10 @@ pub enum SecretError {
 impl std::fmt::Display for ProtectionFailure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Misaligned => f.write_str("tampon mal aligné"),
-            Self::TooLarge => f.write_str("tampon trop grand"),
+            Self::TooLarge => f.write_str("valeur trop grande"),
+            Self::Random => f.write_str("générateur aléatoire indisponible"),
+            Self::InvalidKey => f.write_str("clé de session de taille inattendue"),
+            Self::RoundTrip => f.write_str("aller-retour de la clé de session incorrect"),
             Self::Os(code) => write!(f, "code système {code:#010x}"),
         }
     }

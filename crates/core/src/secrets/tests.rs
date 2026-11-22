@@ -11,39 +11,13 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use url::Url;
 
-use super::sealed::drop_probe;
+use super::key::{ClearKey, key_probe};
+use super::sealed::{associated_data, drop_probe};
+use super::test_support::{LyingWrapper, TestWrapper};
 use super::*;
 use crate::config::{Config, Origin, SessionId};
 
 const SENTINEL: &str = "S3NT1NEL-6f1c2b9e-do-not-print";
-
-/// Test double that really transforms the buffer, so that reading a sealed buffer as clear text would be noticed.
-struct XorProtector;
-
-impl MemoryProtector for XorProtector {
-    fn protect(&self, buf: &mut [u8]) -> Result<(), SecretError> {
-        check_block_len(buf)?;
-        buf.iter_mut().for_each(|b| *b ^= 0xa5);
-        Ok(())
-    }
-
-    fn unprotect(&self, buf: &mut [u8]) -> Result<(), SecretError> {
-        self.protect(buf)
-    }
-}
-
-/// Protector whose decryption always fails.
-struct BrokenUnprotect;
-
-impl MemoryProtector for BrokenUnprotect {
-    fn protect(&self, buf: &mut [u8]) -> Result<(), SecretError> {
-        check_block_len(buf)
-    }
-
-    fn unprotect(&self, _: &mut [u8]) -> Result<(), SecretError> {
-        Err(SecretError::Protection(ProtectionFailure::Os(-1)))
-    }
-}
 
 /// Clock that only moves when told to.
 struct ManualClock(Mutex<Instant>);
@@ -70,7 +44,8 @@ const GRACE: Duration = Duration::from_secs(130);
 /// A store with `GRACE` and a manual clock.
 fn store_with_clock() -> (SecretStore, Arc<ManualClock>) {
     let clock = ManualClock::new();
-    let store = SecretStore::new(Box::new(XorProtector))
+    let store = SecretStore::new(Box::new(TestWrapper::default()))
+        .unwrap()
         .with_variant_grace(GRACE)
         .with_clock(clock.clone());
     (store, clock)
@@ -93,7 +68,21 @@ fn sid(id: &str) -> SessionId {
 }
 
 fn store() -> SecretStore {
-    SecretStore::new(Box::new(XorProtector))
+    SecretStore::new(Box::new(TestWrapper::default())).unwrap()
+}
+
+/// A store whose wrapper can be watched and broken after creation.
+fn watched_store() -> (SecretStore, TestWrapper) {
+    let wrapper = TestWrapper::default();
+    (SecretStore::new(Box::new(wrapper.clone())).unwrap(), wrapper)
+}
+
+/// A store holding a bearer token for `sso-corp`, whose wrapper fails from now on.
+fn broken_store(token: &str) -> SecretStore {
+    let (store, wrapper) = watched_store();
+    store.put(&sid("sso-corp"), bearer(token)).unwrap();
+    wrapper.break_now();
+    store
 }
 
 fn secret(value: &str) -> SecretString {
@@ -124,66 +113,221 @@ fn token_of(store: &SecretStore, session: &SessionId) -> Result<String, SecretEr
     })
 }
 
-// --- Memory protection ---------------------------------------------------------------------------------------------
+// --- Envelope protection --------------------------------------------------------------------------------------------
 
-// Exigence : EX-002-01
+// Exigence : EX-002-11
 #[cfg(not(windows))]
 #[test]
-fn insecure_dev_protector_round_trip_and_alignment() {
-    let protector = InsecureDevProtector::new();
-    let original: Vec<u8> = (0u8..32).collect();
-    let mut buf = original.clone();
-    protector.protect(&mut buf).unwrap();
-    protector.unprotect(&mut buf).unwrap();
-    assert_eq!(buf, original);
-    let misaligned = Err(SecretError::Protection(ProtectionFailure::Misaligned));
-    assert_eq!(protector.protect(&mut [0u8; 17]), misaligned);
-    assert_eq!(protector.unprotect(&mut []), misaligned);
+fn insecure_dev_wrapper_round_trip() {
+    let wrapper = InsecureDevKeyWrapper::new();
+    let key: Vec<u8> = (0u8..32).collect();
+    let wrapped = wrapper.wrap(&key).unwrap();
+    assert_eq!(wrapper.unwrap(&wrapped).unwrap().as_slice(), key.as_slice());
 }
 
-// Exigence : EX-002-01
+// Exigence : EX-002-11
 #[test]
-fn sealed_secret_round_trip_with_padding() {
-    for len in [0usize, 1, 15, 16, 17, 31, 32, 100] {
+fn sealed_secret_round_trip() {
+    let key = ClearKey::generate().unwrap();
+    let aad = associated_data(&sid("sso-corp"), "bearer");
+    for len in [0usize, 1, 15, 16, 17, 31, 32, 100, MAX_SECRET_LEN] {
         let value: Vec<u8> = (0..len).map(|i| (i % 251) as u8 + 1).collect();
-        let sealed = SealedSecret::seal(&XorProtector, &value).unwrap();
+        let sealed = SealedSecret::seal(&key, &aad, &value).unwrap();
         assert_eq!(sealed.len(), len);
         assert_eq!(sealed.is_empty(), len == 0);
-        assert_eq!(sealed.unseal(&XorProtector).unwrap().as_bytes(), value.as_slice());
+        assert_eq!(sealed.unseal(&key, &aad).unwrap().as_bytes(), value.as_slice());
         assert_eq!(
-            sealed.unseal(&XorProtector).unwrap().as_bytes(),
+            sealed.unseal(&key, &aad).unwrap().as_bytes(),
             value.as_slice(),
             "unseal works on a copy"
         );
     }
 }
 
+// Exigence : EX-002-11
+#[test]
+fn each_sealing_uses_a_fresh_nonce() {
+    let key = ClearKey::generate().unwrap();
+    let aad = associated_data(&sid("sso-corp"), "bearer");
+    let a = SealedSecret::seal(&key, &aad, SENTINEL.as_bytes()).unwrap();
+    let b = SealedSecret::seal(&key, &aad, SENTINEL.as_bytes()).unwrap();
+    assert_ne!(format!("{:?}", a.debug_bytes()), format!("{:?}", b.debug_bytes()));
+    assert!(
+        !a.debug_bytes()
+            .windows(SENTINEL.len())
+            .any(|w| w == SENTINEL.as_bytes())
+    );
+}
+
 #[test]
 fn sealed_secret_refuses_oversized_values() {
+    let key = ClearKey::generate().unwrap();
     let value = vec![b'a'; MAX_SECRET_LEN + 1];
     assert_eq!(
-        SealedSecret::seal(&XorProtector, &value).unwrap_err(),
+        SealedSecret::seal(&key, b"aad", &value).unwrap_err(),
         SecretError::Protection(ProtectionFailure::TooLarge)
     );
 }
 
-// Exigence : EX-002-01
+// Exigence : EX-002-11
 #[test]
 fn platform_store_round_trip() {
-    let store = SecretStore::for_platform();
+    let store = SecretStore::for_platform().unwrap();
     let s = sid("sso-corp");
     store.put(&s, bearer(SENTINEL)).unwrap();
     assert_eq!(token_of(&store, &s).unwrap(), SENTINEL);
 }
 
+// Exigence : EX-002-12
+#[test]
+fn tampered_secret_is_detected() {
+    let key = ClearKey::generate().unwrap();
+    let aad = associated_data(&sid("sso-corp"), "bearer");
+    let mut sealed = SealedSecret::seal(&key, &aad, SENTINEL.as_bytes()).unwrap();
+    sealed.tamper(3);
+    assert_eq!(sealed.unseal(&key, &aad).err(), Some(SecretError::Corrupted));
+}
+
+// Exigence : EX-002-12
+#[test]
+fn tampered_credential_or_variant_fails_closed_in_the_store() {
+    let store = store();
+    let s = sid("sso-corp");
+    store.put(&s, bearer(SENTINEL)).unwrap();
+    store.tamper_for_test(&s, false);
+    let mut called = false;
+    assert_eq!(store.with_exposed(&s, |_| called = true), Err(SecretError::Corrupted));
+    assert!(!called);
+
+    store.put(&s, bearer(SENTINEL)).unwrap();
+    store.tamper_for_test(&s, true);
+    assert_eq!(store.with_variants(|_| called = true), Err(SecretError::Corrupted));
+    assert!(!called);
+}
+
+// Exigence : EX-002-13
+#[test]
+fn sealed_value_is_bound_to_its_session_and_slot() {
+    let key = ClearKey::generate().unwrap();
+    let corp = associated_data(&sid("sso-corp"), "bearer");
+    let sealed = SealedSecret::seal(&key, &corp, SENTINEL.as_bytes()).unwrap();
+    for other in [
+        associated_data(&sid("sso-prod"), "bearer"),
+        associated_data(&sid("sso-corp"), "variant"),
+        associated_data(&sid("sso-corp"), "cookie:SID"),
+    ] {
+        assert_eq!(sealed.unseal(&key, &other).err(), Some(SecretError::Corrupted));
+    }
+    let other_key = ClearKey::generate().unwrap();
+    assert_eq!(sealed.unseal(&other_key, &corp).err(), Some(SecretError::Corrupted));
+}
+
+// Exigence : EX-002-13
+#[test]
+fn secret_moved_to_another_session_does_not_open() {
+    let store = store();
+    let (corp, prod) = (sid("sso-corp"), sid("sso-prod"));
+    store.put(&corp, cookies(&[("SID", SENTINEL)])).unwrap();
+    store.move_entry_for_test(&corp, &prod);
+    assert!(store.has(&prod));
+    let mut called = false;
+    assert_eq!(
+        store.with_exposed(&prod, |_| called = true),
+        Err(SecretError::Corrupted)
+    );
+    assert!(!called);
+    assert_eq!(store.with_variants(|_| ()), Err(SecretError::Corrupted));
+}
+
+// Exigence : EX-002-14
+#[test]
+fn key_is_unwrapped_once_per_use_and_wiped() {
+    let (store, wrapper) = watched_store();
+    let (corp, prod) = (sid("sso-corp"), sid("sso-prod"));
+    let base = wrapper.unwraps();
+    store
+        .put(&corp, cookies(&[("SID", "cookie-value-1"), ("XSRF", "cookie-value-2")]))
+        .unwrap();
+    store.put(&prod, bearer(SENTINEL)).unwrap();
+    assert_eq!(wrapper.unwraps(), base + 2, "one unwrap per put");
+    key_probe::take();
+
+    store
+        .with_exposed(&corp, |_| {
+            let dropped = key_probe::take();
+            assert_eq!(dropped.len(), 1, "key wiped before the closure runs");
+            assert!(
+                dropped
+                    .iter()
+                    .all(|k| k.len() == SESSION_KEY_LEN && k.iter().all(|b| *b == 0))
+            );
+        })
+        .unwrap();
+    assert_eq!(wrapper.unwraps(), base + 3, "one unwrap for every cookie");
+
+    store.wipe(&corp);
+    let count = store.with_variants(|v| v.len()).unwrap();
+    assert!(count >= 3, "variants of both sessions, active and retired");
+    assert_eq!(wrapper.unwraps(), base + 4, "one unwrap for every variant");
+    let dropped = key_probe::take();
+    assert_eq!(dropped.len(), 1);
+    assert!(dropped[0].iter().all(|b| *b == 0));
+
+    // No secret: no unwrap at all.
+    store.with_exposed(&corp, |_| ()).unwrap_err();
+    assert_eq!(wrapper.unwraps(), base + 4);
+}
+
+// Exigence : EX-002-15
+#[test]
+fn unwrap_failure_fails_closed() {
+    let store = broken_store(SENTINEL);
+    let s = sid("sso-corp");
+    let mut called = false;
+    let error = store.with_exposed(&s, |_| called = true).unwrap_err();
+    assert!(
+        matches!(error, SecretError::Protection(ProtectionFailure::Os(_))),
+        "{error:?}"
+    );
+    assert!(store.with_variants(|_| called = true).is_err());
+    assert!(!called);
+    assert!(store.put(&sid("sso-prod"), bearer("other-token")).is_err());
+    assert!(!store.has(&sid("sso-prod")));
+    assert!(store.has(&s), "the previous secret stays in place");
+}
+
+// Exigence : EX-002-15
+#[test]
+fn store_creation_checks_the_wrapper() {
+    let wrapper = TestWrapper::default();
+    wrapper.break_now();
+    let error = SecretStore::new(Box::new(wrapper)).err();
+    assert_eq!(
+        error,
+        Some(SecretError::KeyProtectionUnavailable(ProtectionFailure::Os(-1)))
+    );
+    let error = SecretStore::new(Box::new(LyingWrapper)).err();
+    assert_eq!(
+        error,
+        Some(SecretError::KeyProtectionUnavailable(ProtectionFailure::RoundTrip))
+    );
+    assert!(
+        error
+            .unwrap()
+            .to_string()
+            .starts_with("protection des secrets indisponible")
+    );
+}
+
 // Exigence : EX-002-04
 #[test]
 fn sealed_buffer_is_zeroed_on_drop() {
-    let sealed = SealedSecret::seal(&XorProtector, SENTINEL.as_bytes()).unwrap();
+    let key = ClearKey::generate().unwrap();
+    let sealed = SealedSecret::seal(&key, b"aad", SENTINEL.as_bytes()).unwrap();
     drop_probe::take();
     drop(sealed);
     let last = drop_probe::take().unwrap();
-    assert_eq!(last.len(), 32);
+    assert_eq!(last.len(), SENTINEL.len() + 16);
     assert!(last.iter().all(|b| *b == 0));
 }
 
@@ -228,7 +372,8 @@ fn outputs_with_secret(value: &str) -> Vec<String> {
             .with_variants(|v| out.push(format!("{} variants", v.len())))
             .unwrap();
     }
-    let sealed = SealedSecret::seal(&XorProtector, value.as_bytes()).unwrap();
+    let key = ClearKey::generate().unwrap();
+    let sealed = SealedSecret::seal(&key, b"aad", value.as_bytes()).unwrap();
     out.push(format!("{sealed:?}"));
 
     let mut errors = Vec::new();
@@ -242,8 +387,7 @@ fn outputs_with_secret(value: &str) -> Vec<String> {
     }
     store.wipe(&s);
     errors.push(store.with_exposed(&s, |_| ()).unwrap_err());
-    let broken = SecretStore::new(Box::new(BrokenUnprotect));
-    broken.put(&s, bearer(value)).unwrap();
+    let broken = broken_store(value);
     errors.push(broken.with_exposed(&s, |_| ()).unwrap_err());
     errors.push(broken.with_variants(|_| ()).unwrap_err());
     let guard = guard_for(&s, &["https://mcp.example.internal"]);
@@ -483,19 +627,11 @@ fn expired_variants_are_zeroed() {
 
 #[test]
 fn retired_variants_fail_closed_too() {
-    let store = SecretStore::new(Box::new(BrokenUnprotect));
+    let (store, wrapper) = watched_store();
     let s = sid("sso-corp");
     store.put(&s, bearer("token")).unwrap();
     store.wipe(&s);
-    let mut called = false;
-    assert!(store.with_variants(|_| called = true).is_err());
-    assert!(!called);
-}
-
-#[test]
-fn with_variants_fails_closed() {
-    let store = SecretStore::new(Box::new(BrokenUnprotect));
-    store.put(&sid("sso-corp"), bearer("token")).unwrap();
+    wrapper.break_now();
     let mut called = false;
     assert!(store.with_variants(|_| called = true).is_err());
     assert!(!called);

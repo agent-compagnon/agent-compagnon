@@ -11,40 +11,15 @@ use serde_json::{Value, json};
 
 use super::*;
 use crate::config::{Config, FilterConfig, SessionId};
+use crate::secrets::test_support::TestWrapper;
 use crate::secrets::variants::{JsonEscape, aligned_base64, derive_variants, hex, json_escape, percent_encode};
-use crate::secrets::{Clock, Credential, MemoryProtector, ProtectionFailure, SecretError, SecretStore};
+use crate::secrets::{Clock, Credential, SecretError, SecretStore};
 
 const SENTINEL: &str = "S3NT1NEL-6f1c2b9e-do-not-print";
 
 /// A real (signed with a throw-away key) HS256 JWT.
 const JWT: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqZG9lIiwiZXhwIjoxNzAwMDAwMDAwfQ.\
                    Zb2xqzD8aU0pLwH4yqXk0mJk5T0Qm1cJ3a8W9eXwYfI";
-
-struct XorProtector;
-
-impl MemoryProtector for XorProtector {
-    fn protect(&self, buf: &mut [u8]) -> Result<(), SecretError> {
-        crate::secrets::check_block_len(buf)?;
-        buf.iter_mut().for_each(|b| *b ^= 0x5a);
-        Ok(())
-    }
-
-    fn unprotect(&self, buf: &mut [u8]) -> Result<(), SecretError> {
-        self.protect(buf)
-    }
-}
-
-struct BrokenUnprotect;
-
-impl MemoryProtector for BrokenUnprotect {
-    fn protect(&self, buf: &mut [u8]) -> Result<(), SecretError> {
-        crate::secrets::check_block_len(buf)
-    }
-
-    fn unprotect(&self, _: &mut [u8]) -> Result<(), SecretError> {
-        Err(SecretError::Protection(ProtectionFailure::Os(-1)))
-    }
-}
 
 struct ManualClock(Mutex<Instant>);
 
@@ -80,7 +55,7 @@ fn cookies(pairs: &[(&str, &str)]) -> Credential {
 }
 
 fn filter_for(credentials: Vec<Credential>) -> OutputFilter {
-    let store = Arc::new(SecretStore::new(Box::new(XorProtector)));
+    let store = Arc::new(SecretStore::new(Box::new(TestWrapper::default())).unwrap());
     for (i, credential) in credentials.into_iter().enumerate() {
         store.put(&sid(&format!("session-{i}")), credential).unwrap();
     }
@@ -88,7 +63,7 @@ fn filter_for(credentials: Vec<Credential>) -> OutputFilter {
 }
 
 fn filter_with_config(credentials: Vec<Credential>, config: &FilterConfig) -> OutputFilter {
-    let store = Arc::new(SecretStore::new(Box::new(XorProtector)));
+    let store = Arc::new(SecretStore::new(Box::new(TestWrapper::default())).unwrap());
     for (i, credential) in credentials.into_iter().enumerate() {
         store.put(&sid(&format!("session-{i}")), credential).unwrap();
     }
@@ -985,8 +960,10 @@ proptest! {
 // --- EX-003-12: fail closed ------------------------------------------------------------------------------------------
 
 fn broken_filter() -> OutputFilter {
-    let store = Arc::new(SecretStore::new(Box::new(BrokenUnprotect)));
+    let wrapper = TestWrapper::default();
+    let store = Arc::new(SecretStore::new(Box::new(wrapper.clone())).unwrap());
     store.put(&sid("sso-corp"), bearer(SENTINEL)).unwrap();
+    wrapper.break_now();
     OutputFilter::new(store, &FilterConfig::default()).unwrap()
 }
 
@@ -1020,7 +997,8 @@ fn wiped_secret_stays_masked_during_the_grace_period_only() {
     let clock = Arc::new(ManualClock(Mutex::new(Instant::now())));
     let grace = Duration::from_secs(130);
     let store = Arc::new(
-        SecretStore::new(Box::new(XorProtector))
+        SecretStore::new(Box::new(TestWrapper::default()))
+            .unwrap()
             .with_variant_grace(grace)
             .with_clock(clock.clone()),
     );

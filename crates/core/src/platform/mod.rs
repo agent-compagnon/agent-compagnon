@@ -1,5 +1,4 @@
-//! Platform-specific code. `unsafe` is allowed in these submodules only.
+//! Platform-specific code. Like the rest of the workspace, it is written with safe APIs only: `unsafe` is forbidden.
 
 #[cfg(windows)]
-#[allow(unsafe_code)]
 pub mod windows;

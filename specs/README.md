@@ -46,7 +46,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | Spec | Étape | Titre | Statut | Dépend de | Critères |
 |---|---|---|---|---|---|
 | [001](001-workspace-config.md) | 1 | Workspace Cargo, xtask ci, CI GitLab minimale, config TOML embarquée et validée | implémentée | — | 4 |
-| [002](002-secrets.md) | 2a | core — store de secrets en mémoire | implémentée | 001 | 10 |
+| [002](002-secrets.md) | 2a | core — store de secrets en mémoire | implémentée | 001 | 14 |
 | [003](003-filtre.md) | 2b | core — filtre de sortie | implémentée | 002 | 14 |
 | [004](004-politiques.md) | 2c | core — moteur de politiques, profils et durcissement | implémentée | 001 | 12 |
 | [005](005-registre-catalogue.md) | 3a | gateway — registre d'outils, préfixage, exposition, catalogue embarqué + cache | prévue | 001, 004 | 6 |
