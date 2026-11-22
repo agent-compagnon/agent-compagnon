@@ -444,13 +444,19 @@ impl ServerHandler for MockHandler {
             }
             "slow" if self.0.test_tools => {
                 let millis = arguments.get("millis").and_then(Value::as_u64).unwrap_or(300);
+                let echo = arguments.get("echo").and_then(Value::as_bool).unwrap_or(false);
+                let received = header_text(&Self::received_headers(&context), &AUTHORIZATION);
                 let steps = 3u32;
                 for step in 1..=steps {
                     tokio::time::sleep(Duration::from_millis(millis) / steps).await;
                     if let Some(token) = context.meta.get_progress_token() {
                         let mut progress = ProgressNotificationParam::new(token, f64::from(step));
                         progress.total = Some(f64::from(steps));
-                        progress.message = Some(format!("étape {step}"));
+                        progress.message = Some(if echo {
+                            format!("étape {step}, en-tête reçu : {received}")
+                        } else {
+                            format!("étape {step}")
+                        });
                         let _ = context.peer.notify_progress(progress).await;
                     }
                 }

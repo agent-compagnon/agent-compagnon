@@ -185,3 +185,17 @@ impl CatalogCache for FileCatalogCache {
         Ok(())
     }
 }
+
+/// No cache: nothing is ever loaded, writes are dropped. For tests and development tools.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NoCatalogCache;
+
+impl CatalogCache for NoCatalogCache {
+    fn load(&self, _: &InstanceId) -> Result<Option<CachedCatalog>, CacheError> {
+        Ok(None)
+    }
+
+    fn store(&self, _: &InstanceId, _: &CachedCatalog) -> Result<(), CacheError> {
+        Ok(())
+    }
+}

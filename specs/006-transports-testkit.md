@@ -81,7 +81,13 @@ pub trait SessionGate: Send + Sync {
   appel amont → **filtre de sortie**. L'étape 3c y insère les autres maillons.
 - `ClientIdentity { name, version, protocol_version, supports_elicitation }`, lue par requête depuis
   `RequestContext` (`client_info()`, `protocol_version()`, `client_capabilities()`).
-- `GatewayServer::serve(stream)` pour tout `AsyncRead + AsyncWrite`.
+- `GatewayServer::serve(stream)` pour tout `AsyncRead + AsyncWrite`. Avec un client 2026-07-28, `serve` ne rend la
+  main qu'après sa première requête autre que `server/discover` : ne pas l'attendre avant de laisser le client
+  avancer. `GatewayServer::run(stream)` sert jusqu'au départ du client.
+- Changements de liste du registre relayés : `notifications/tools/list_changed` aux clients de l'ancien protocole,
+  `subscriptions/listen` aux clients 2026-07-28.
+- Sortie : seul `OutputGate` construit un `Filtered`, le seul type que `CallPipeline::call` peut rendre ; listes,
+  résultats, erreurs et textes de progression y passent. Filtre en échec : texte fixe, rien du contenu.
 - Erreurs renvoyées comme résultat d'outil en erreur (`is_error = true`) avec un message français clair, sans
   secret. Les messages venant de l'amont passent par le filtre : `UnexpectedServerResponse` contient le corps de la
   réponse.
@@ -119,6 +125,15 @@ pub trait SessionGate: Send + Sync {
   spec 005 ; l'en-tête lu dans la variable d'environnement arrive au serveur et n'apparaît ni dans la sortie ni dans
   les messages d'erreur.
 
+- **EX-006-09** — `tools/list` refiltré à l'envoi : un secret connu après le remplissage du registre est masqué dans la
+  liste reçue par le client.
+- **EX-006-10** — Changement du registre : un client de l'ancien protocole reçoit `notifications/tools/list_changed`, un
+  client 2026-07-28 abonné par `subscriptions/listen` reçoit la notification.
+- **EX-006-11** — Capacités annoncées : outils seulement ; ni ressources, ni prompts, ni complétion.
+- **EX-006-12** — Progression amont relayée au client sous son jeton, messages filtrés.
+- **EX-006-13** — `ClientIdentity` lue par requête dans les deux générations (nom, version, version du protocole,
+  elicitation annoncée).
+
 ## Vérification
 
 `cargo xtask ci` vert.
@@ -140,3 +155,7 @@ Politiques, confirmations, limite de débit (3c). Rechargement des listes (3d).
   `get_stream_with_response_limits` ; ce sont `post_message_with_response_limits` et les méthodes
   `*_with_max_sse_event_size` qui portent les limites. Le 401 ou 403 sans défi n'a pas de variante d'erreur propre :
   il est reconnu dans `UnexpectedServerResponse`. Raison : sources de rmcp 3.11.0, constatées à la compilation.
+- **2026-11-22** — `GatewayServer::serve` avec un client 2026-07-28 ne rend la main qu'après sa première requête
+  autre que `server/discover` (rmcp 3.11 choisit le cycle de vie à ce moment) ; ajout de `GatewayServer::run`.
+  Critères `EX-006-09` à `EX-006-13` ajoutés pour le refiltrage des listes, les changements de liste, les capacités,
+  la progression et l'identité du client, décrits dans « À faire » sans critère jusqu'ici.

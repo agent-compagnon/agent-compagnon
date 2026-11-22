@@ -19,7 +19,8 @@ pub fn catalog_tools(mcp: &str) -> Option<Vec<Tool>> {
 
 /// Tools with a test behaviour, served on demand (`MockMcpBuilder::with_test_tools`):
 /// - `echo_headers`: returns the HTTP headers received with the call;
-/// - `slow`: sends progress notifications for `millis` milliseconds, then answers;
+/// - `slow`: sends progress notifications for `millis` milliseconds, then answers; with `echo`, the progress
+///   messages quote the received `Authorization` header;
 /// - `fail`: answers with a JSON-RPC error quoting the received `Authorization` header;
 /// - `http_fail`: the HTTP layer answers 400 with a plain-text body quoting the received `Authorization` header.
 pub fn test_tools() -> Vec<Tool> {
@@ -34,7 +35,10 @@ pub fn test_tools() -> Vec<Tool> {
             "description": "Answers after a delay, with progress notifications.",
             "inputSchema": {
                 "type": "object",
-                "properties": { "millis": { "type": "integer", "minimum": 0 } }
+                "properties": {
+                    "millis": { "type": "integer", "minimum": 0 },
+                    "echo": { "type": "boolean" }
+                }
             }
         },
         {

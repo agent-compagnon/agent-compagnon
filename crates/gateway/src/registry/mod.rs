@@ -26,7 +26,9 @@ use mcp_proxy_core::settings::UserSettings;
 use serde_json::Value;
 use tokio::sync::broadcast;
 
-pub use cache::{CACHE_SCHEMA_VERSION, CacheError, CacheSeal, CachedCatalog, CatalogCache, FileCatalogCache, NoSeal};
+pub use cache::{
+    CACHE_SCHEMA_VERSION, CacheError, CacheSeal, CachedCatalog, CatalogCache, FileCatalogCache, NoCatalogCache, NoSeal,
+};
 pub use catalog::{CatalogError, EmbeddedCatalog};
 pub use exposure::Exposure;
 pub use model::{CatalogSource, Fingerprint, InstanceId, ToolDefinition, ToolDiff, ToolEntry, ToolHints};
