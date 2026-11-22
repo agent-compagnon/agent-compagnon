@@ -37,7 +37,8 @@ l'emporte, et la spec est à corriger.
 - Ce qui ne peut pas être exécuté sous Linux (WebView2, toasts, installation, remplacement de l'exe) est livré avec
   ses vérifications manuelles dans `docs/recette.md`.
 - Tout point ambigu : choisir l'option la plus sûre, la noter dans `DECISIONS.md`, continuer.
-- Les messages de commit se terminent par la ligne `Spec: NNN`, avant les lignes d'attribution.
+- Chaque message de commit porte la ligne `Spec: NNN` dans son bloc final, avec les lignes d'attribution et sans
+  ligne vide entre elles.
 - Le dépôt est la seule mémoire du projet : rien d'important ne vit uniquement dans un ticket ou une conversation.
 
 ## Amender ce document

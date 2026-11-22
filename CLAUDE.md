@@ -36,7 +36,8 @@ conversation.
 
 ## Commits
 
-Messages en anglais, terminés par la ligne `Spec: NNN` (la spec servie), avant les lignes d'attribution.
+Messages en anglais. La ligne `Spec: NNN` (la spec servie) fait partie du bloc final du message, avec les lignes
+d'attribution et **sans ligne vide entre elles**, pour que git la lise comme un « trailer ».
 `git log --grep "Spec: 003"` doit suffire à retrouver l'histoire d'une spec.
 
 ## Ce qui ne peut pas être exécuté ici
