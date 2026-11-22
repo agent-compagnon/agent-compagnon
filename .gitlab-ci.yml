@@ -1,0 +1,35 @@
+# Minimal pipeline (step 1): checks only. Windows build and release jobs arrive with step 7c.
+stages:
+  - lint
+  - test
+
+default:
+  image: rust:1.97.0
+  before_script:
+    # Installs the toolchain, components and Windows target pinned by rust-toolchain.toml.
+    - rustup toolchain install
+    - cargo --version
+  cache:
+    key:
+      files:
+        - Cargo.lock
+    paths:
+      - .cargo-home/registry/index/
+      - .cargo-home/registry/cache/
+      - .cargo-home/git/db/
+      - target/
+
+variables:
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo-home"
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+lint:
+  stage: lint
+  script:
+    - cargo xtask ci lint
+
+test:
+  stage: test
+  script:
+    - cargo xtask ci test
