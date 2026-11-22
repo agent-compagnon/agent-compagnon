@@ -29,7 +29,7 @@ x86_64-pc-windows-msvc`) mais jamais exécuté ni lié.
 ## Organisation
 
 ```
-crates/core              mcp-proxy-core       config (étape 1) ; sessions, secrets, filtre, politiques… à venir
+crates/core              mcp-proxy-core       config (étape 1), secrets en mémoire (2a) ; filtre, politiques… à venir
 crates/auth              mcp-proxy-auth       méthodes d'authentification (étape 4)
 crates/gateway           mcp-proxy-gateway    registre, amont, middlewares, serveur MCP, pont (étape 3)
 crates/deploy            mcp-proxy-deploy     installation, désinstallation, updater (étape 7)

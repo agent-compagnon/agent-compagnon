@@ -123,3 +123,36 @@ la dernière section est alimentée à chaque étape d'implémentation.
 | # | Décision |
 |---|---|
 | I1.34 | `category` est facultative dans `[mcp.tools]` (`ToolConfig.category: Option<Category>`). Un outil déclaré sans catégorie reste un outil connu ; sa catégorie suit S11 à l'exécution : annotations du serveur, sinon destructif. Une valeur de catégorie invalide reste une erreur. Pour la couverture des verrous (I1.21), une règle de **catégorie** verrouillée ne couvre pas la règle d'un outil sans catégorie statique (la catégorie n'est connue qu'à l'exécution) ; une règle `default` verrouillée ou une règle d'outil verrouillée la couvrent toujours. Exemple : `get_merge_request` et `add_merge_request_note` de `gitlab-ops` sont déclarés sans catégorie. |
+
+### Étape 2a — store de secrets en mémoire
+
+**Organisation et protection mémoire**
+
+| # | Décision |
+|---|---|
+| I2a.1 | Tout vit dans `mcp_proxy_core::secrets` ; le seul code `unsafe` est `core::platform::windows` (`WindowsMemoryProtector`). `InsecureDevProtector` est dans `secrets`, compilé sous `cfg(not(windows))`, et émet un `tracing::warn!` à sa construction. `platform_protector()` et `SecretStore::for_platform()` choisissent le protecteur de la plateforme. |
+| I2a.2 | `MemoryProtector` exige `Send + Sync`. Taille de bloc : constante `PROTECT_BLOCK_SIZE = 16`, dont l'égalité avec `CRYPTPROTECTMEMORY_BLOCK_SIZE` est vérifiée à la compilation. Tous les protecteurs, y compris celui de développement, refusent un tampon vide ou non aligné, pour qu'une erreur d'alignement se voie dès les tests Linux. Un secret vide occupe un bloc. |
+| I2a.3 | Le tampon scellé n'est jamais déchiffré en place : `with_exposed` et `with_variants` déchiffrent une copie `Zeroizing`, et le verrou du store est relâché avant d'appeler la closure (pas d'interblocage si elle rappelle le store, pas de fenêtre où le tampon scellé serait en clair). |
+| I2a.4 | Verrou empoisonné : récupéré plutôt que propagé, pour que `wipe` et `wipe_all` fonctionnent toujours. |
+| I2a.5 | Accès de test « tampon à zéro après `Drop` » : sous `cfg(test)`, `Drop` recopie l'état final du tampon (après effacement) dans une variable locale au thread. Aucune lecture de mémoire libérée. |
+
+**Store**
+
+| # | Décision |
+|---|---|
+| I2a.6 | **Écart** : `with_variants` renvoie `Result<R, SecretError>` et non `R`. Si une variante ne peut être déchiffrée, la closure n'est pas appelée : filtrer avec une liste incomplète laisserait passer un secret, le filtre (2b) doit donc échouer fermé. |
+| I2a.7 | `put` renvoie `Result` et est atomique : validation, scellement de la valeur et de toutes ses variantes, puis remplacement. En cas d'erreur, l'ancien secret de la session reste inchangé. `wipe` renvoie `true` s'il y avait un secret. |
+| I2a.8 | Validation au `put`, pour qu'une injection d'en-tête soit impossible : valeurs secrètes non vides, 64 Kio au plus (`MAX_SECRET_LEN`), octets admis dans une valeur d'en-tête HTTP (aucun caractère de contrôle sauf la tabulation, donc ni CR, ni LF, ni NUL). Cookies : au moins un, nom conforme à la grammaire `token` HTTP, sans doublon, valeur sans `;`. Login Basic : non vide, sans `:` ni caractère de contrôle. Les motifs d'erreur sont des textes fixes, jamais la valeur. |
+| I2a.9 | Point d'extension de 2b : `secrets::variants::derive_variants(&Credential)`. En 2a il ne renvoie que les valeurs brutes (jeton, mot de passe Basic, chaque valeur de cookie ; pas le login), non vides et dédupliquées ; elles sont scellées comme la valeur elle-même. |
+| I2a.10 | `Debug` : `SealedSecret(***)` ; `Credential` et `ExposedCredential` affichent le type, les noms de cookies et le login Basic (non secrets), jamais une valeur ; `SecretStore` n'affiche que les identifiants de session. L'appartenance d'un secret à une seule session tient à la clé de session et au fait que `Credential` n'est ni clonable ni copiable et est consommé par `put` ; deux sessions qui recevraient la même valeur ne sont pas détectées. |
+
+**Origines et client HTTP**
+
+| # | Décision |
+|---|---|
+| I2a.11 | `OriginGuard::from_config` reprend `Session.allowed_origins` calculé à l'étape 1 (I1.18 : URL d'instance des MCP distants, `base_url` des modules locaux, `probe_url`). `authorize` refuse une session inconnue, une URL avec identifiants (`user:pass@`), un schéma autre que `https`, et toute origine non déclarée. `http` n'est accepté que pour `localhost` et `127.0.0.1`, comme pour les URL de la config (I1.14), et seulement si l'origine est déclarée. L'erreur cite l'origine refusée (schéma, hôte, port), jamais le chemin ni la requête. |
+| I2a.12 | API du client : `request(Method, Url) -> reqwest::Request`, puis `execute(Request) -> reqwest::Response`. `authorize` puis lecture du secret ont lieu avant tout envoi ; les en-têtes `Authorization` et `Cookie` posés par l'appelant sont retirés, l'en-tête injecté est marqué `sensitive`. Retirés de la réponse : `Set-Cookie`, `Authorization`, `WWW-Authenticate`, `Proxy-Authenticate`, plus `Proxy-Authorization` et `Set-Cookie2`. |
+| I2a.13 | Le délai du client (constructeur) borne chaque requête, connexion comprise ; une requête peut demander un délai plus court, jamais plus long. Aucune redirection, `Referer` désactivé, backend TLS natif choisi explicitement. Les erreurs `reqwest`, dont le texte contient l'URL, sont réduites à `Timeout`, `Connect` ou `Transport`. |
+| I2a.14 | Proxy : le client des origines distantes garde les proxys de l'environnement (nécessaires en entreprise ; en `https` le proxy ne voit qu'un tunnel `CONNECT`). Les requêtes vers `localhost`/`127.0.0.1` passent par un second client sans aucun proxy, pour qu'un en-tête d'authentification en `http` clair ne soit jamais remis à un proxy. |
+| I2a.15 | Limite connue : la valeur injectée est copiée dans un `HeaderValue` que `reqwest`/`hyper` ne remettent pas à zéro. Les tampons intermédiaires construits par le core (`Bearer …`, `login:motdepasse`, base64, liste de cookies) sont `Zeroizing`. |
+| I2a.16 | `AuthenticatedHttpClient::new(session, store, guard, timeout)` est public et refuse une session inconnue du garde ; le câblage vers les modules locaux viendra avec les étapes 3 et 8. Le trait `SessionGate` (3b) n'est pas créé. |
