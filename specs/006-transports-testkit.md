@@ -2,7 +2,7 @@
 id: "006"
 titre: "gateway — transports MCP (côté clients, côté serveurs) et testkit"
 etape: "3b"
-statut: "prévue"
+statut: "en cours"
 depend_de: ["002", "003", "005"]
 suivi: "github#7"
 ---
@@ -34,12 +34,21 @@ les deux générations du protocole, avec injection des identifiants côté serv
 pub trait SessionGate: Send + Sync {
     /// Rend la session utilisable avant `deadline`, en déclenchant une connexion si nécessaire.
     async fn ensure(&self, session: &SessionId, deadline: Instant, reason: &AccessReason) -> Result<(), SessionError>;
+    /// La session est utilisable tout de suite, sans rien déclencher.
+    fn is_active(&self, session: &SessionId) -> bool;
     /// Ajoute les en-têtes d'authentification, après contrôle de l'origine.
     fn inject(&self, session: &SessionId, url: &Url, headers: &mut HeaderMap) -> Result<(), SessionError>;
     /// Le serveur a refusé l'identifiant : la session passe à « expirée ».
     fn mark_rejected(&self, session: &SessionId);
 }
 ```
+
+- `mcp_proxy_core::session` : `SessionGate`, `SessionError` (`LoginPending`, `Cancelled`, `Unavailable`,
+  `Injection`), `AccessReason`, et `StoreSessionGate`, porte minimale adossée au `SecretStore` et à l'`OriginGuard`
+  (session utilisable tant que son secret est dans le store, aucune connexion possible), qui sert aux tests et aux
+  outils de développement en attendant l'`OnDemandAuthenticator` de la spec 010.
+- `mcp_proxy_core::confirm` : `ConfirmationBroker`, `ConfirmationRequest`, `ConfirmationOutcome`, contrat de la
+  spec 007 déclaré ici pour que le `FakeConfirmationBroker` du testkit existe dès cette étape.
 
 ### Côté serveurs : `Upstream`
 
@@ -118,3 +127,7 @@ Politiques, confirmations, limite de débit (3c). Rechargement des listes (3d).
 - **2026-11-22** — Ajout de `cargo xtask snapshot-catalog` (section « Instantanés de catalogue ») et du critère
   `EX-006-08`, venus de la spec 005. Raison : la commande a besoin du client MCP HTTP livré ici ; `xtask` délègue à
   un exécutable du crate `gateway` pour rester sans dépendance lourde.
+- **2026-11-22** — Contrats : `SessionGate` gagne `is_active`, et `ConfirmationBroker` est déclaré dans `core`
+  (`mcp_proxy_core::confirm`). Raison : sans session active, `list_tools` doit renvoyer `SessionRequired` sans
+  déclencher de connexion, ce que `ensure` ne permet pas ; le `FakeConfirmationBroker` demandé ici suppose le trait
+  de la spec 007.

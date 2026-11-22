@@ -50,7 +50,7 @@ fn is_loopback(url: &Url) -> bool {
 }
 
 /// Builds the authentication header. The returned value is marked sensitive (`Debug` hides it).
-fn auth_header(credential: ExposedCredential<'_>) -> Result<(HeaderName, HeaderValue), SecretError> {
+pub(crate) fn auth_header(credential: ExposedCredential<'_>) -> Result<(HeaderName, HeaderValue), SecretError> {
     let (name, raw) = match credential {
         ExposedCredential::Bearer { token } => {
             let mut raw = Zeroizing::new(Vec::with_capacity("Bearer ".len() + token.len()));
