@@ -1,7 +1,7 @@
 ---
 id: "030"
 titre: "Traçabilité des specs : identifiants de critères et `cargo xtask trace`"
-statut: "prévue"
+statut: "implémentée"
 depend_de: ["001"]
 suivi: "github#31"
 ---
@@ -23,25 +23,33 @@ plutôt que dans un gestionnaire de tickets.
 - Un critère d'acceptation est une puce qui commence par `**EX-NNN-nn**`, suivie de `(manuel)` s'il ne peut être
   vérifié qu'à la main. `NNN` est l'identifiant de la spec qui le contient.
 - Un critère retiré reste dans le fichier, barré (`~~…~~`). Son identifiant n'est jamais réutilisé.
+- Les puces des blocs de code délimités par trois accents graves ne sont pas lues comme des critères.
 
 ### `cargo xtask trace`
 
 - Lit toutes les specs et signale : en-tête absent ou invalide, `id` différent du préfixe du nom de fichier, statut
   inconnu, dépendance vers une spec inexistante, identifiant de critère mal formé, en double, ou portant le numéro
   d'une autre spec.
-- Relève les identifiants cités dans le code — fichiers suivis par git sous `crates/`, `app/`, `xtask/` et `ui/`,
-  hors dépendances et sorties de build — et dans `docs/recette.md`.
+- Relève les identifiants cités dans le code — fichiers suivis par git (`git ls-files`) sous `crates/`, `app/`,
+  `xtask/` et `ui/`, hors dossiers `target`, `node_modules` et `dist` — et dans `docs/recette.md`.
+- Dans le code, seule compte la forme de citation : le mot `Exigence`, deux-points, puis un ou plusieurs
+  identifiants séparés par des virgules. Un identifiant écrit ailleurs (donnée de test, texte) n'est pas une
+  citation. Dans `docs/recette.md`, tout identifiant compte.
+- Une citation mal formée est une erreur.
 - Un identifiant cité mais absent des specs est une erreur. Un critère barré encore cité est une erreur.
 - Spec `implémentée` : chaque critère automatique est cité au moins une fois dans le code, chaque critère
   `(manuel)` au moins une fois dans `docs/recette.md`. Sinon, erreur.
 - Spec `en cours` : les critères non couverts sont listés en avertissement, sans faire échouer la commande.
 - Autres statuts : rien n'est exigé.
 - L'index de `specs/README.md`, entre ses deux marqueurs, est comparé aux en-têtes. Toute différence est une
-  erreur ; `cargo xtask trace --write-index` le régénère.
+  erreur ; `cargo xtask trace --write-index` le régénère, sauf si un nom de fichier ou un en-tête de spec est
+  invalide. Colonne « Critères » : nombre de critères non retirés ; « Dépend de » : une suite d'au moins quatre
+  numéros consécutifs s'écrit `001 à 010`.
 - Sortie : une ligne par spec (critères couverts sur total), puis les erreurs avec le fichier et l'identifiant
   concernés. Code de sortie non nul s'il y a au moins une erreur.
 - `cargo xtask trace --report` affiche la matrice critère → fichiers qui le citent.
-- `cargo xtask ci` lance cette vérification après les tests, sous le nom « traçabilité ».
+- `cargo xtask ci` lance cette vérification après les tests, sous le nom « traçabilité » : après la passe clippy en
+  cible Windows, avant `ui/`, dans le groupe `ci test`.
 
 ### Rattrapage de l'existant
 

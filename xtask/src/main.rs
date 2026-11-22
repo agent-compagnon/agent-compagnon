@@ -6,15 +6,20 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant};
 
+mod trace;
+
 const WINDOWS_TARGET: &str = "x86_64-pc-windows-msvc";
 
 const USAGE: &str = "\
 usage: cargo xtask <command>
 
 commands:
-  ci          run every check: fmt, clippy (host), tests, clippy (Windows target), ui/
-  ci lint     fmt and both clippy runs only
-  ci test     tests and ui/ checks only";
+  ci                    run every check: fmt, clippy (host), tests, clippy (Windows target), traceability, ui/
+  ci lint               fmt and both clippy runs only
+  ci test               tests, traceability and ui/ checks only
+  trace                 check that specs, tests and docs/recette.md agree
+  trace --write-index   regenerate the index of specs/README.md, then check
+  trace --report        print the criterion -> citing files matrix, then check";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Group {
@@ -47,6 +52,17 @@ fn workspace_root() -> PathBuf {
     manifest.parent().map(Path::to_path_buf).unwrap_or(manifest)
 }
 
+/// Runs this very binary, already built, rather than going through cargo again.
+fn trace_step(root: &Path) -> Step {
+    match std::env::current_exe() {
+        Ok(exe) => Step::new("traçabilité", Group::Test, &exe.to_string_lossy(), &["trace"], root),
+        Err(_) => {
+            let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
+            Step::new("traçabilité", Group::Test, &cargo, &["xtask", "trace"], root)
+        }
+    }
+}
+
 fn ci_steps(root: &Path) -> Vec<Step> {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
     let mut steps = vec![
@@ -75,6 +91,7 @@ fn ci_steps(root: &Path) -> Vec<Step> {
             ],
             root,
         ),
+        trace_step(root),
     ];
     let ui = root.join("ui");
     if ui.join("package.json").is_file() {
@@ -153,6 +170,9 @@ fn main() -> ExitCode {
         ["ci"] => run_ci(&[Group::Lint, Group::Test]),
         ["ci", "lint"] => run_ci(&[Group::Lint]),
         ["ci", "test"] => run_ci(&[Group::Test]),
+        ["trace"] => trace::run(&workspace_root(), trace::Mode::Check),
+        ["trace", "--write-index"] => trace::run(&workspace_root(), trace::Mode::WriteIndex),
+        ["trace", "--report"] => trace::run(&workspace_root(), trace::Mode::Report),
         ["help" | "--help" | "-h"] => {
             println!("{USAGE}");
             ExitCode::SUCCESS

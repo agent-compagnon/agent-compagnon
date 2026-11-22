@@ -19,9 +19,10 @@ x86_64-pc-windows-msvc`) mais jamais exécuté ni lié.
 
 | Commande | Effet |
 |---|---|
-| `cargo xtask ci` | Toutes les vérifications : `fmt --check`, clippy hôte, tests, clippy cible Windows, puis `ui/` s'il existe |
+| `cargo xtask ci` | Toutes les vérifications : `fmt --check`, clippy hôte, tests, clippy cible Windows, traçabilité, puis `ui/` s'il existe |
 | `cargo xtask ci lint` | `fmt --check` et les deux passes clippy |
-| `cargo xtask ci test` | Tests hôte et vérifications `ui/` |
+| `cargo xtask ci test` | Tests hôte, traçabilité et vérifications `ui/` |
+| `cargo xtask trace` | Alignement specs ↔ tests ↔ `docs/recette.md` (voir `specs/README.md`) ; `--write-index` régénère l'index des specs, `--report` affiche la matrice critère → fichiers |
 | `cargo test -p mcp-proxy-core` | Tests du core, dont la validation de la config embarquée |
 
 `cargo xtask ci` s'arrête à la première étape en échec et sort avec un code non nul.

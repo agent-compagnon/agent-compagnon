@@ -38,9 +38,9 @@ stricte et données d'exemple.
 ### xtask
 
 - `cargo xtask ci` enchaîne : `fmt --check`, clippy hôte (membres par défaut), tests hôte, clippy cible Windows
-  (`--workspace`), puis les vérifications `ui/` si `ui/package.json` existe. Arrêt à la première erreur, code de
+  (`--workspace`), la traçabilité (spec 030), puis les vérifications `ui/` si `ui/package.json` existe. Arrêt à la première erreur, code de
   sortie non nul, résumé final lisible.
-- `cargo xtask ci lint` (fmt et les deux clippy) et `cargo xtask ci test` (tests et `ui/`) découpent la même suite
+- `cargo xtask ci lint` (fmt et les deux clippy) et `cargo xtask ci test` (tests, traçabilité et `ui/`) découpent la même suite
   pour les deux jobs GitLab.
 
 ### CI GitLab minimale
@@ -258,3 +258,5 @@ Secrets, filtre, politiques (étape 2). `app/` et `ui/` (étapes 5 et 6).
     cibles de politique, `channel`, profil le plus strict, délais, longueur des noms, chemins de mise à jour,
     version de schéma (I1.14 à I1.27) ; `McpAlias` et identifiant de session `env` réservé (I1.5 à I1.8) ;
   - écarts de schéma (I1.10 à I1.12) et sous-commandes `ci lint` / `ci test` (I1.30).
+- **2026-11-22** — `cargo xtask ci` lance aussi la vérification de traçabilité, après la passe clippy en cible
+  Windows ; elle fait partie de `ci test` (spec 030).

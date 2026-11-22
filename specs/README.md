@@ -74,5 +74,5 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [027](027-config-signee.md) | — | Config signée téléchargée depuis Artifactory | backlog | — | 0 |
 | [028](028-authenticode.md) | — | Signature Authenticode dans la CI | backlog | — | 0 |
 | [029](029-exe-windows-a-la-demande.md) | — | Exe Windows cross-compilé depuis Linux | à la demande | — | 0 |
-| [030](030-tracabilite.md) | — | Traçabilité des specs : identifiants de critères et `cargo xtask trace` | prévue | 001 | 10 |
+| [030](030-tracabilite.md) | — | Traçabilité des specs : identifiants de critères et `cargo xtask trace` | implémentée | 001 | 10 |
 <!-- index:fin -->
