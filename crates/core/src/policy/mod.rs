@@ -57,6 +57,32 @@ pub enum CategorySource {
     Unknown,
 }
 
+/// Category of a tool and its source (S11). Independent of the profile. A tool counts as known only if its MCP is
+/// declared with an instance in this environment and lists it in `[mcp.tools]`: having been seen in a catalogue or
+/// a server list never makes it known.
+pub fn tool_category(
+    config: &Config,
+    env: &EnvId,
+    mcp: &McpId,
+    tool: &ToolName,
+    annotations: Option<&ToolAnnotations>,
+) -> (Category, CategorySource) {
+    let declared = config
+        .mcp(mcp)
+        .filter(|m| m.instances.contains_key(env))
+        .and_then(|m| m.tools.get(tool));
+    match declared {
+        None => (Category::Destructive, CategorySource::Unknown),
+        Some(config) => match config.category {
+            Some(category) => (category, CategorySource::Config),
+            None => match annotations.and_then(ToolAnnotations::category) {
+                Some(category) => (category, CategorySource::Annotation),
+                None => (Category::Destructive, CategorySource::Default),
+            },
+        },
+    }
+}
+
 /// The tree a rule comes from.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Layer {
@@ -234,8 +260,7 @@ impl<'a> PolicyEngine<'a> {
         self.profile
     }
 
-    /// Category of a tool and its source. A tool counts as known only if its MCP is declared with an instance in
-    /// this environment and lists it in `[mcp.tools]`.
+    /// Category of a tool and its source, see [`tool_category`].
     pub fn category(
         &self,
         env: &EnvId,
@@ -243,21 +268,7 @@ impl<'a> PolicyEngine<'a> {
         tool: &ToolName,
         annotations: Option<&ToolAnnotations>,
     ) -> (Category, CategorySource) {
-        let declared = self
-            .config
-            .mcp(mcp)
-            .filter(|m| m.instances.contains_key(env))
-            .and_then(|m| m.tools.get(tool));
-        match declared {
-            None => (Category::Destructive, CategorySource::Unknown),
-            Some(config) => match config.category {
-                Some(category) => (category, CategorySource::Config),
-                None => match annotations.and_then(ToolAnnotations::category) {
-                    Some(category) => (category, CategorySource::Annotation),
-                    None => (Category::Destructive, CategorySource::Default),
-                },
-            },
-        }
+        tool_category(self.config, env, mcp, tool, annotations)
     }
 
     /// Decision for a call to `tool` of `mcp` in `env`. `annotations` are the server's, used only for a declared
