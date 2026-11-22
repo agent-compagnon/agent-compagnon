@@ -61,8 +61,13 @@ pub trait SessionGate: Send + Sync {
     n'est stocké dans la configuration du transport.
   - Aucune redirection suivie. TLS natif.
   - 401 ou 403 → `UpstreamError::AuthRejected` et `mark_rejected`, qu'il y ait ou non un `WWW-Authenticate`.
-  - Les limites de taille de réponse sont conservées (redéfinir les méthodes `*_with_response_limits`).
-- Connexion paresseuse au premier besoin ; reconnexion avec temporisation croissante.
+  - Les limites de taille de réponse sont conservées : `post_message_with_response_limits` et les deux méthodes
+    `*_with_max_sse_event_size` sont redéfinies et délèguent à l'implémentation de rmcp pour `reqwest::Client`, qui
+    les applique (il n'existe pas de `get_stream_with_response_limits`).
+  - Un 401 ou 403 sans `WWW-Authenticate` arrive du SDK sous la forme `UnexpectedServerResponse("HTTP 401 …: corps")` :
+    il est reconnu, la session est marquée rejetée et le corps est abandonné.
+- Connexion paresseuse au premier besoin ; reconnexion avec temporisation croissante (1 s, doublée à chaque échec,
+  60 s au plus).
 - Délai d'appel `upstream_timeout_secs` via `PeerRequestOptions` ; notifications de progression relayées vers le
   client quand il a fourni un jeton de progression.
 - Sans session active, `list_tools` renvoie `UpstreamError::SessionRequired`, sauf si `list_requires_auth = false`.
@@ -131,3 +136,7 @@ Politiques, confirmations, limite de débit (3c). Rechargement des listes (3d).
   (`mcp_proxy_core::confirm`). Raison : sans session active, `list_tools` doit renvoyer `SessionRequired` sans
   déclencher de connexion, ce que `ensure` ne permet pas ; le `FakeConfirmationBroker` demandé ici suppose le trait
   de la spec 007.
+- **2026-11-22** — `InjectingHttpClient` : le trait `StreamableHttpClient` de rmcp 3.11 n'a pas de
+  `get_stream_with_response_limits` ; ce sont `post_message_with_response_limits` et les méthodes
+  `*_with_max_sse_event_size` qui portent les limites. Le 401 ou 403 sans défi n'a pas de variante d'erreur propre :
+  il est reconnu dans `UnexpectedServerResponse`. Raison : sources de rmcp 3.11.0, constatées à la compilation.

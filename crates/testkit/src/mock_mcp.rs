@@ -280,11 +280,23 @@ async fn gatekeeper(State(shared): State<Arc<Shared>>, request: Request, next: N
         method: parts.method.clone(),
         path: parts.uri.path().to_owned(),
         headers: parts.headers.clone(),
-        mcp_method,
+        mcp_method: mcp_method.clone(),
         tool: tool.clone(),
     });
 
     if parts.uri.path().starts_with("/mcp") {
+        // An old server does not know `server/discover`: its version check would otherwise answer first, with the
+        // list of supported versions, which a server predating 2026-07-28 cannot do.
+        if shared.generation == Generation::Legacy && mcp_method.as_deref() == Some("server/discover") {
+            let id = json.as_ref().and_then(|v| v.get("id")).cloned().unwrap_or(Value::Null);
+            let body =
+                json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": "Method not found" } });
+            let mut response = Response::new(Body::from(body.to_string()));
+            response
+                .headers_mut()
+                .insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+            return response;
+        }
         if let Some((name, value)) = &shared.required_header
             && parts.headers.get(name) != Some(value)
         {
