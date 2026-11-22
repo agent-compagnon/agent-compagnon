@@ -871,6 +871,7 @@ name = "mcp-proxy-gateway"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "base64",
  "futures",
  "getrandom",
  "http",

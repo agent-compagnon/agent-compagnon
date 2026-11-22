@@ -178,3 +178,10 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
   `get_stream_with_response_limits`), réutilisation de l'implémentation reqwest du SDK par `custom_headers`, type
   `Sse` du crate `sse-stream` ; 401/403 sans défi en `UnexpectedServerResponse` ; jeton de progression et cache des
   listes du client. Les features `elicitation` et `request-state` ne sont pas encore activées (spec 007).
+- **2026-11-22** — Features `elicitation` et `request-state` de rmcp activées (spec 007). Vérifié à l'exécution :
+  `RunningService::call_tool` côté client pilote seul les tours `input_required` par le `ClientHandler`
+  (`create_elicitation`), `call_tool_once` rend l'`InputRequiredResult` brut ; `RequestStateCodec::seal_json_with` /
+  `open_json_with` (données associées, durée de vie) ; `Peer::create_elicitation_with_timeout` en ancien protocole.
+  Un 401 sur une session ancien protocole peut aussi refermer la connexion : le rejeu peut alors être refusé dès la
+  reconnexion, avant son `tools/call`.
+

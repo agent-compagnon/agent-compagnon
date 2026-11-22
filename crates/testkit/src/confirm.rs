@@ -10,6 +10,7 @@ use mcp_proxy_core::confirm::{ConfirmationBroker, ConfirmationOutcome, Confirmat
 #[derive(Debug, Clone, Copy)]
 enum Step {
     Answer(ConfirmationOutcome),
+    Later(Duration, ConfirmationOutcome),
     /// Never answers: the caller must give up by itself.
     Silent,
 }
@@ -31,6 +32,11 @@ impl FakeConfirmationBroker {
     /// Appends answers to the script.
     pub fn script(&self, outcomes: impl IntoIterator<Item = ConfirmationOutcome>) {
         self.lock_script().extend(outcomes.into_iter().map(Step::Answer));
+    }
+
+    /// The next request is answered after `delay`.
+    pub fn answer_after(&self, delay: Duration, outcome: ConfirmationOutcome) {
+        self.lock_script().push_back(Step::Later(delay, outcome));
     }
 
     /// The next request is never answered.
@@ -57,6 +63,10 @@ impl ConfirmationBroker for FakeConfirmationBroker {
         let step = self.lock_script().pop_front();
         match step {
             Some(Step::Answer(outcome)) => outcome,
+            Some(Step::Later(delay, outcome)) => {
+                tokio::time::sleep(delay).await;
+                outcome
+            }
             Some(Step::Silent) => {
                 tokio::time::sleep(Duration::from_secs(3600)).await;
                 ConfirmationOutcome::Refused

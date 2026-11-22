@@ -27,6 +27,7 @@ use url::Url;
 pub const TOKEN: &str = "jeton-amont-7f3a9c";
 
 /// Test tools of the fake server, declared as reads so that the `developpeur` profile allows them in DEV.
+/// `kibana-logs` has no rate limit unless a test sets one.
 pub const TEST_TOOLS: [&str; 4] = ["echo_headers", "slow", "fail", "http_fail"];
 
 pub struct Stack {
@@ -42,6 +43,8 @@ pub struct Stack {
     pub upstream: Arc<HttpUpstream>,
     pub output: OutputGate,
     pub gateway: GatewayServer,
+    /// `None` when the test gave its own pipeline.
+    pub chain: Option<Arc<CallChain>>,
 }
 
 impl Stack {
@@ -141,6 +144,8 @@ impl StackBuilder {
                 },
             );
         }
+        // No rate limit unless a test sets one: tests make many calls.
+        kibana_config.rate_limit = None;
         for edit in self.config {
             edit(&mut config);
         }
@@ -195,9 +200,9 @@ impl StackBuilder {
         let broker = Arc::new(FakeConfirmationBroker::default());
         let trace = Arc::new(MemoryTraceSink::default());
         let (settings_sender, settings_receiver) = watch::channel(settings);
-        let pipeline = match self.pipeline {
-            Some(pipeline) => pipeline,
-            None => Arc::new(
+        let chain = match self.pipeline {
+            Some(_) => None,
+            None => Some(Arc::new(
                 CallChain::new(CallChainDeps {
                     config: Arc::clone(&config),
                     registry: Arc::clone(&registry),
@@ -209,7 +214,12 @@ impl StackBuilder {
                     trace: trace.clone(),
                 })
                 .unwrap(),
-            ),
+            )),
+        };
+        let pipeline: Arc<dyn CallPipeline> = match (self.pipeline, &chain) {
+            (Some(pipeline), _) => pipeline,
+            (None, Some(chain)) => chain.clone(),
+            (None, None) => unreachable!(),
         };
         let gateway = GatewayServer::new(
             Arc::clone(&registry),
@@ -229,6 +239,7 @@ impl StackBuilder {
             upstream,
             output,
             gateway,
+            chain,
         }
     }
 }
