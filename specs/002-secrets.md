@@ -46,9 +46,16 @@ laisser sortir vers une autre destination que celles de leur session.
 - `with_exposed<R>(&self, session, f: impl FnOnce(ExposedCredential<'_>) -> R) -> Result<R, SecretError>` :
   déchiffre dans un tampon `Zeroizing`, appelle `f`, efface. **Aucune API ne retourne la valeur en clair.**
 - `with_variants<R>(&self, f: impl FnOnce(&[&[u8]]) -> R) -> Result<R, SecretError>` : expose, le temps de la
-  closure, les variantes de tous les secrets actifs, pour le filtre. Si une variante ne peut être déchiffrée, la
-  closure n'est pas appelée : le filtre échoue fermé.
-- `wipe(session) -> bool` (vrai s'il y avait un secret), `wipe_all()`, `has(session)`.
+  closure, les variantes de tous les secrets actifs et des secrets retirés encore dans leur délai de grâce, pour le
+  filtre. Si une variante ne peut être déchiffrée, la closure n'est pas appelée : le filtre échoue fermé.
+- `wipe(session) -> bool` (vrai s'il y avait un secret), `wipe_all()`, `has(session)` (secret actif seulement).
+- **Variantes retirées.** Après `wipe`, `wipe_all` ou le remplacement d'un secret par `put`, l'ancien secret n'est
+  plus injectable (`with_exposed` échoue, `has` est faux), mais ses variantes restent scellées et connues du filtre
+  pendant un délai de grâce : une réponse à un appel parti avant l'effacement peut encore le contenir. Passé ce
+  délai, elles sont effacées à la première opération du store. Un `put` sur la même session ne raccourcit pas le
+  délai des variantes déjà retirées. Le délai est un paramètre du store (`with_variant_grace`, défaut
+  `DEFAULT_VARIANT_GRACE` = 130 s, câblé plus tard sur `upstream_timeout_secs` + 10 s) ; l'horloge est injectable
+  (`with_clock`, trait `Clock`).
 - Un secret appartient à une session et une seule.
 
 ### Liaison secret ↔ destination
@@ -88,6 +95,9 @@ laisser sortir vers une autre destination que celles de leur session.
 - **EX-002-06** — `AuthenticatedHttpClient` contre un serveur local : en-tête présent côté serveur ; redirection vers une autre
   origine non suivie ; `Set-Cookie` absent de la réponse rendue ; requête vers une origine non déclarée refusée
   **avant** tout envoi.
+- **EX-002-10** — Après `wipe`, `wipe_all` ou un remplacement par `put`, le secret n'est plus injectable mais ses
+  variantes restent exposées par `with_variants` pendant le délai de grâce, y compris après un nouveau `put` sur la
+  même session ; une fois le délai écoulé (horloge de test), elles ont disparu et leurs tampons sont à zéro.
 
 ## Recette manuelle (Windows)
 
@@ -122,3 +132,9 @@ Calcul des variantes de masquage et filtre (2b). Acquisition des secrets (étape
   - deux clients internes, le second sans proxy pour la boucle locale (I2a.14) ; délai du client comme plafond
     (I2a.13) ;
   - les trois vérifications Windows de l'étape 2a deviennent les critères manuels `EX-002-07` à `EX-002-09`.
+- **2026-11-22** — Variantes retirées (relecture de l'étape 2a, avant la spec 003). Jusqu'ici, `wipe` faisait
+  disparaître les variantes du secret en même temps que le secret : une réponse encore en route (appel parti avant
+  une déconnexion ou une expiration) qui contiendrait ce secret ne serait plus masquée. Désormais, après `wipe`,
+  `wipe_all` ou un remplacement par `put`, le secret n'est plus injectable mais ses variantes restent scellées et
+  connues du filtre pendant un délai de grâce, puis sont effacées. Délai paramétrable, horloge injectable. Nouveau
+  critère `EX-002-10` (I002.1 à I002.3).

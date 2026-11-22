@@ -3,6 +3,7 @@
 //! A secret is only ever readable inside a closure (`SecretStore::with_exposed`, `SecretStore::with_variants`), on a
 //! decrypted copy that is wiped when the closure returns. No API hands the clear value back to the caller.
 
+mod clock;
 mod credential;
 mod error;
 mod http;
@@ -15,6 +16,7 @@ mod variants;
 #[cfg(test)]
 mod tests;
 
+pub use clock::{Clock, SystemClock};
 pub use credential::{Credential, ExposedCookie, ExposedCredential, MAX_SECRET_LEN};
 pub use error::{ProtectionFailure, SecretError};
 pub use http::AuthenticatedHttpClient;
@@ -25,4 +27,4 @@ pub use protector::InsecureDevProtector;
 pub(crate) use protector::check_block_len;
 pub use protector::{MemoryProtector, PROTECT_BLOCK_SIZE, platform_protector};
 pub use sealed::SealedSecret;
-pub use store::SecretStore;
+pub use store::{DEFAULT_VARIANT_GRACE, SecretStore};

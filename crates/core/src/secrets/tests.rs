@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use proptest::prelude::*;
 use reqwest::Method;
@@ -43,6 +43,49 @@ impl MemoryProtector for BrokenUnprotect {
     fn unprotect(&self, _: &mut [u8]) -> Result<(), SecretError> {
         Err(SecretError::Protection(ProtectionFailure::Os(-1)))
     }
+}
+
+/// Clock that only moves when told to.
+struct ManualClock(Mutex<Instant>);
+
+impl ManualClock {
+    fn new() -> Arc<Self> {
+        Arc::new(Self(Mutex::new(Instant::now())))
+    }
+
+    fn advance(&self, by: Duration) {
+        let mut now = self.0.lock().unwrap();
+        *now += by;
+    }
+}
+
+impl Clock for ManualClock {
+    fn now(&self) -> Instant {
+        *self.0.lock().unwrap()
+    }
+}
+
+const GRACE: Duration = Duration::from_secs(130);
+
+/// A store with `GRACE` and a manual clock.
+fn store_with_clock() -> (SecretStore, Arc<ManualClock>) {
+    let clock = ManualClock::new();
+    let store = SecretStore::new(Box::new(XorProtector))
+        .with_variant_grace(GRACE)
+        .with_clock(clock.clone());
+    (store, clock)
+}
+
+fn variant_strings(store: &SecretStore) -> Vec<String> {
+    let mut variants = store
+        .with_variants(|v| {
+            v.iter()
+                .map(|n| String::from_utf8_lossy(n).into_owned())
+                .collect::<Vec<_>>()
+        })
+        .unwrap();
+    variants.sort();
+    variants
 }
 
 fn sid(id: &str) -> SessionId {
@@ -260,9 +303,6 @@ fn put_replaces_the_session_secret() {
     store.put(&s, bearer("second-token")).unwrap();
     assert!(store.has(&s));
     assert_eq!(token_of(&store, &s).unwrap(), "second-token");
-    store
-        .with_variants(|v| assert_eq!(v, [b"second-token".as_slice()]))
-        .unwrap();
 }
 
 // Exigence : EX-002-03
@@ -278,7 +318,7 @@ fn wipe_empties_only_that_session() {
     assert_eq!(token_of(&store, &b).unwrap(), "token-b");
     store.wipe_all();
     assert!(!store.has(&b));
-    store.with_variants(|v| assert!(v.is_empty())).unwrap();
+    assert_eq!(store.with_exposed(&b, |_| ()), Err(SecretError::NoSecret(b.clone())));
 }
 
 // Exigence : EX-002-03
@@ -344,7 +384,7 @@ fn closures_may_call_back_into_the_store() {
 }
 
 #[test]
-fn variants_are_the_raw_values_of_every_active_secret() {
+fn variants_cover_the_raw_values_of_every_active_secret() {
     let store = store();
     store.put(&sid("sso-corp"), bearer("bearer-value")).unwrap();
     store.put(&sid("sso-tools"), basic("jdoe", "basic-password")).unwrap();
@@ -354,15 +394,102 @@ fn variants_are_the_raw_values_of_every_active_secret() {
             cookies(&[("A", "cookie-1"), ("B", "cookie-2"), ("C", "cookie-1")]),
         )
         .unwrap();
-    let mut variants = store
-        .with_variants(|v| {
-            v.iter()
-                .map(|n| String::from_utf8(n.to_vec()).unwrap())
-                .collect::<Vec<_>>()
-        })
-        .unwrap();
-    variants.sort();
-    assert_eq!(variants, ["basic-password", "bearer-value", "cookie-1", "cookie-2"]);
+    let variants = variant_strings(&store);
+    for raw in ["basic-password", "bearer-value", "cookie-1", "cookie-2"] {
+        assert_eq!(variants.iter().filter(|v| *v == raw).count(), 1, "{raw}");
+    }
+    assert!(!variants.iter().any(|v| v == "jdoe"));
+}
+
+// --- Retired variants ------------------------------------------------------------------------------------------------
+
+// Exigence : EX-002-10
+#[test]
+fn wiped_secret_variants_stay_known_during_the_grace_period() {
+    let (store, clock) = store_with_clock();
+    let s = sid("sso-corp");
+    store.put(&s, bearer("wiped-token-value")).unwrap();
+    assert!(store.wipe(&s));
+    assert!(!store.has(&s));
+    assert_eq!(store.with_exposed(&s, |_| ()), Err(SecretError::NoSecret(s.clone())));
+    assert!(variant_strings(&store).contains(&"wiped-token-value".to_owned()));
+
+    clock.advance(GRACE - Duration::from_secs(1));
+    assert!(variant_strings(&store).contains(&"wiped-token-value".to_owned()));
+    clock.advance(Duration::from_secs(1));
+    assert!(variant_strings(&store).is_empty());
+}
+
+// Exigence : EX-002-10
+#[test]
+fn wipe_all_retires_every_secret() {
+    let (store, clock) = store_with_clock();
+    store.put(&sid("sso-corp"), bearer("token-a-value")).unwrap();
+    store.put(&sid("sso-prod"), basic("jdoe", "password-b")).unwrap();
+    store.wipe_all();
+    assert!(!store.has(&sid("sso-corp")) && !store.has(&sid("sso-prod")));
+    let variants = variant_strings(&store);
+    assert!(variants.contains(&"token-a-value".to_owned()));
+    assert!(variants.contains(&"password-b".to_owned()));
+    clock.advance(GRACE);
+    assert!(variant_strings(&store).is_empty());
+}
+
+// Exigence : EX-002-10
+#[test]
+fn put_keeps_the_retired_variants_of_the_previous_secret() {
+    let (store, clock) = store_with_clock();
+    let s = sid("sso-corp");
+    store.put(&s, bearer("first-token-value")).unwrap();
+    clock.advance(Duration::from_secs(60));
+    store.wipe(&s);
+    store.put(&s, bearer("second-token-value")).unwrap();
+    clock.advance(Duration::from_secs(60));
+    store.put(&s, bearer("third-token-value")).unwrap();
+    assert_eq!(token_of(&store, &s).unwrap(), "third-token-value");
+    let variants = variant_strings(&store);
+    for raw in ["first-token-value", "second-token-value", "third-token-value"] {
+        assert!(variants.contains(&raw.to_owned()), "{raw}");
+    }
+
+    // The first secret was retired at t = 60 s, the second one at t = 120 s.
+    clock.advance(GRACE - Duration::from_secs(60));
+    let variants = variant_strings(&store);
+    assert!(!variants.contains(&"first-token-value".to_owned()));
+    assert!(variants.contains(&"second-token-value".to_owned()));
+    clock.advance(Duration::from_secs(60));
+    assert_eq!(
+        variant_strings(&store)
+            .iter()
+            .filter(|v| v.contains("token-value"))
+            .count(),
+        1
+    );
+    assert!(variant_strings(&store).contains(&"third-token-value".to_owned()));
+}
+
+// Exigence : EX-002-10
+#[test]
+fn expired_variants_are_zeroed() {
+    let (store, clock) = store_with_clock();
+    let s = sid("sso-corp");
+    store.put(&s, bearer(SENTINEL)).unwrap();
+    store.wipe(&s);
+    clock.advance(GRACE);
+    drop_probe::take();
+    store.with_variants(|v| assert!(v.is_empty())).unwrap();
+    assert!(drop_probe::take().unwrap().iter().all(|b| *b == 0));
+}
+
+#[test]
+fn retired_variants_fail_closed_too() {
+    let store = SecretStore::new(Box::new(BrokenUnprotect));
+    let s = sid("sso-corp");
+    store.put(&s, bearer("token")).unwrap();
+    store.wipe(&s);
+    let mut called = false;
+    assert!(store.with_variants(|_| called = true).is_err());
+    assert!(!called);
 }
 
 #[test]

@@ -174,3 +174,11 @@ viennent du cadrage du 2026-11-22 ; la dernière section est alimentée à chaqu
 | I030.9 | Le test `EX-030-10` lit le dépôt réel (via `git`) : il échoue dès que le dépôt n'est plus aligné, ce qui fait aussi échouer `cargo test`. |
 | I030.10 | Rattrapage 001 : `EX-001-02` (un test par règle) est cité une fois en tête de chaque section de tests de validation, plus sur `unsupported_schema_version`, plutôt que sur chacun des tests. Le texte de `EX-001-03` n'est pas reformulé (identifiants stables) alors que seules les erreurs sémantiques sont accumulées : l'amendement du 2026-11-22 le précise. |
 | I030.11 | Rattrapage 002 : les trois vérifications Windows deviennent `EX-002-07` à `EX-002-09` ; `docs/recette.md` a une section par spec et une case `- [ ] **EX-…** — …` par critère manuel. |
+
+### Spec 002 — variantes retirées (amendement du 2026-11-22)
+
+| # | Décision |
+|---|---|
+| I002.1 | Après `wipe` ou `wipe_all`, le secret n'est plus injectable, mais ses variantes restent scellées et exposées par `with_variants` pendant un délai de grâce, puis sont effacées. Raison : une réponse à un appel parti avant l'effacement peut encore contenir le secret et doit rester masquée. |
+| I002.2 | Option la plus sûre : le **remplacement** d'un secret par `put` retire aussi les variantes de l'ancien (cas du renouvellement d'un jeton pendant un appel). Un `put` ne raccourcit jamais le délai des variantes déjà retirées. |
+| I002.3 | Délai : `SecretStore::with_variant_grace`, défaut `DEFAULT_VARIANT_GRACE` = 130 s (`upstream_timeout_secs` de la config embarquée + 10 s) en attendant le câblage par la passerelle (étape 3). Horloge injectable : trait `Clock` (`SystemClock` par défaut, `with_clock`). Pas de minuterie : les variantes expirées sont effacées à la première opération qui les rencontre (`with_variants` purge sous verrou exclusif avant de déchiffrer). En attendant, elles restent scellées. Une variante retirée illisible fait échouer `with_variants`, comme une variante active. |
