@@ -4,4 +4,5 @@ pub mod config;
 pub mod filter;
 pub mod naming;
 pub mod platform;
+pub mod policy;
 pub mod secrets;

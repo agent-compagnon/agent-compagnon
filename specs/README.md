@@ -48,7 +48,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [001](001-workspace-config.md) | 1 | Workspace Cargo, xtask ci, CI GitLab minimale, config TOML embarquée et validée | implémentée | — | 4 |
 | [002](002-secrets.md) | 2a | core — store de secrets en mémoire | implémentée | 001 | 10 |
 | [003](003-filtre.md) | 2b | core — filtre de sortie | implémentée | 002 | 14 |
-| [004](004-politiques.md) | 2c | core — moteur de politiques, profils et durcissement | prévue | 001 | 8 |
+| [004](004-politiques.md) | 2c | core — moteur de politiques, profils et durcissement | en cours | 001 | 10 |
 | [005](005-registre-catalogue.md) | 3a | gateway — registre d'outils, préfixage, exposition, catalogue embarqué + cache | prévue | 001, 004 | 6 |
 | [006](006-transports-testkit.md) | 3b | gateway — transports MCP (côté clients, côté serveurs) et testkit | prévue | 002, 003, 005 | 7 |
 | [007](007-middlewares.md) | 3c | gateway — chaîne de middlewares | prévue | 003, 004, 006 | 11 |
