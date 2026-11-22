@@ -61,13 +61,11 @@ Ordre de préférence des sources, par instance : **liste réelle** de cette ex�
   outil ; empreinte d'instance = hachage des empreintes triées.
 - Événements (`tokio::sync::broadcast`) : `ExposureChanged`, `ToolsChanged { instance, diff }`.
 
-### xtask
+### Instantanés
 
-- `cargo xtask snapshot-catalog --url <url> --out config/catalog/<mcp>.json [--header-env NOM]` : interroge un
-  serveur MCP et écrit l'instantané. L'en-tête d'authentification vient d'une variable d'environnement et n'est
-  jamais affiché.
 - Instantanés écrits à la main pour les 5 MCP fictifs de la config d'exemple, cohérents avec les faux serveurs du
-  testkit (3b).
+  testkit (3b). La commande qui les produit depuis un vrai serveur (`cargo xtask snapshot-catalog`) relève de la
+  spec 006.
 
 ## Tests
 
@@ -87,3 +85,9 @@ Ordre de préférence des sources, par instance : **liste réelle** de cette ex�
 ## Hors périmètre
 
 Connexions réelles aux serveurs (3b). Rechargement automatique (3d). Scellement du cache (5d).
+
+## Amendements
+
+- **2026-11-22** — `cargo xtask snapshot-catalog` sort de cette spec et passe à la spec 006, section « À faire ».
+  Raison : elle interroge un serveur MCP, donc a besoin du client MCP HTTP, qui n'arrive qu'en 006 ; `xtask` doit
+  rester sans dépendance lourde. Les instantanés des 5 MCP de la config d'exemple restent ici, écrits à la main.

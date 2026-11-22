@@ -82,6 +82,15 @@ pub trait SessionGate: Send + Sync {
 - `crates/gateway/examples/gateway_stdio.rs` : lance la passerelle sur stdio avec la config embarquée et les faux
   serveurs du testkit. Permet d'essayer un vrai client MCP sur n'importe quel OS avant que l'appli existe.
 
+### Instantanés de catalogue
+
+- `cargo xtask snapshot-catalog --url <url> --out config/catalog/<mcp>.json [--header-env NOM]` : interroge un
+  serveur MCP (`tools/list`, toutes les pages) et écrit l'instantané au format du catalogue embarqué de la spec 005
+  (tableau de `ToolDefinition`). L'en-tête d'authentification vient d'une variable d'environnement et n'est jamais
+  affiché, ni dans la sortie, ni dans une erreur.
+- `xtask` reste sans dépendance lourde : le travail est fait par un exécutable du crate `gateway` (qui a déjà le
+  client MCP), que `xtask` lance avec `cargo run`.
+
 ## Tests
 
 - **EX-006-01** — Matrice (client ancien, client 2026-07-28) × (serveur ancien, serveur 2026-07-28) : `tools/list` puis
@@ -92,6 +101,9 @@ pub trait SessionGate: Send + Sync {
 - **EX-006-05** — `echo_headers` : le jeton renvoyé par le serveur est masqué dans la réponse reçue par le client.
 - **EX-006-06** — Corps d'erreur amont contenant le jeton : masqué.
 - **EX-006-07** — `relay` : octets transmis dans les deux sens, fin de flux propagée.
+- **EX-006-08** — `snapshot-catalog` contre le faux serveur : le fichier écrit est relu par le catalogue embarqué de la
+  spec 005 ; l'en-tête lu dans la variable d'environnement arrive au serveur et n'apparaît ni dans la sortie ni dans
+  les messages d'erreur.
 
 ## Vérification
 
@@ -100,3 +112,9 @@ pub trait SessionGate: Send + Sync {
 ## Hors périmètre
 
 Politiques, confirmations, limite de débit (3c). Rechargement des listes (3d).
+
+## Amendements
+
+- **2026-11-22** — Ajout de `cargo xtask snapshot-catalog` (section « Instantanés de catalogue ») et du critère
+  `EX-006-08`, venus de la spec 005. Raison : la commande a besoin du client MCP HTTP livré ici ; `xtask` délègue à
+  un exécutable du crate `gateway` pour rester sans dépendance lourde.
