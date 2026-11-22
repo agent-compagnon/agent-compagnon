@@ -187,6 +187,9 @@ impl HttpUpstream {
                 let _ = self.connections.send(());
                 Ok(peer)
             }
+            // A refused or missing credential is not a server failure: the next attempt follows a new login, which
+            // the user paces, and must not be held back.
+            Err(error @ (UpstreamError::AuthRejected | UpstreamError::Session(_))) => Err(error),
             Err(error) => {
                 let factor = 2u32.saturating_pow(connection.failures.min(16));
                 let delay = self

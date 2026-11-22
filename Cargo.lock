@@ -930,6 +930,7 @@ dependencies = [
  "futures",
  "getrandom",
  "http",
+ "mcp-proxy-auth",
  "mcp-proxy-core",
  "mcp-proxy-testkit",
  "reqwest",

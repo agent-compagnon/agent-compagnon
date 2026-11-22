@@ -3,15 +3,18 @@
 
 #![allow(dead_code, clippy::unwrap_used, clippy::panic)]
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use http::{HeaderName, HeaderValue};
-use mcp_proxy_core::config::{Category, Config, EnvId, McpId, ProfileId, SessionId, ToolConfig, ToolName};
+use mcp_proxy_auth::{AuthenticatorDeps, BasicProbe, HttpProbe, OnDemandAuthenticator, methods_from_config};
+use mcp_proxy_core::config::{Category, Config, EnvId, McpId, Origin, ProfileId, SessionId, ToolConfig, ToolName};
 use mcp_proxy_core::filter::OutputFilter;
-use mcp_proxy_core::session::SessionGate;
+use mcp_proxy_core::secrets::{OriginGuard, SecretStore};
+use mcp_proxy_core::session::{SessionGate, SessionRegistry};
 use mcp_proxy_core::settings::UserSettings;
 use mcp_proxy_core::trace::{
     FileLog, Journal, JournalConfig, LogFileOptions, LogGuard, SystemWallClock, TraceSink, open_log,
@@ -22,7 +25,8 @@ use mcp_proxy_gateway::server::{CallChain, CallChainDeps, CallPipeline, GatewayS
 use mcp_proxy_gateway::updates::{ListWatcher, ListWatcherDeps, UpdateTracker, WatchTiming};
 use mcp_proxy_gateway::upstream::{HttpUpstream, HttpUpstreamConfig, Upstream, Upstreams, refresh};
 use mcp_proxy_testkit::{
-    FakeConfirmationBroker, FakeSessionGate, Generation, MemoryTraceSink, MockMcpBuilder, MockMcpServer, catalog_tools,
+    FakeAuthUi, FakeConfirmationBroker, FakeSessionGate, Generation, MemoryTraceSink, MockMcpBuilder, MockMcpServer,
+    catalog_tools,
 };
 use rmcp::model::{CallToolRequestParams, CallToolResult, ProtocolVersion};
 use rmcp::service::{RoleClient, RunningService};
@@ -32,6 +36,29 @@ use tokio::task::JoinHandle;
 use url::Url;
 
 pub const TOKEN: &str = "jeton-amont-7f3a9c";
+
+/// Value of the `SESSION` cookie the fake server requires in an on-demand stack.
+pub const COOKIE: &str = "cookie-amont-5e2d81";
+
+/// Success page of the `sso-dev` login (cookie method of the embedded configuration).
+pub const DEV_SUCCESS: &str = "https://apps.dev.example.internal/home";
+
+/// The real authenticator, logging in through `FakeAuthUi`.
+pub struct OnDemand {
+    pub ui: FakeAuthUi,
+    pub authenticator: Arc<OnDemandAuthenticator>,
+    pub registry: Arc<SessionRegistry>,
+}
+
+impl OnDemand {
+    /// Completes the login in window `index` with `SESSION=<value>`.
+    pub async fn log_in(&self, index: usize, value: &str) {
+        let window = self.ui.window(index).await;
+        self.ui.set_cookie("SESSION", value, None);
+        window.navigate(DEV_SUCCESS);
+        window.wait_closed().await;
+    }
+}
 
 /// Test tools of the fake server, declared as reads so that the `developpeur` profile allows them in DEV.
 /// `kibana-logs` has no rate limit unless a test sets one.
@@ -57,6 +84,9 @@ pub struct Stack {
     pub gateway: GatewayServer,
     /// `None` when the test gave its own pipeline.
     pub chain: Option<Arc<CallChain>>,
+    /// `Some` for a stack built `on_demand`: the chain then uses this authenticator instead of `gate`, which only
+    /// shares its store.
+    pub on_demand: Option<OnDemand>,
 }
 
 impl Stack {
@@ -99,7 +129,7 @@ impl Stack {
         let mut upstreams = Upstreams::default();
         let as_dyn: Arc<dyn Upstream> = self.upstream.clone();
         upstreams.insert(as_dyn);
-        let gate: Arc<dyn SessionGate> = self.gate.clone();
+        let gate = self.shared_gate();
         ListWatcher::spawn(ListWatcherDeps {
             config: Arc::clone(&self.config),
             registry: Arc::clone(&self.registry),
@@ -109,7 +139,16 @@ impl Stack {
             output: self.output.clone(),
             tracker: UpdateTracker::new(&self.config),
             timing,
+            sessions: self.on_demand.as_ref().map(|o| o.registry.subscribe()),
         })
+    }
+
+    /// The gate the chain and the upstream use.
+    pub fn shared_gate(&self) -> Arc<dyn SessionGate> {
+        match &self.on_demand {
+            Some(on_demand) => on_demand.authenticator.clone(),
+            None => self.gate.clone(),
+        }
     }
 }
 
@@ -188,6 +227,7 @@ pub struct StackBuilder {
     cache: Option<Box<dyn CatalogCache>>,
     /// The registry is filled from the server before the stack is returned.
     initial_refresh: bool,
+    on_demand: bool,
 }
 
 pub fn builder(generation: Generation) -> StackBuilder {
@@ -200,6 +240,7 @@ pub fn builder(generation: Generation) -> StackBuilder {
         server: None,
         cache: None,
         initial_refresh: true,
+        on_demand: false,
     }
 }
 
@@ -263,9 +304,37 @@ impl StackBuilder {
         self
     }
 
+    /// No secret at start: `sso-dev` is logged in on demand by the real authenticator, through `FakeAuthUi`, and the
+    /// fake server requires the cookie `SESSION=COOKIE`. The registry keeps its embedded snapshot.
+    pub fn on_demand(mut self) -> Self {
+        self.on_demand = true;
+        self.initial_refresh = false;
+        let previous = self.server.take();
+        self.server = Some(Box::new(move |builder| {
+            let builder = match &previous {
+                Some(edit) => edit(builder),
+                None => builder,
+            };
+            builder.require_header(
+                HeaderName::from_static("cookie"),
+                HeaderValue::from_str(&format!("SESSION={COOKIE}")).unwrap(),
+            )
+        }));
+        self
+    }
+
     pub async fn build(self) -> Stack {
         let server = kibana(self.generation, self.server.as_ref()).await;
-        let gate = Arc::new(FakeSessionGate::with_bearer(&session(), TOKEN, &[&server.url()]).unwrap());
+        let gate = if self.on_demand {
+            let origin = Origin::of(&Url::parse(&server.url()).unwrap()).unwrap();
+            let guard = Arc::new(OriginGuard::new([(session(), BTreeSet::from([origin]))]));
+            Arc::new(FakeSessionGate::new(
+                Arc::new(SecretStore::for_platform().unwrap()),
+                guard,
+            ))
+        } else {
+            Arc::new(FakeSessionGate::with_bearer(&session(), TOKEN, &[&server.url()]).unwrap())
+        };
         let mut config = Config::embedded().unwrap();
         let kibana_config = config.mcp.iter_mut().find(|m| m.id.as_str() == "kibana-logs").unwrap();
         for tool in TEST_TOOLS {
@@ -308,7 +377,31 @@ impl StackBuilder {
         let mut target = HttpUpstreamConfig::for_instance(&config, &instance("dev")).unwrap();
         target.url = Url::parse(&target_server.as_ref().unwrap_or(&server).url()).unwrap();
         target.timeout = Duration::from_secs(10);
-        let shared_gate: Arc<dyn SessionGate> = gate.clone();
+        let on_demand = self.on_demand.then(|| {
+            let origin = Origin::of(&Url::parse(&server.url()).unwrap()).unwrap();
+            let guard = Arc::new(OriginGuard::new([(session(), BTreeSet::from([origin]))]));
+            let registry = Arc::new(SessionRegistry::from_config(&config));
+            let ui = FakeAuthUi::default();
+            let probe: Arc<dyn BasicProbe> =
+                Arc::new(HttpProbe::new(Arc::clone(&guard), Duration::from_secs(10)).unwrap());
+            let authenticator = Arc::new(OnDemandAuthenticator::new(AuthenticatorDeps {
+                registry: Arc::clone(&registry),
+                store: Arc::clone(gate.store()),
+                guard,
+                ui: Arc::new(ui.clone()),
+                methods: methods_from_config(&config, &probe),
+                clock: Arc::new(SystemWallClock),
+            }));
+            OnDemand {
+                ui,
+                authenticator,
+                registry,
+            }
+        });
+        let shared_gate: Arc<dyn SessionGate> = match &on_demand {
+            Some(on_demand) => on_demand.authenticator.clone(),
+            None => gate.clone(),
+        };
         let upstream = Arc::new(HttpUpstream::new(target, Arc::clone(&shared_gate)));
         if target_server.is_some() {
             // The list comes from the server of the session's origin; calls go to the other one.
@@ -384,6 +477,7 @@ impl StackBuilder {
             output,
             gateway,
             chain,
+            on_demand,
         }
     }
 }

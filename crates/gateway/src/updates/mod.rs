@@ -3,7 +3,8 @@
 //! connection; install the list in the registry, which tells the clients only when a fingerprint changed.
 //!
 //! A reload never triggers a login: periodic reloads only concern instances that are connected, or whose list is
-//! anonymous. A failed reload keeps the last known list.
+//! anonymous. A successful login reloads the exposed instances that use the session (spec 010). A failed reload
+//! keeps the last known list.
 
 mod model;
 
@@ -12,7 +13,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use mcp_proxy_core::config::Config;
-use mcp_proxy_core::session::SessionGate;
+use mcp_proxy_core::session::{SessionChange, SessionEvent, SessionGate};
 use mcp_proxy_core::settings::UserSettings;
 use tokio::sync::{RwLock, broadcast, mpsc, watch};
 use tokio::task::JoinHandle;
@@ -72,6 +73,9 @@ pub struct ListWatcherDeps {
     pub output: OutputGate,
     pub tracker: UpdateTracker,
     pub timing: WatchTiming,
+    /// Session changes (`SessionRegistry::subscribe`): each login reloads the instances that use the session.
+    /// `None` without an authenticator.
+    pub sessions: Option<broadcast::Receiver<SessionEvent>>,
 }
 
 /// One task per upstream, plus one that follows the disabled MCPs. Everything stops when dropped.
@@ -121,10 +125,20 @@ impl ListWatcher {
         context.follow_settings_once();
         let mut tasks = vec![tokio::spawn(Arc::clone(&context).follow_settings())];
         let mut requests = BTreeMap::new();
+        let mut logins = BTreeMap::new();
         for upstream in deps.upstreams.iter() {
             let (sender, receiver) = mpsc::channel(1);
+            let (login_sender, login_receiver) = mpsc::channel(1);
             requests.insert(upstream.instance().clone(), sender);
-            tasks.push(tokio::spawn(Arc::clone(&context).watch(Arc::clone(upstream), receiver)));
+            logins.insert(upstream.instance().clone(), login_sender);
+            tasks.push(tokio::spawn(Arc::clone(&context).watch(
+                Arc::clone(upstream),
+                receiver,
+                login_receiver,
+            )));
+        }
+        if let Some(sessions) = deps.sessions {
+            tasks.push(tokio::spawn(Arc::clone(&context).follow_logins(sessions, logins)));
         }
         Self {
             tracker: deps.tracker,
@@ -174,6 +188,8 @@ enum Trigger {
     Signal,
     Periodic,
     Requested,
+    /// The session of the instance was just logged in.
+    LoggedIn,
 }
 
 impl Context {
@@ -190,11 +206,53 @@ impl Context {
         }
     }
 
-    async fn watch(self: Arc<Self>, upstream: Arc<dyn Upstream>, mut requests: mpsc::Receiver<()>) {
+    /// Tells the instances that use a session when it is logged in. If events were lost, every instance whose
+    /// session is active is told: one of them may have been logged in meanwhile.
+    async fn follow_logins(
+        self: Arc<Self>,
+        mut sessions: broadcast::Receiver<SessionEvent>,
+        logins: BTreeMap<InstanceId, mpsc::Sender<()>>,
+    ) {
+        loop {
+            let concerned: Vec<&mpsc::Sender<()>> = match sessions.recv().await {
+                Ok(event) if event.change == SessionChange::LoggedIn => logins
+                    .iter()
+                    .filter(|(instance, _)| {
+                        self.config
+                            .session_for(&instance.mcp, &instance.env)
+                            .is_some_and(|s| s.id == event.session)
+                    })
+                    .map(|(_, sender)| sender)
+                    .collect(),
+                Ok(_) => continue,
+                Err(broadcast::error::RecvError::Lagged(_)) => logins
+                    .iter()
+                    .filter(|(instance, _)| {
+                        self.config
+                            .session_for(&instance.mcp, &instance.env)
+                            .is_some_and(|s| self.gate.is_active(&s.id))
+                    })
+                    .map(|(_, sender)| sender)
+                    .collect(),
+                Err(broadcast::error::RecvError::Closed) => return,
+            };
+            for sender in concerned {
+                let _ = sender.try_send(());
+            }
+        }
+    }
+
+    async fn watch(
+        self: Arc<Self>,
+        upstream: Arc<dyn Upstream>,
+        mut requests: mpsc::Receiver<()>,
+        mut logins: mpsc::Receiver<()>,
+    ) {
         let instance = upstream.instance().clone();
         let mut changes = Some(upstream.changes());
         let mut connections = Some(upstream.connections());
         let mut requests_open = true;
+        let mut logins_open = true;
         let mut next = Instant::now();
         loop {
             let trigger = tokio::select! {
@@ -205,6 +263,13 @@ impl Context {
                     Some(()) => Trigger::Requested,
                     None => {
                         requests_open = false;
+                        continue;
+                    }
+                },
+                login = logins.recv(), if logins_open => match login {
+                    Some(()) => Trigger::LoggedIn,
+                    None => {
+                        logins_open = false;
                         continue;
                     }
                 },
@@ -220,7 +285,8 @@ impl Context {
                     next = Instant::now() + self.timing.refresh_interval;
                     continue;
                 }
-                Trigger::Periodic | Trigger::Requested => {}
+                Trigger::LoggedIn if !self.login_reload_allowed(&instance).await => continue,
+                Trigger::Periodic | Trigger::Requested | Trigger::LoggedIn => {}
             }
             self.reload(upstream.as_ref()).await;
             // The list just read is that of the current connection: its own connection signal needs no reload.
@@ -247,6 +313,12 @@ impl Context {
             Some(session) => !mcp.list_requires_auth || self.gate.is_active(&session.id),
         };
         no_login && self.registry.read().await.exposure().exposes(instance)
+    }
+
+    /// After a login: the instance is reloaded if its MCP is not disabled and its environment is exposed, as for a
+    /// periodic reload: a login does not contact the servers of environments the user does not expose.
+    async fn login_reload_allowed(&self, instance: &InstanceId) -> bool {
+        !self.tracker.is_disabled(instance) && self.registry.read().await.exposure().exposes(instance)
     }
 
     async fn reload(&self, upstream: &dyn Upstream) {

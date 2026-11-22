@@ -28,7 +28,7 @@ différences, et traiter tout outil nouveau avec prudence.
 Précisions de réalisation (amendement du 2026-11-22) :
 
 - `mcp_proxy_gateway::updates::ListWatcher` : une tâche par amont, construite par `ListWatcher::spawn(ListWatcherDeps
-  { config, registry, upstreams, gate, settings, output, tracker, timing })`, arrêtée quand le `ListWatcher` est
+  { config, registry, upstreams, gate, settings, output, tracker, timing, sessions })`, arrêtée quand le `ListWatcher` est
   relâché. `WatchTiming { refresh_interval, debounce, min_refresh }` : `refresh_interval_secs`, 500 ms d'anti-rebond,
   30 s au plus court entre deux rechargements dictés par `ttl_ms`.
 - Le trait `Upstream` gagne `connections()` (signal après chaque connexion ou reconnexion), `is_connected()` (sans
@@ -50,6 +50,9 @@ Précisions de réalisation (amendement du 2026-11-22) :
   n'est pas coupé et qui sont soit connectées, soit **exposées** avec une liste qui ne demande aucune connexion de
   l'utilisateur (liste anonyme, ou session déjà active). Une session expirée n'est jamais reconnectée par un
   rechargement : `SessionGate::ensure` n'est pas appelé, l'instance passe à `SessionRequired`.
+- Après une connexion réussie (spec 010) : `sessions` reçoit les `SessionEvent` du `SessionRegistry` ; chaque
+  `LoggedIn` recharge les instances **exposées** et non coupées qui utilisent la session. Événements perdus : les
+  instances dont la session est active sont rechargées.
 - MCP coupé par l'utilisateur : aucun rechargement, quelle que soit la source ; état `Disabled`.
 
 ### Traitement d'un changement
@@ -140,3 +143,7 @@ Bandeau dans l'interface (6b).
   ne déclenche aucune connexion de l'utilisateur) ; une liste refusée par le registre met l'instance en
   `Unreachable`. Raison : points laissés ouverts par le texte, tranchés par l'option la plus sûre ou la plus sobre
   en trafic, et comportement réel de `rmcp` 3.11 constaté dans ses sources.
+- **2026-11-22** — Spec 010 : `ListWatcherDeps` gagne `sessions` (événements du `SessionRegistry`) ; une connexion
+  réussie recharge les instances exposées et non coupées qui utilisent la session. Raison : le suivi des listes
+  n'appelle jamais `ensure`, et sans cet événement la liste réelle n'arrivait qu'à la première connexion amont ou à
+  la période suivante. Prouvé par `EX-010-10`.

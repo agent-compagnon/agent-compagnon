@@ -68,7 +68,8 @@ pub trait SessionGate: Send + Sync {
   - Un 401 ou 403 sans `WWW-Authenticate` arrive du SDK sous la forme `UnexpectedServerResponse("HTTP 401 …: corps")` :
     il est reconnu, la session est marquée rejetée et le corps est abandonné.
 - Connexion paresseuse au premier besoin ; reconnexion avec temporisation croissante (1 s, doublée à chaque échec,
-  60 s au plus).
+  60 s au plus). Un identifiant refusé ou absent n'est pas un échec du serveur : il n'arme pas la temporisation
+  (amendement du 2026-11-22, spec 010).
 - Délai d'appel `upstream_timeout_secs` via `PeerRequestOptions` ; notifications de progression relayées vers le
   client quand il a fourni un jeton de progression.
 - Sans session active, `list_tools` renvoie `UpstreamError::SessionRequired`, sauf si `list_requires_auth = false`.
@@ -170,3 +171,7 @@ Politiques, confirmations, limite de débit (3c). Rechargement des listes (3d).
   reçoit, pour qu'un refus n'efface pas un secret renouvelé entre-temps par un appel concurrent ; variante
   `SessionError::LoginFailed`. Raison : contrat I007.7, la chaîne ne rappelle pas `mark_rejected` et l'amont ne doit
   pas effacer un secret plus récent que celui qu'il a envoyé.
+- **2026-11-22** — Spec 010 : un échec de connexion dû à l'identifiant (`AuthRejected`, `Session(_)`) n'arme plus la
+  temporisation de reconnexion. Raison : la tentative suivante suit une nouvelle connexion de l'utilisateur, qui en
+  règle le rythme ; avec la temporisation, un rejeu après une reconnexion rapide (SSO déjà ouvert) répondait
+  « serveur injoignable ». Prouvé par `EX-010-10`.

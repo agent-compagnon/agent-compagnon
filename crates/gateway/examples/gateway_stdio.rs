@@ -134,6 +134,8 @@ async fn main() -> Result<(), Error> {
         output: output.clone(),
         tracker: UpdateTracker::new(&config),
         timing: WatchTiming::from_config(&config),
+        // Demonstration tokens, no login: nothing to follow.
+        sessions: None,
     });
     let pipeline = Arc::new(CallChain::new(CallChainDeps {
         config: Arc::clone(&config),
