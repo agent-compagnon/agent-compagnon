@@ -144,6 +144,7 @@ fn assert_error(toml: &str, path: &str, fragment: &str) {
 
 // --- Embedded configuration ---------------------------------------------------------------------------------------
 
+// Exigence : EX-001-01
 #[test]
 fn embedded_config_loads_and_validates() {
     let config = match Config::embedded() {
@@ -193,12 +194,14 @@ fn minimal_fixture_is_valid() {
 
 // --- Structure ----------------------------------------------------------------------------------------------------
 
+// Exigence : EX-001-04
 #[test]
 fn unknown_key_is_rejected() {
     let toml = edit("list_ttl_secs = 60", "list_ttl_secs = 60\nlist_ttl = 60");
     assert_error(&toml, "gateway.list_ttl", "unknown field `list_ttl`");
 }
 
+// Exigence : EX-001-04
 #[test]
 fn unknown_key_is_rejected_deep_in_the_tree() {
     let toml = edit(
@@ -208,6 +211,7 @@ fn unknown_key_is_rejected_deep_in_the_tree() {
     assert_error(&toml, "mcp[0].tools.purge.color", "unknown field `color`");
 }
 
+// Exigence : EX-001-04
 #[test]
 fn unknown_key_is_rejected_in_auth() {
     let toml = edit("method = \"basic\"\n", "method = \"basic\"\npassword = \"x\"\n");
@@ -226,6 +230,7 @@ fn toml_syntax_error_has_a_line() {
     assert_error(&toml, "", "ligne");
 }
 
+// Exigence : EX-001-03
 #[test]
 fn several_errors_are_reported_together() {
     let toml = edit("id = \"dev\"\nlabel = \"DEV\"", "id = \"Dev\"\nlabel = \"\"");
@@ -243,6 +248,7 @@ fn several_errors_are_reported_together() {
     }
 }
 
+// Exigence : EX-001-03
 #[test]
 fn display_lists_every_error_with_its_path() {
     let toml = edit("id = \"dev\"\nlabel = \"DEV\"", "id = \"Dev\"\nlabel = \"\"");
@@ -256,6 +262,7 @@ fn display_lists_every_error_with_its_path() {
     assert!(text.contains("environments[0].label : valeur vide"), "{text}");
 }
 
+// Exigence : EX-001-02
 #[test]
 fn unsupported_schema_version() {
     assert_error(
@@ -266,6 +273,7 @@ fn unsupported_schema_version() {
 }
 
 // --- Identifiers --------------------------------------------------------------------------------------------------
+// Exigence : EX-001-02
 
 #[test]
 fn malformed_identifier() {
@@ -326,6 +334,7 @@ fn malformed_profile_id() {
 }
 
 // --- Cross references ---------------------------------------------------------------------------------------------
+// Exigence : EX-001-02
 
 #[test]
 fn unknown_session_reference() {
@@ -424,6 +433,7 @@ fn unknown_environment_in_profile_policy() {
 }
 
 // --- Sessions -----------------------------------------------------------------------------------------------------
+// Exigence : EX-001-02
 
 #[test]
 fn two_env_sessions_for_one_environment() {
@@ -478,6 +488,7 @@ fn session_without_origin() {
 }
 
 // --- URLs ---------------------------------------------------------------------------------------------------------
+// Exigence : EX-001-02
 
 #[test]
 fn plain_http_is_refused() {
@@ -526,6 +537,7 @@ fn malformed_url() {
 }
 
 // --- Authentication parameters ------------------------------------------------------------------------------------
+// Exigence : EX-001-02
 
 #[test]
 fn missing_auth_parameter() {
@@ -617,6 +629,7 @@ fn probe_url_must_be_https() {
 }
 
 // --- Policy -------------------------------------------------------------------------------------------------------
+// Exigence : EX-001-02
 
 #[test]
 fn root_default_rule_is_mandatory() {
@@ -798,6 +811,7 @@ fn locked_category_does_not_cover_other_categories() {
 }
 
 // --- Profiles -----------------------------------------------------------------------------------------------------
+// Exigence : EX-001-02
 
 #[test]
 fn no_strictest_profile() {
@@ -817,6 +831,7 @@ fn strictest_profile_denies_unknown_tools() {
 }
 
 // --- Exposed names ------------------------------------------------------------------------------------------------
+// Exigence : EX-001-02
 
 #[test]
 fn exposed_name_collision() {
@@ -849,6 +864,7 @@ fn tool_name_max_len_must_allow_names() {
 }
 
 // --- Gateway timings ----------------------------------------------------------------------------------------------
+// Exigence : EX-001-02
 
 #[test]
 fn call_budget_below_client_cutoff() {

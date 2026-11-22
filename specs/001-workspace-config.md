@@ -40,10 +40,13 @@ stricte et données d'exemple.
 - `cargo xtask ci` enchaîne : `fmt --check`, clippy hôte (membres par défaut), tests hôte, clippy cible Windows
   (`--workspace`), puis les vérifications `ui/` si `ui/package.json` existe. Arrêt à la première erreur, code de
   sortie non nul, résumé final lisible.
+- `cargo xtask ci lint` (fmt et les deux clippy) et `cargo xtask ci test` (tests et `ui/`) découpent la même suite
+  pour les deux jobs GitLab.
 
 ### CI GitLab minimale
 
-- `.gitlab-ci.yml` avec les étapes `lint` et `test` sur une image Rust Linux, qui lancent `cargo xtask ci`, avec
+- `.gitlab-ci.yml` avec les étapes `lint` et `test` sur une image Rust Linux, qui lancent `cargo xtask ci lint` et
+  `cargo xtask ci test`, avec
   cache cargo. Les jobs de build Windows et de release viennent à l'étape 7c.
 
 ### Config embarquée
@@ -51,31 +54,56 @@ stricte et données d'exemple.
 - `config/default.toml`, chargé par `include_str!` dans `mcp_proxy_core::config`.
 - Modèle typé (serde, `deny_unknown_fields`) : `schema_version`, `[gateway]`, `[trace]`, `[webview]`, `[update]`,
   `[[environments]]`, `[[sessions]]`, `[[mcp]]` (avec `instances` et `tools`), `[policy]`, `[profiles.*]`.
-- Identifiants typés : `EnvId`, `SessionId`, `McpId`, `ToolName`, `ProfileId` (newtypes validés).
-- `ConfigSource` : trait avec la seule implémentation `Embedded`. C'est le point d'extension d'une future config
+- Identifiants typés : `EnvId`, `SessionId`, `McpId`, `McpAlias`, `ToolName`, `ProfileId` (newtypes validés).
+  `EnvId`, `SessionId`, `McpId`, `McpAlias` et `ProfileId` : `[a-z0-9-]`, 1 à 32 caractères, sans `-` en tête ni en
+  fin ; `ToolName` : 1 à 128 caractères `[A-Za-z0-9._-]`. `env` est réservé comme identifiant de session.
+- `ConfigSource` : trait (`name()`, `read()`) avec la seule implémentation `Embedded`. C'est le point d'extension d'une future config
   signée distante (`027-config-signee.md`), non implémentée.
-- **Validation stricte** au chargement. Elle accumule *toutes* les erreurs, chacune avec le chemin TOML fautif et un
-  message explicite :
-  - identifiants uniques et bien formés (`[a-z0-9-]`), alias MCP uniques ;
-  - références croisées valides (session, environnement, module local, profil) ;
+- **Validation stricte** au chargement, en deux phases :
+  - **structure** (syntaxe TOML, types, clés obligatoires, clés inconnues, méthode d'authentification,
+    `webview.profile`) : arrêt à la *première* erreur, rapportée avec son chemin TOML et sa ligne ; le détail reste
+    le message de serde, en anglais ;
+  - **sémantique**, ensuite : elle accumule *toutes* les erreurs, chacune avec le chemin TOML fautif et un message
+    explicite en français. `decision`, `channel`, `category`, `unknown_tools`, `scope` et `kind` sont validés à
+    cette phase.
+- Règles sémantiques :
+  - `schema_version = 1` ;
+  - identifiants uniques et bien formés, alias MCP uniques ;
+  - références croisées valides (session, environnement, module local, profil) ; un MCP ne nomme qu'une session
+    globale, ou `env` pour la session de l'environnement de l'instance ;
   - exactement une session `scope = "env"` par environnement, au moins une session globale ;
-  - URL en `https` (`http` toléré pour `localhost` et `127.0.0.1`, pour les tests) ;
+  - URL en `https` (`http` toléré pour `localhost` et `127.0.0.1`, pour les tests), avec un hôte et sans
+    identifiants ; `update.base_url` compris ;
+  - instances : au moins une par MCP, `url` en `remote`, `base_url` en `local` ; `module` obligatoire en `local`,
+    interdit en `remote` ;
   - `[policy]` : règle racine `default` obligatoire ; décisions, canaux et catégories connus ; `channel` exigé dès
-    que `decision = "confirm"` ;
-  - une règle plus souple qu'une règle verrouillée qui la couvre est une erreur (elle serait sans effet) ;
-  - exactement un profil `strictest = true` ;
-  - noms exposés calculables et sans collision, dans la limite `tool_name_max_len` ;
-  - `call_budget_secs < 60` et `confirmation_timeout_secs ≤ call_budget_secs` ;
-  - paramètres complets pour chaque méthode d'authentification ; origines autorisées calculables pour chaque
-    session.
+    que `decision = "confirm"` et refusé avec `allow` et `deny` ; une règle qui vise un environnement, un MCP, une
+    instance ou un outil non déclaré est une erreur ;
+  - une règle plus souple qu'une règle verrouillée qui la couvre est une erreur (elle serait sans effet). Une règle
+    de catégorie verrouillée ne couvre pas un outil déclaré sans catégorie ; une règle `default` ou d'outil
+    verrouillée le couvre ;
+  - exactement un profil `strictest = true`, avec `unknown_tools = "deny"` ;
+  - noms exposés calculables et sans collision, dans la limite `tool_name_max_len` (entre 16 et 128) ;
+  - `1 ≤ call_budget_secs < 60`, `confirmation_timeout_secs ≤ call_budget_secs`, `auth_timeout_secs ≤
+    call_budget_secs` ; délais, intervalles, seuils et capacités au moins égaux à 1 ;
+  - paramètres complets pour chaque méthode d'authentification : durées de vie entre 1 et 24 h, `cookie_names` non
+    vide et sans doublon, `capture_header` et `capture_scheme` jetons HTTP valides, motifs d'URL en préfixe canonique
+    suivi d'un `*` final facultatif, `allowed_navigation` non vide et contenant l'hôte de `login_url` et de
+    `success_url_pattern` ;
+  - origines autorisées non vides pour chaque session ;
+  - `update.repository` et `update.path` : segments `[A-Za-z0-9._-]`, sans segment vide, `.` ni `..`.
 - Données d'exemple : 8 environnements, 2 SSO globaux (`sso-corp` en `jwt_header`, `sso-tools` en `basic`), 1 SSO
   par environnement (`cookie`), 5 MCP fictifs (`kibana-logs`, `gitlab-ops`, `k8s-admin`, `db-readonly`, `jira` en
   module local) répartis sur les environnements avec des URL en `*.example.internal`, outils déclarés avec leur
-  catégorie, 3 profils (`developpeur`, `support`, `lecture-seule`).
+  catégorie quand elle est connue d'avance, 3 profils (`developpeur`, `support`, `lecture-seule`).
+- La catégorie d'un outil est facultative dans `[mcp.tools]` : un outil déclaré sans catégorie reste connu, et sa
+  catégorie suit S11 à l'exécution.
 
 ### Schéma de référence
 
-Il peut être ajusté, à condition de le noter dans `DECISIONS.md`.
+Il peut être ajusté, à condition de le noter dans `DECISIONS.md`. Écarts retenus : `expected_issuer` facultatif
+pour `jwt_header` ; `description`, `sensitive`, `list_requires_auth`, `strictest`, `default_environments`,
+`profiles.*.policy` et `category` facultatifs ; tout le reste est obligatoire.
 
 ```toml
 schema_version = 1
@@ -218,3 +246,15 @@ destructive = { decision = "deny", locked = true }
 ## Hors périmètre
 
 Secrets, filtre, politiques (étape 2). `app/` et `ui/` (étapes 5 et 6).
+
+## Amendements
+
+- **2026-11-22** — Rattrapage après implémentation (spec 030). Le texte décrit désormais ce qui a été livré :
+  - les erreurs de **structure** s'arrêtent à la première (serde), seules les erreurs **sémantiques** sont
+    accumulées : `EX-001-03` porte sur ces dernières (I1.1, I1.2) ;
+  - la catégorie d'un outil est facultative, et une règle de catégorie verrouillée ne couvre pas un outil sans
+    catégorie (I1.34) ;
+  - règles de validation ajoutées ou précisées par l'option la plus sûre : URL, motifs, navigation, durées de vie,
+    cibles de politique, `channel`, profil le plus strict, délais, longueur des noms, chemins de mise à jour,
+    version de schéma (I1.14 à I1.27) ; `McpAlias` et identifiant de session `env` réservé (I1.5 à I1.8) ;
+  - écarts de schéma (I1.10 à I1.12) et sous-commandes `ci lint` / `ci test` (I1.30).
