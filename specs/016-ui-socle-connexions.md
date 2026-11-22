@@ -24,16 +24,31 @@ attend une action. L'onglet Connexions est l'écran par défaut, le seul utile �
 - Textes en français, centralisés dans `ui/src/i18n/fr.ts`.
 - Scripts : `lint` (eslint), `typecheck` (vue-tsc), `test` (Vitest + Vue Test Utils), `build`, `e2e` (Playwright,
   hors `cargo xtask ci`).
+- Réalisation : Tailwind CSS 4 (`@tailwindcss/vite`), composants shadcn-vue ajoutés comme sources dans
+  `ui/src/components/ui/` (bouton, dialogue d'alerte, menu déroulant, onglets, boutons radio, libellé), icônes
+  `@lucide/vue`, alias `@/` vers `ui/src/`. Jetons de couleur dans `ui/src/style.css` : base `neutral`,
+  `--attention` et `--destructive` (avec leurs variantes texte et fond teinté) seules couleurs ; le mode sombre suit
+  `prefers-color-scheme` (variante `dark:` liée au système, jamais à une classe). Aucun style ni script en ligne :
+  la CSP de l'appli est servie aussi par `vite preview`, où les tests de bout en bout la voient.
 
 ### Couche d'accès au backend
 
-- `ui/src/api/backend.ts` : interface. `tauri.ts` : `invoke` et `listen`. `mock.ts` : backend simulé avec des
-  scénarios (premier lancement, sessions variées, connexion demandée, confirmation en attente, MCP mis à jour,
-  journal fourni).
-- Sans Tauri, le backend simulé est utilisé : **l'interface tourne dans un simple navigateur**, ce qui permet de la
-  développer, de la tester et de la capturer sous Linux.
-- `types.ts` reflète les DTO Rust (`AppSnapshot` et ses parties). Aucun secret n'y figure.
-- Un store réactif tient le dernier `AppSnapshot` et s'abonne à `snapshot-changed`.
+- `ui/src/api/backend.ts` : interface. `tauri.ts` : `invoke` et `listen` (`@tauri-apps/api`). `mock.ts` : backend
+  simulé avec des scénarios, choisis par `?scenario=` : `premier-lancement`, `sessions` (sessions dans chaque état),
+  `connexion-demandee`, `confirmation`, `suspendue`, `reglages-reinitialises`, `profil-webview` (échec du vidage du
+  profil WebView au démarrage), `mcp-mis-a-jour`. Ses données sont l'instantané de la config d'exemple écrit par la
+  passerelle (`snapshot.example.json`), remanié par scénario ; il simule une connexion qui aboutit après un instant.
+- Le backend simulé n'existe que dans la construction `--mode mock` (`npm run dev`, `npm run build:mock` vers
+  `ui/dist-mock/`) : **l'interface tourne dans un simple navigateur**, ce qui permet de la développer, de la tester
+  et de la capturer sous Linux. La construction de l'appli (`npm run build`, `ui/dist/`) ne le contient jamais :
+  `scripts/check-dist.mjs` y cherche ses marques et fait échouer la construction. Sans Tauri et sans backend simulé,
+  la page n'affiche qu'un message et n'a accès à aucune donnée.
+- `types.ts` reflète les DTO Rust (`AppSnapshot` et ses parties) par des schémas stricts (`valibot`) dont les types
+  sont déduits. Un instantané qui n'a pas exactement cette forme (clé en plus ou en moins, type faux) est refusé :
+  la fenêtre dit « état illisible » au lieu d'en montrer une partie. Aucun secret n'y figure.
+- Un store réactif tient le dernier `AppSnapshot` et s'abonne à `snapshot-changed` avant de demander
+  `get_snapshot` ; une réponse plus ancienne qu'un événement reçu entre-temps est ignorée. Une commande refusée
+  affiche sa raison dans un bandeau rouge, que l'utilisateur ferme.
 
 ### Cadre
 
@@ -46,6 +61,20 @@ attend une action. L'onglet Connexions est l'écran par défaut, le seul utile �
   valeurs par défaut du nouveau profil ; les durcissements de l'utilisateur sont conservés.
 - Bandeaux globaux : passerelle suspendue (avec « Reprendre »), réglages réinitialisés, confirmation en attente
   (avec « Voir »).
+- Réalisation :
+  - en-tête : nom, version, sélecteur (menu déroulant à boutons radio, chaque profil avec ses environnements
+    exposés, sensibles nommés) ; le bouton « Redémarrer pour mettre à jour » s'affiche quand `update` n'est pas
+    `null`, inactif jusqu'à la spec 020 qui apporte la commande ;
+  - premier lancement (`profile.firstLaunch`, donc aussi après une réinitialisation des réglages) : dialogue
+    d'alerte que ni Échap ni un clic à côté ne ferment ; un profil à choisir (aucun présélectionné), sa phrase
+    (`description` de la config) et ses environnements ; le profil le plus strict en dernier ; le message de
+    réinitialisation y est repris quand il existe ;
+  - changement de profil : « Passer au profil « X » ? », phrase du profil, environnements exposés par défaut,
+    sensibles, « Vos durcissements sont conservés. », « Annuler » / « Changer de profil » ;
+  - bandeaux : confirmation en attente en orange avec « Voir » (ouvre la fenêtre de détail, n'autorise rien) ;
+    passerelle suspendue en noir et blanc avec « Reprendre » ; alertes de niveau erreur en rouge (réglages
+    réinitialisés, échec du vidage du profil WebView, réglage non enregistré). Les alertes d'information et le
+    seuil d'outils exposés sont laissés aux onglets MCP et Journal (specs 017, 018).
 
 ### Onglet Connexions
 
@@ -59,6 +88,12 @@ attend une action. L'onglet Connexions est l'écran par défaut, le seul utile �
 - Point d'état : plein pour active, contour pour jamais connectée, atténué pour expirée, orange pour connexion
   demandée.
 - Commandes : `connect_session`, `disconnect_session`, `set_profile`.
+- Réalisation : le bandeau orange n'apparaît que si un **client LLM** attend (`requestedBy`, « Un client LLM » s'il
+  n'a pas de nom) ; une connexion demandée depuis la carte n'a que son point orange. L'heure de fin est l'heure
+  locale de `at` (« active jusqu'à demain 09:10 » le lendemain). Services : les MCP qui utilisent la session dans
+  les environnements exposés, dans l'ordre de la config, suivis de leurs environnements pour une session globale
+  (« GitLab Ops en DEV, REC · Jira en REC ») ; « Aucun service exposé » sinon. Sans environnement exposé, la
+  section le dit. Les deux boutons de carte sont nommés pour les lecteurs d'écran (« Se connecter à SSO DEV »).
 
 ### Commandes de la fenêtre (réalisation)
 
@@ -83,6 +118,10 @@ attend une action. L'onglet Connexions est l'écran par défaut, le seul utile �
 
 - Page de saisie Basic (5b) et page de détail d'une confirmation (5c), dans le même bundle, sur des routes dédiées,
   avec le même thème.
+- Réalisation : ce sont des pages dédiées (`basic.html`, `confirm.html`, entrées de la même construction Vite),
+  pas des routes d'une même page : chaque fenêtre ne charge que son code et garde sa seule commande. Elles prennent
+  le thème et les jetons de `style.css`, et leurs textes passent dans `fr.ts` ; leur comportement (specs 012,
+  013) est inchangé.
 
 ## Tests
 
@@ -100,6 +139,9 @@ attend une action. L'onglet Connexions est l'écran par défaut, le seul utile �
   conservés, bandeau de réinitialisation retiré, choix scellé) ; « Voir » ouvre les fenêtres de détail sans rien
   approuver ; « Reprendre » lève la suspension ; un identifiant inconnu est refusé.
 
+- **EX-016-08** — Le backend simulé n'est jamais dans la construction de l'appli : `npm run build` (donc
+  `cargo xtask ci`) échoue si `ui/dist/` contient une de ses marques.
+
 ## Vérification
 
 `cargo xtask ci` vert (lint, typecheck, tests et build de `ui/` compris).
@@ -108,7 +150,26 @@ attend une action. L'onglet Connexions est l'écran par défaut, le seul utile �
 
 - **EX-016-04** (manuel) — Premier lancement : le choix du profil est demandé, puis l'onglet Connexions s'affiche.
 - **EX-016-05** (manuel) — Les cartes reflètent l'état réel pendant une connexion et une déconnexion.
+- **EX-016-09** (manuel) — Bandeaux et commandes dans l'appli : un appel qui attend une connexion affiche le bandeau
+  orange au nom du client ; une confirmation en attente affiche « Voir », qui ouvre sa fenêtre de détail sans rien
+  autoriser ; « Reprendre » lève la suspension posée par le menu de l'icône ; changer de profil par l'en-tête
+  demande confirmation puis expose les environnements du profil ; le menu de l'icône n'a plus de « Profil ».
+- **EX-016-10** (manuel) — Thème : la fenêtre principale, la saisie Basic et la fenêtre de détail suivent le mode
+  clair ou sombre de Windows, sans erreur de CSP ni texte illisible.
 
 ## Hors périmètre
 
 Onglets MCP (6b) et Journal (6c).
+
+## Amendements
+
+- **2026-11-22** — Implémentation. Écarts au texte : le backend simulé n'est choisi qu'à la construction
+  (`--mode mock`) et non à l'exécution en l'absence de Tauri, pour qu'il ne puisse pas se retrouver dans l'appli
+  (I016.10) ; scénarios ajoutés (`suspendue`, `reglages-reinitialises`, `profil-webview`), le scénario « journal
+  fourni » attend le DTO du journal (spec 018) ; les fenêtres annexes sont des pages dédiées et non des routes
+  (I016.13) ; seules les alertes de niveau erreur sont des bandeaux globaux (I016.12) ; le bouton de mise à jour est
+  inactif jusqu'à la spec 020. Ajouts : `description` des profils (I016.5), `requestedBy` de l'instantané (I016.3),
+  commandes `resume_gateway` et `show_confirmations` (I016.4), retrait du menu « Profil » de l'icône (I016.7).
+  Critères ajoutés : `EX-016-06` à `EX-016-08` (automatiques), `EX-016-09` et `EX-016-10` (recette). Aucun critère
+  retiré.
+

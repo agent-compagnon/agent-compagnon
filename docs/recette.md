@@ -213,6 +213,35 @@ vrai SSO de recette (section 012). Le menu de l'icône contient, dans l'ordre : 
   survécu). Dans la fenêtre, toutes les cartes de l'onglet Connexions disent « jamais connectée ». Noter si une boîte « les données des fenêtres de connexion n'ont pas pu être effacées »
   apparaît (runtime WebView2 trop ancien pour `ClearBrowsingDataAll`, I015.4).
 
+## 016 — ui — socle Vue/shadcn-vue, en-tête et profil, onglet Connexions
+
+Préparation : comme pour la 011 (`cd ui && npm ci && npm run build`, puis compiler), client LLM configuré
+(EX-011-06), et pour EX-016-05 une config dont `sso-dev` (ou une autre session `cookie`/`jwt_header`) pointe vers un
+vrai SSO de recette (section 012). Pour repartir d'un premier lancement : quitter l'appli, supprimer
+`%LOCALAPPDATA%\MCP Proxy\settings.json`.
+
+- [ ] **EX-016-04** — Premier lancement : la fenêtre s'ouvre seule sur « Choisissez votre profil » ; Échap et un clic
+  à côté ne la ferment pas ; « Continuer » reste inactif tant qu'aucun profil n'est coché. Choisir « Développeur »,
+  « Continuer » : l'onglet Connexions s'affiche, l'en-tête dit « Profil Développeur », la section « SSO par
+  environnement » montre SSO DEV, SSO INT et SSO REC, toutes « jamais connectée » (point en contour).
+- [ ] **EX-016-05** — « Se connecter » sur SSO DEV : la fenêtre de connexion s'ouvre, la carte passe à « connexion
+  demandée » (point orange, sans bandeau : aucun client n'attend). Recliquer « Se connecter » ramène la fenêtre
+  devant. Se connecter : la carte dit « active jusqu'à HH:MM » à l'heure locale de Windows (et non UTC), point
+  plein, bouton « Déconnecter ». « Déconnecter » : la carte dit « expirée », point atténué ; un appel d'outil de
+  DEV redemande une connexion et la page du SSO redemande les identifiants.
+- [ ] **EX-016-09** — Appeler depuis le client LLM un outil de REC qui demande « SSO Outils » : un bandeau orange
+  « Claude Desktop attend une connexion à SSO Outils » (nom du client tel qu'il se déclare) apparaît avec « Se
+  connecter », qui ramène la saisie Basic devant ; il disparaît à la fin de la connexion. Profil « Support » par
+  l'en-tête : le dialogue cite « REC, PPROD et PROD », sensibles « PPROD et PROD » ; « Annuler » ne change rien,
+  « Changer de profil » applique. Appeler `prod_jira_add_comment` : bandeau orange « Une confirmation attend votre
+  réponse. » ; « Voir » ouvre la fenêtre de détail (arguments complets) sans rien autoriser, et le bandeau reste
+  jusqu'à la réponse donnée dans cette fenêtre. Menu de l'icône, « Suspendre la passerelle » : bandeau « La
+  passerelle est suspendue… » ; « Reprendre » dans la fenêtre le retire et le menu de l'icône redevient
+  « Suspendre la passerelle ». Le menu de l'icône n'a pas d'entrée « Profil ».
+- [ ] **EX-016-10** — Paramètres de Windows, Couleurs, mode sombre puis clair : la fenêtre principale suit (fond,
+  texte, cartes lisibles), la saisie Basic et la fenêtre de détail aussi. Ouvrir une compilation de débogage
+  (outils de développement actifs) : la console ne montre aucune violation de CSP.
+
 ## 025 — Module MCP local d'exemple (`jira-local`)
 
 À dérouler quand l'appli (spec 011) et les fenêtres de saisie Basic (spec 012) existent, avec une config dont

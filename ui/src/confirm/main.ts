@@ -1,4 +1,5 @@
 import { createApp, h } from 'vue'
+import '../style.css'
 import ConfirmDetail from './ConfirmDetail.vue'
 import { type ConfirmWindow, confirmData, sendAnswer } from './detail'
 

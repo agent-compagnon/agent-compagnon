@@ -1,0 +1,156 @@
+// The snapshot the application sends to the main window (`get_snapshot`, `snapshot-changed`): the exact mirror of
+// `mcp_proxy_gateway::view::AppSnapshot`, serialized in camelCase. Nothing in it is secret.
+//
+// Every object is strict: a key added, removed or retyped on the Rust side makes the snapshot unreadable here, and
+// `snapshot.example.json` (written by the `snapshot_contract` test of the gateway) fails the tests of `ui/`.
+
+import * as v from 'valibot'
+
+const text = v.string()
+const nullableText = v.nullable(v.string())
+/** Milliseconds since the Unix epoch. */
+const instant = v.nullable(v.pipe(v.number(), v.integer(), v.minValue(0)))
+const count = v.pipe(v.number(), v.integer(), v.minValue(0))
+
+export const AppStatusSchema = v.picklist(['neutral', 'attention', 'error', 'suspended'])
+export const AlertLevelSchema = v.picklist(['info', 'attention', 'error'])
+export const AlertKindSchema = v.picklist([
+  'settingsReset',
+  'toolThreshold',
+  'catalogCache',
+  'startupHardening',
+  'settingsNotSaved',
+])
+export const SessionStateKindSchema = v.picklist(['neverConnected', 'active', 'expired', 'loginRequested'])
+export const AuthMethodSchema = v.picklist(['jwtHeader', 'cookie', 'basic'])
+export const CategorySchema = v.picklist(['read', 'write', 'destructive'])
+export const InstanceStateSchema = v.picklist(['catalogue', 'connected', 'sessionRequired', 'unreachable', 'disabled'])
+export const CatalogSourceSchema = v.picklist(['embedded', 'cache', 'live'])
+
+export const AlertSchema = v.strictObject({
+  level: AlertLevelSchema,
+  kind: AlertKindSchema,
+  message: text,
+})
+
+export const ProfileChoiceSchema = v.strictObject({
+  id: text,
+  label: text,
+  description: text,
+  strictest: v.boolean(),
+  defaultEnvironments: v.array(text),
+})
+
+export const ProfileViewSchema = v.strictObject({
+  chosen: nullableText,
+  active: nullableText,
+  firstLaunch: v.boolean(),
+  choices: v.array(ProfileChoiceSchema),
+})
+
+export const EnvironmentViewSchema = v.strictObject({
+  id: text,
+  label: text,
+  description: text,
+  sensitive: v.boolean(),
+  exposed: v.boolean(),
+})
+
+export const SessionStateViewSchema = v.strictObject({
+  kind: SessionStateKindSchema,
+  /** Computed in UTC by the core: the window formats `at` in local time instead. */
+  label: text,
+  at: instant,
+  /** The LLM client waiting for the login; empty when unknown, `null` when nobody waits. */
+  requestedBy: nullableText,
+})
+
+export const ServiceViewSchema = v.strictObject({
+  environment: text,
+  mcp: text,
+})
+
+export const SessionViewSchema = v.strictObject({
+  id: text,
+  label: text,
+  /** `null` for a global session. */
+  environment: nullableText,
+  method: AuthMethodSchema,
+  state: SessionStateViewSchema,
+  services: v.array(ServiceViewSchema),
+})
+
+export const ToolViewSchema = v.strictObject({
+  exposedName: text,
+  name: text,
+  title: text,
+  category: CategorySchema,
+  known: v.boolean(),
+  exposed: v.boolean(),
+})
+
+export const UpdateViewSchema = v.strictObject({
+  added: v.array(text),
+  modified: v.array(text),
+  removed: v.array(text),
+  at: instant,
+})
+
+export const InstanceViewSchema = v.strictObject({
+  environment: text,
+  exposed: v.boolean(),
+  state: InstanceStateSchema,
+  stateLabel: text,
+  source: v.nullable(CatalogSourceSchema),
+  refreshedAt: instant,
+  lastError: nullableText,
+  tools: v.array(ToolViewSchema),
+  update: v.nullable(UpdateViewSchema),
+})
+
+export const McpViewSchema = v.strictObject({
+  id: text,
+  alias: text,
+  label: text,
+  local: v.boolean(),
+  disabled: v.boolean(),
+  instances: v.array(InstanceViewSchema),
+})
+
+export const AppSnapshotSchema = v.strictObject({
+  version: text,
+  status: AppStatusSchema,
+  tooltip: text,
+  profile: ProfileViewSchema,
+  environments: v.array(EnvironmentViewSchema),
+  sessions: v.array(SessionViewSchema),
+  mcps: v.array(McpViewSchema),
+  exposedTools: count,
+  exposedToolsThreshold: count,
+  gatewaySuspended: v.boolean(),
+  pendingConfirmations: count,
+  alerts: v.array(AlertSchema),
+  /** Update ready to apply (spec 020); always `null` before it. */
+  update: nullableText,
+})
+
+export type AppStatus = v.InferOutput<typeof AppStatusSchema>
+export type Alert = v.InferOutput<typeof AlertSchema>
+export type ProfileChoice = v.InferOutput<typeof ProfileChoiceSchema>
+export type ProfileView = v.InferOutput<typeof ProfileViewSchema>
+export type EnvironmentView = v.InferOutput<typeof EnvironmentViewSchema>
+export type SessionStateKind = v.InferOutput<typeof SessionStateKindSchema>
+export type SessionStateView = v.InferOutput<typeof SessionStateViewSchema>
+export type ServiceView = v.InferOutput<typeof ServiceViewSchema>
+export type SessionView = v.InferOutput<typeof SessionViewSchema>
+export type ToolView = v.InferOutput<typeof ToolViewSchema>
+export type UpdateView = v.InferOutput<typeof UpdateViewSchema>
+export type InstanceView = v.InferOutput<typeof InstanceViewSchema>
+export type McpView = v.InferOutput<typeof McpViewSchema>
+export type AppSnapshot = v.InferOutput<typeof AppSnapshotSchema>
+
+/** The snapshot, or `null` if `value` is not exactly one. */
+export function parseSnapshot(value: unknown): AppSnapshot | null {
+  const result = v.safeParse(AppSnapshotSchema, value)
+  return result.success ? result.output : null
+}

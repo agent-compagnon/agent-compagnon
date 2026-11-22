@@ -30,7 +30,7 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 | Mises à jour | `ed25519-dalek` 3, `self-replace` 1.5, `semver` |
 | Filtre de sortie | `memchr` 2.8, `regex` 1.13 (motifs génériques seulement), `serde_json` 1.0 |
 | Logs | `tracing`, `tracing-subscriber` 0.3, `tracing-appender` |
-| Front | Vue 3, Vite, TypeScript, Tailwind CSS, shadcn-vue (Reka UI), TanStack Table, npm |
+| Front | Vue 3, Vite, TypeScript, Tailwind CSS 4, shadcn-vue (Reka UI), `@lucide/vue`, `valibot` (schémas de l'instantané), `@tauri-apps/api`, TanStack Table, npm ; Vitest et Playwright pour les tests |
 
 ## Architecture
 
@@ -256,3 +256,7 @@ du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
 - **2026-11-22** — Spec 015 : constaté dans les sources de Tauri 2.12.7 et wry 0.57.3, `clear_all_browsing_data`
   passe par `ICoreWebView2Profile2::ClearBrowsingDataAll` sans attendre sa fin ni rendre d'erreur (elle n'est que
   journalisée par la boucle d'événements). Les gestes d'urgence vivent dans `mcp_proxy_gateway::control`.
+- **2026-11-22** — Spec 016 : ligne « Front » précisée (Tailwind CSS 4, `@lucide/vue`, `valibot`, `@tauri-apps/api`,
+  Vitest, Playwright). Les commandes de la fenêtre principale vivent dans `mcp_proxy_gateway::interface` ; le contrat
+  de l'instantané est figé par `ui/src/api/snapshot.example.json`, écrit par un test de la passerelle et lu par les
+  tests de `ui/`. Le backend simulé de l'interface n'existe que dans la construction `--mode mock`.

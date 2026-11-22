@@ -66,7 +66,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [013](013-notifications-confirmations.md) | 5c | app — notifications Windows et confirmations | implémentée | 007, 011, 012 | 14 |
 | [014](014-reglages-scelles.md) | 5d | Réglages scellés (HMAC + DPAPI) | implémentée | 004, 005, 011 | 8 |
 | [015](015-arret-urgence.md) | 5e | Arrêt d'urgence dans le menu de l'icône | implémentée | 007, 010, 011, 012 | 9 |
-| [016](016-ui-socle-connexions.md) | 6a | ui — socle Vue/shadcn-vue, en-tête et profil, onglet Connexions | en cours | 011 | 7 |
+| [016](016-ui-socle-connexions.md) | 6a | ui — socle Vue/shadcn-vue, en-tête et profil, onglet Connexions | en cours | 011 | 10 |
 | [017](017-ui-mcp.md) | 6b | ui — onglet MCP | prévue | 008, 016 | 9 |
 | [018](018-ui-journal.md) | 6c | ui — onglet Journal | prévue | 009, 016 | 9 |
 | [019](019-installation.md) | 7a | Installation au premier lancement | prévue | 011 | 8 |

@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { buttonVariants } from '@/components/ui/button'
+import { fr } from '@/i18n/fr'
 import type { BasicAnswer, BasicPromptData } from './prompt'
+
+const field =
+  'border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-9 rounded-md border px-3 text-sm font-normal outline-none focus-visible:ring-3'
 
 const props = defineProps<{
   data: BasicPromptData
@@ -11,7 +16,7 @@ const login = ref(props.data.login ?? '')
 const password = ref('')
 const sent = ref(false)
 const attemptLabel = computed(() =>
-  props.data.attempt > 1 ? `Essai ${String(props.data.attempt)} sur ${String(props.data.maxAttempts)}` : '',
+  props.data.attempt > 1 ? fr.basic.attempt(props.data.attempt, props.data.maxAttempts) : '',
 )
 
 // The form is emptied before the answer leaves: nothing typed stays in the page.
@@ -34,29 +39,33 @@ function cancel() {
 </script>
 
 <template>
-  <main class="basic">
-    <h1>{{ data.title }}</h1>
+  <main class="flex min-h-dvh flex-col gap-4 p-5">
+    <h1 class="text-base font-semibold">
+      {{ data.title }}
+    </h1>
     <p
       v-if="data.error"
-      class="error"
+      class="error border-destructive/40 bg-destructive-muted text-destructive-text rounded-md border px-3 py-2 text-sm"
       role="alert"
     >
       {{ data.error }}
     </p>
     <p
       v-if="attemptLabel"
-      class="attempt"
+      class="attempt text-muted-foreground text-sm"
     >
       {{ attemptLabel }}
     </p>
     <form
+      class="grid gap-3"
       autocomplete="off"
       @submit.prevent="submit"
     >
-      <label>
-        Identifiant
+      <label class="grid gap-1.5 text-sm font-medium">
+        {{ fr.basic.login }}
         <input
           v-model="login"
+          :class="field"
           name="login"
           type="text"
           autocomplete="off"
@@ -64,58 +73,34 @@ function cancel() {
           required
         >
       </label>
-      <label>
-        Mot de passe
+      <label class="grid gap-1.5 text-sm font-medium">
+        {{ fr.basic.password }}
         <input
           v-model="password"
+          :class="field"
           name="password"
           type="password"
           autocomplete="off"
           required
         >
       </label>
-      <div class="actions">
+      <div class="mt-2 flex justify-end gap-2">
         <button
           type="button"
+          :class="buttonVariants({ variant: 'outline' })"
           :disabled="sent"
           @click="cancel"
         >
-          Annuler
+          {{ fr.basic.cancel }}
         </button>
         <button
           type="submit"
+          :class="buttonVariants()"
           :disabled="sent"
         >
-          Se connecter
+          {{ fr.basic.submit }}
         </button>
       </div>
     </form>
   </main>
 </template>
-
-<style scoped>
-.basic {
-  font-family: system-ui, sans-serif;
-  padding: 1.25rem;
-}
-h1 {
-  font-size: 1.1rem;
-  margin: 0 0 1rem;
-}
-form {
-  display: grid;
-  gap: 0.75rem;
-}
-label {
-  display: grid;
-  gap: 0.25rem;
-}
-.error {
-  color: #b00020;
-}
-.actions {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-}
-</style>

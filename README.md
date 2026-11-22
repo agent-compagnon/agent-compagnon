@@ -27,6 +27,9 @@ build`, puis `cargo build -p mcp-proxy --release`.
 | `cargo xtask icons` | Redessine les icônes de `app/icons/` (appli, zone de notification) |
 | `cargo xtask trace` | Alignement specs ↔ tests ↔ `docs/recette.md` (voir `specs/README.md`) ; `--write-index` régénère l'index des specs, `--report` affiche la matrice critère → fichiers |
 | `cargo test -p mcp-proxy-core` | Tests du core, dont la validation de la config embarquée |
+| `cd ui && npm run dev` | Interface dans un navigateur, avec le backend simulé (`?scenario=sessions`, `premier-lancement`, … : `ui/src/api/mock.ts`) |
+| `cd ui && npm run e2e` | Tests Playwright de l'interface sur `vite preview` du backend simulé, hors `cargo xtask ci` ; `CAPTURES_DIR=…` y ajoute les captures |
+| `MCP_PROXY_WRITE_FIXTURES=1 cargo test -p mcp-proxy-gateway --test snapshot_contract` | Réécrit `ui/src/api/snapshot.example.json` après un changement voulu de l'instantané |
 
 `cargo xtask ci` s'arrête à la première étape en échec et sort avec un code non nul.
 
@@ -40,7 +43,7 @@ crates/deploy            mcp-proxy-deploy     installation, désinstallation, up
 crates/testkit           mcp-proxy-testkit    faux MCP, faux SSO, faux Artifactory (étape 3b)
 crates/modules/jira-local                     module MCP local Jira (étape 8)
 app/                     mcp-proxy            appli Tauri et pont stdio, Windows uniquement, câblage seulement (5a)
-ui/                                           interface Vue (squelette à 5a, contenu à l'étape 6)
+ui/                                           interface Vue (socle et onglet Connexions : spec 016)
 config/default.toml                           config embarquée dans l'exe, validée au démarrage
 xtask/                                        cargo xtask
 ```

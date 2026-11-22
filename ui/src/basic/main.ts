@@ -1,4 +1,5 @@
 import { createApp, h } from 'vue'
+import '../style.css'
 import BasicPrompt from './BasicPrompt.vue'
 import { type BasicWindow, promptData, sendAnswer } from './prompt'
 
