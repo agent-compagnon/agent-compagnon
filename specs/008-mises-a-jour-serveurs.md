@@ -2,7 +2,7 @@
 id: "008"
 titre: "gateway — mises à jour des serveurs MCP"
 etape: "3d"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["005", "006", "007"]
 suivi: "github#9"
 ---
@@ -40,8 +40,9 @@ Précisions de réalisation (amendement du 2026-11-22) :
 - `ttl_ms` respecté : une liste dont `ttl_ms` est plus court que `refresh_interval_secs` est rechargée à son
   expiration, jamais plus souvent que toutes les 30 s. `ttl_ms = 0`, valeur que `rmcp` envoie pour un serveur
   2026-07-28 qui n'en donne pas (« périmée tout de suite »), ne raccourcit rien.
-- 2026-07-28 : l'abonnement fermé alors que la connexion vit (serveur redémarré, flux coupé) est rouvert après
-  `initial_backoff` (1 s), puis un changement est signalé, puisqu'une notification a pu être perdue entre-temps.
+- 2026-07-28 : abonnement ouvert seulement si le serveur annonce `tools.listChanged`. Fermé alors que la connexion
+  vit (serveur redémarré, flux coupé), il est rouvert après `initial_backoff` (1 s), délai doublé à chaque refus
+  jusqu'à 60 s, puis un changement est signalé, puisqu'une notification a pu être perdue entre-temps.
 - Reconnexion : nouvelle connexion de `HttpUpstream` et, en ancien protocole, toute réinitialisation transparente
   d'une session expirée par le transport `rmcp` (un `initialize` accepté), qui suit typiquement un redémarrage du
   serveur.
@@ -130,7 +131,7 @@ Bandeau dans l'interface (6b).
 
 ## Amendements
 
-- **2026-11-22** — Réalisation (I008.1 à I008.12). Ajouts : précisions de réalisation dans chaque section
+- **2026-11-22** — Réalisation (I008.1 à I008.13). Ajouts : précisions de réalisation dans chaque section
   (`ListWatcher`, `UpdateTracker`, cache client de `rmcp` désactivé, réabonnement 2026-07-28, réinitialisation de
   session comptée comme reconnexion, anti-rebond, cumul de `McpUpdate`, état `Disabled`) ; critères `EX-008-11` à
   `EX-008-14`, décrits dans le texte sans critère jusqu'ici. Écarts : `ttl_ms = 0` ne raccourcit pas la période, et

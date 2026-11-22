@@ -229,34 +229,47 @@ impl HttpUpstream {
     }
 
     /// On a 2026-07-28 connection, list changes come through `subscriptions/listen`; on a legacy one, through
-    /// `UpstreamHandler::on_tool_list_changed`. The subscription is kept open while the connection lives: when it
-    /// ends, it is opened again after a delay, and a change is reported since one may have been missed meanwhile.
+    /// `UpstreamHandler::on_tool_list_changed`. A server that does not announce `tools.listChanged` is not
+    /// subscribed to: the periodic reload covers it. The subscription is kept open while the connection lives: when
+    /// it ends, it is opened again after a delay that doubles with each failure, and a change is reported since one
+    /// may have been missed meanwhile.
     fn watch_list_changes(&self, peer: &Peer<RoleClient>) {
-        let modern = peer
-            .peer_info()
-            .is_some_and(|info| info.protocol_version.as_str() >= ProtocolVersion::V_2026_07_28.as_str());
-        if !modern {
+        let Some(info) = peer.peer_info() else {
+            return;
+        };
+        let modern = info.protocol_version.as_str() >= ProtocolVersion::V_2026_07_28.as_str();
+        let notifies = info
+            .capabilities
+            .tools
+            .as_ref()
+            .is_some_and(|tools| tools.list_changed == Some(true));
+        if !modern || !notifies {
             return;
         }
         let peer = peer.clone();
         let changes = self.handler.changes.clone();
-        let retry = self.config.initial_backoff;
+        let (initial, max) = (self.config.initial_backoff, self.config.max_backoff);
         tokio::spawn(async move {
             let filter = SubscriptionFilter::builder().tools_list_changed().build();
             let mut first = true;
+            let mut delay = initial;
             while !peer.is_transport_closed() {
-                if let Ok(mut subscription) = peer.listen(filter.clone()).await {
-                    if !first {
-                        let _ = changes.send(());
-                    }
-                    first = false;
-                    while let Ok(Some(notification)) = subscription.next().await {
-                        if matches!(notification, ServerNotification::ToolListChangedNotification(_)) {
+                match peer.listen(filter.clone()).await {
+                    Ok(mut subscription) => {
+                        if !first {
                             let _ = changes.send(());
                         }
+                        first = false;
+                        delay = initial;
+                        while let Ok(Some(notification)) = subscription.next().await {
+                            if matches!(notification, ServerNotification::ToolListChangedNotification(_)) {
+                                let _ = changes.send(());
+                            }
+                        }
                     }
+                    Err(_) => delay = delay.saturating_mul(2).min(max),
                 }
-                tokio::time::sleep(retry).await;
+                tokio::time::sleep(delay).await;
             }
         });
     }
