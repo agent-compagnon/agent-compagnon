@@ -25,6 +25,7 @@ describe("the application's backend", () => {
 
   // Exigence : EX-016-07
   // Exigence : EX-017-04
+  // Exigence : EX-020-17
   it('sends each command of the window with identifiers only', async () => {
     await tauriBackend.connectSession('sso-dev')
     await tauriBackend.disconnectSession('sso-dev')
@@ -39,6 +40,7 @@ describe("the application's backend", () => {
     await tauriBackend.getJournal()
     invoke.mockResolvedValueOnce({ status: 'cancelled' })
     await tauriBackend.exportDiagnostic()
+    await tauriBackend.restartForUpdate()
     expect(invoke.mock.calls).toEqual([
       ['connect_session', { session: 'sso-dev' }],
       ['disconnect_session', { session: 'sso-dev' }],
@@ -51,6 +53,7 @@ describe("the application's backend", () => {
       ['reload_mcp', { environment: 'dev', mcp: 'gitlab-ops' }],
       ['get_journal'],
       ['export_diagnostic'],
+      ['restart_for_update'],
     ])
     // Every command is declared by the application and granted to the main window, and to it only.
     for (const [command] of invoke.mock.calls) {

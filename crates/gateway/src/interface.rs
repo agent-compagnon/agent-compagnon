@@ -46,6 +46,9 @@ pub enum InterfaceError {
     /// The change applies, but the settings file keeps the previous settings.
     #[error("le changement s'applique jusqu'à l'arrêt de MCP Proxy, mais {0}")]
     NotSaved(String),
+    /// « Redémarrer pour mettre à jour » without an update put in place (spec 020).
+    #[error("aucune mise à jour prête à appliquer")]
+    NoUpdateReady,
     /// `DiagnosticError`, already French and without content (« export de diagnostic impossible : … »).
     #[error("{0}")]
     Export(String),

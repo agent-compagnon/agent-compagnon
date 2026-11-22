@@ -38,6 +38,8 @@ export const SCENARIOS = [
   'journal-vide',
   'export-echec',
   'export-annule',
+  'mise-a-jour-prete',
+  'mise-a-jour-critique',
 ] as const
 
 export type Scenario = (typeof SCENARIOS)[number]
@@ -92,6 +94,7 @@ function withProfile(snapshot: AppSnapshot, profile: string | null): AppSnapshot
   snapshot.alerts = []
   snapshot.pendingConfirmations = 0
   snapshot.gatewaySuspended = false
+  snapshot.update = null
   return snapshot
 }
 
@@ -186,6 +189,12 @@ export function scenario(name: Scenario, now: number): AppSnapshot {
     case 'rien-expose': {
       const snapshot = working(now)
       snapshot.environments = snapshot.environments.map((e) => ({ ...e, exposed: false }))
+      return snapshot
+    }
+    case 'mise-a-jour-prete':
+    case 'mise-a-jour-critique': {
+      const snapshot = working(now)
+      snapshot.update = { version: '0.2.0', critical: name === 'mise-a-jour-critique' }
       return snapshot
     }
     case 'journal-direct':
@@ -552,6 +561,14 @@ export function createMockBackend(name: Scenario, clock: () => number = Date.now
     onJournal(listener) {
       journalListeners.add(listener)
       return Promise.resolve(() => journalListeners.delete(listener))
+    },
+    restartForUpdate() {
+      const ready = current.update
+      if (ready === null) return Promise.reject(new Error('aucune mise à jour prête à appliquer'))
+      // The application would start its new version and stop: the simulation only records it.
+      recordEvent(`redémarrage demandé pour passer à MCP Proxy ${ready.version}`)
+      console.info(MOCK_MARKER, 'restart_for_update')
+      return Promise.resolve()
     },
     exportDiagnostic() {
       // The save dialog belongs to the application: the simulation answers as if a path had been chosen.

@@ -1,4 +1,4 @@
-//! Commands of the main window (specs 016 to 018), each declared in `build.rs` and granted to the window `main` alone by
+//! Commands of the main window (specs 016 to 018, 020), each declared in `build.rs` and granted to the window `main` alone by
 //! `capabilities/main.json`. Wiring only: the checks and the effects live in `mcp_proxy_gateway::interface`. An
 //! error is a French text without any secret, shown by the window.
 
@@ -138,4 +138,12 @@ pub async fn export_diagnostic(window: WebviewWindow) -> Result<ExportOutcome, S
     Ok(ExportOutcome::Saved {
         path: path.display().to_string(),
     })
+}
+
+/// « Redémarrer pour mettre à jour », once the window asked: the installed exe, already replaced, is started again
+/// and this process stops. Refused without an update put in place.
+#[tauri::command]
+pub async fn restart_for_update(window: WebviewWindow) -> Result<(), String> {
+    let gateway = gateway_for(&window)?;
+    gateway.restart_for_update().map_err(|e| e.to_string())
 }

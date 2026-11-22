@@ -87,6 +87,9 @@ export const tauriBackend: Backend = {
       stopResync()
     }
   },
+  async restartForUpdate() {
+    await invoke('restart_for_update')
+  },
   async exportDiagnostic(): Promise<ExportOutcome> {
     const outcome = parseExportOutcome(await invoke('export_diagnostic'))
     if (outcome === null) throw new Error('réponse illisible')

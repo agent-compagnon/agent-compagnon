@@ -179,7 +179,7 @@ puis arrêt avec un code non nul.
   (`exposed`), `sessions` (état : `kind`, `label`, `at` en millisecondes Unix ; services couverts), `mcps` et leurs
   instances (état, source de la liste, dernière erreur déjà filtrée, outils, mise à jour en attente),
   `exposedTools`, `exposedToolsThreshold`, `gatewaySuspended`, `pendingConfirmations` (0 avant la spec 013),
-  `alerts`, `update` (`null` avant la spec 020). Sessions, environnements et instances dans l'ordre de la config.
+  `alerts`, `update` (`null`, ou la mise à jour mise en place `{ version, critical }`, spec 020). Sessions, environnements et instances dans l'ordre de la config.
   Avant de partir vers la fenêtre, le JSON repasse par le filtre de sortie (`Gateway::snapshot_json`) ; filtre
   indisponible : rien n'est envoyé. `snapshot-changed` porte l'instantané et n'est émis que vers la fenêtre
   `main`, à chaque changement du registre, d'une session, d'une instance, des réglages ou des alertes ; l'icône
@@ -272,3 +272,6 @@ Fenêtres de login (5b), notifications (5c), contenu de l'interface (6).
   le mode appli passe par la décision d'installation ; un second lancement avec `--autostart` ne montre pas la
   fenêtre ; le pont lance l'appli avec `--no-install` ; côté appli, la preuve mutuelle accepte aussi le rôle
   `controle`, qui ne permet que de demander l'arrêt (`prove` rend le rôle prouvé). Critères de la 011 inchangés.
+- **2026-11-22** — Spec 020 : `update` de l'instantané devient `{ version, critical }` (mise à jour mise en place,
+  `UpdateReady`) au lieu d'un texte, et sa mise en place fait partie des changements qui émettent
+  `snapshot-changed`. Aucun critère touché.

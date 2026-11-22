@@ -45,8 +45,9 @@ confirmation. Sans réponse, c'est un refus.
     `clientInfo.name`, filtré). Le clic met la fenêtre de login (ou de saisie Basic) de la session au premier plan.
     Sans toasts, rien : la fenêtre de login, toujours visible, suffit.
   - **Confirmation** : voir ci-dessous.
-  - **Information** : réglages réinitialisés (au démarrage), MCP mis à jour (outils changés) ; « mise à jour prête »
-    a son texte et sera émis par la spec 020. Le clic ouvre la fenêtre principale. Sans toasts, rien.
+  - **Information** : réglages réinitialisés (au démarrage), MCP mis à jour (outils changés), « mise à jour prête »
+    et « mise à jour critique » (redémarrage automatique, reconnexion à prévoir), émises par la spec 020. Le clic
+    ouvre la fenêtre principale. Sans toasts, rien.
 
 ### Confirmation
 
@@ -153,3 +154,5 @@ afficher les arguments complets avant d'offrir l'autorisation.
   d'abord. Aucune réponse n'est donnée depuis le bandeau : la fenêtre de détail reste le seul endroit qui montre les
   arguments complets et le seul où une demande s'autorise (aucune `AnswerSource` nouvelle). Comportement et critères
   de la 013 inchangés.
+- **2026-11-22** — Spec 020 : les informations « mise à jour prête » et « mise à jour critique » (nouvelle) sont
+  émises, une fois par version mise en place. Aucun critère touché.

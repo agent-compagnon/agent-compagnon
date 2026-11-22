@@ -15,6 +15,17 @@ describe('contract of the snapshot', () => {
     expect(snapshot?.mcps.some((m) => m.instances.some((i) => i.update !== null))).toBe(true)
   })
 
+  // Exigence : EX-020-17
+  it('reads the update put in place, and nothing else in its place', () => {
+    expect(parseSnapshot(structuredClone(example))?.update).toEqual({ version: '0.2.0', critical: true })
+    expect(parseSnapshot({ ...structuredClone(example), update: null })?.update).toBeNull()
+    expect(parseSnapshot({ ...structuredClone(example), update: '0.2.0' })).toBeNull()
+    expect(parseSnapshot({ ...structuredClone(example), update: { version: '0.2.0' } })).toBeNull()
+    expect(
+      parseSnapshot({ ...structuredClone(example), update: { version: '0.2.0', critical: false, url: 'x' } }),
+    ).toBeNull()
+  })
+
   // Exigence : EX-016-06
   it('refuses a snapshot with a key more, a key less or a value of another type', () => {
     const extra = { ...structuredClone(example), password: 'x' }

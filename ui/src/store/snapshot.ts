@@ -81,6 +81,7 @@ export function createStore(backend: Backend) {
     acknowledgeMcpUpdate: (environment: string, mcp: string) =>
       run(() => backend.acknowledgeMcpUpdate(environment, mcp)),
     reloadMcp: (environment: string, mcp: string) => run(() => backend.reloadMcp(environment, mcp)),
+    restartForUpdate: () => run(() => backend.restartForUpdate()),
     dismissError: () => {
       state.commandError = null
     },

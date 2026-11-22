@@ -18,6 +18,8 @@ use mcp_proxy_core::module::{ToolDefinition, ToolHints};
 use mcp_proxy_core::secrets::SecretStore;
 use mcp_proxy_core::session::{SessionRegistry, SessionState};
 use mcp_proxy_core::settings::UserSettings;
+use mcp_proxy_deploy::update::UpdateReady;
+use mcp_proxy_deploy::version::Version;
 use mcp_proxy_gateway::registry::{EmbeddedCatalog, InstanceId, NoCatalogCache, Registry};
 use mcp_proxy_gateway::updates::{InstanceState, InstanceStatus, McpUpdate};
 use mcp_proxy_gateway::view::{Alert, AlertKind, AlertLevel, AppSnapshot, DecisionKind, SnapshotInputs};
@@ -130,6 +132,10 @@ fn example_snapshot() -> AppSnapshot {
         pending_confirmations: 1,
         alerts: &alerts,
         login_requesters: &[(SessionId::new("sso-tools").unwrap(), "Claude Desktop".to_owned())],
+        update: Some(&UpdateReady {
+            version: Version::parse("0.2.0").unwrap(),
+            critical: true,
+        }),
         utc_offset: 0,
     })
 }
@@ -162,6 +168,11 @@ fn the_interface_reads_the_snapshot_of_the_example_configuration() {
         "a login asked from the interface names no client"
     );
     assert_eq!(snapshot.sessions[0].state.label, "active jusqu'à 17:00");
+    // Exigence : EX-020-17
+    assert_eq!(
+        snapshot.update.as_ref().map(|u| (u.version.as_str(), u.critical)),
+        Some(("0.2.0", true))
+    );
     assert!(
         snapshot
             .mcps

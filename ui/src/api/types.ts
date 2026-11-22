@@ -138,6 +138,13 @@ export const McpViewSchema = v.strictObject({
   instances: v.array(InstanceViewSchema),
 })
 
+/** An update of MCP Proxy put in place, effective at the next start (spec 020). */
+export const UpdateReadyViewSchema = v.strictObject({
+  version: text,
+  /** A critical release: the application restarts by itself once nothing is in progress. */
+  critical: v.boolean(),
+})
+
 export const AppSnapshotSchema = v.strictObject({
   version: text,
   status: AppStatusSchema,
@@ -151,8 +158,8 @@ export const AppSnapshotSchema = v.strictObject({
   gatewaySuspended: v.boolean(),
   pendingConfirmations: count,
   alerts: v.array(AlertSchema),
-  /** Update ready to apply (spec 020); always `null` before it. */
-  update: nullableText,
+  /** « Redémarrer pour mettre à jour » in the header. */
+  update: v.nullable(UpdateReadyViewSchema),
 })
 
 export type AppStatus = v.InferOutput<typeof AppStatusSchema>
@@ -173,6 +180,7 @@ export type ToolView = v.InferOutput<typeof ToolViewSchema>
 export type UpdateView = v.InferOutput<typeof UpdateViewSchema>
 export type InstanceView = v.InferOutput<typeof InstanceViewSchema>
 export type McpView = v.InferOutput<typeof McpViewSchema>
+export type UpdateReadyView = v.InferOutput<typeof UpdateReadyViewSchema>
 export type AppSnapshot = v.InferOutput<typeof AppSnapshotSchema>
 
 // The journal (spec 018): `get_journal` and each `journal-entry`, the exact mirror of

@@ -34,7 +34,8 @@ use crate::dpapi::DpapiProof;
 use crate::interface;
 use crate::login::{self, WebviewAuthUi};
 use crate::notify::{ToastEvent, Toaster};
-use crate::{pipe, wer};
+use crate::update::RestartRequest;
+use crate::{pipe, update, wer};
 
 pub(crate) const MAIN_WINDOW: &str = "main";
 const TRAY: &str = "main";
@@ -43,6 +44,7 @@ const MENU_QUIT: &str = "quit";
 const MENU_SUSPEND: &str = "suspend";
 const MENU_DISCONNECT_ALL: &str = "disconnect-all";
 const MENU_AUTOSTART: &str = "autostart";
+const MENU_BETA: &str = "beta";
 const SNAPSHOT_CHANGED: &str = "snapshot-changed";
 const JOURNAL_ENTRY: &str = "journal-entry";
 const JOURNAL_RESYNC: &str = "journal-resync";
@@ -137,6 +139,10 @@ pub fn run(start: AppStart) -> ExitCode {
     };
     tauri::async_runtime::set(runtime.handle().clone());
 
+    let restart = RestartRequest::default();
+    let relaunch = update::relaunch_target(start.installed.as_ref());
+    let setup_restart = restart.clone();
+    let setup_dirs = dirs.clone();
     let app = tauri::Builder::default()
         // Registered first: its setup runs inside `build`, where a second launch hands over to the first instance
         // and exits, before anything below runs.
@@ -161,13 +167,14 @@ pub fn run(start: AppStart) -> ExitCode {
             interface::acknowledge_mcp_update,
             interface::reload_mcp,
             interface::get_journal,
-            interface::export_diagnostic
+            interface::export_diagnostic,
+            interface::restart_for_update
         ])
         .setup(move |app| {
             // Tauri panics on a setup error: a failure here is explained, then the application exits.
             let gateway = app.try_state::<Arc<Gateway>>().map(|g| Arc::clone(g.inner()));
             let built = match gateway {
-                Some(gateway) => setup_ui(app, gateway, start).map_err(|e| e.to_string()),
+                Some(gateway) => setup_ui(app, gateway, start, &setup_dirs, setup_restart).map_err(|e| e.to_string()),
                 None => Err("passerelle absente".to_owned()),
             };
             if let Err(error) = built {
@@ -243,7 +250,7 @@ pub fn run(start: AppStart) -> ExitCode {
         }
         _ => {}
     });
-    runtime.shutdown_background();
+    update::relaunch_if_asked(&restart, relaunch, runtime);
     ExitCode::from(u8::try_from(code).unwrap_or(1))
 }
 
@@ -318,7 +325,13 @@ fn start_gateway(
 }
 
 /// Hidden main window, notification icon, and the task that keeps both in step with the gateway.
-fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>, start: AppStart) -> tauri::Result<()> {
+fn setup_ui(
+    app: &mut tauri::App,
+    gateway: Arc<Gateway>,
+    start: AppStart,
+    dirs: &DataDirs,
+    restart: RestartRequest,
+) -> tauri::Result<()> {
     let window = WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::App("index.html".into()))
         .title("MCP Proxy")
         .inner_size(960.0, 680.0)
@@ -361,6 +374,19 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>, start: AppStart) -> tau
         autostart_on,
         None::<&str>,
     )?;
+    // The updater runs from the installation only, and with an embedded key (spec 020).
+    let updater = update::start(app.handle(), &gateway, installed.as_deref(), dirs, restart);
+    let beta = CheckMenuItem::with_id(
+        app,
+        MENU_BETA,
+        "Recevoir les préversions",
+        updater.is_some(),
+        settings.beta_channel,
+        None::<&str>,
+    )?;
+    if let Some(task) = updater {
+        app.manage(task);
+    }
     let quit = MenuItem::with_id(app, MENU_QUIT, "Quitter", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
@@ -371,11 +397,16 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>, start: AppStart) -> tau
             &disconnect_all,
             &PredefinedMenuItem::separator(app)?,
             &autostart,
+            &beta,
             &PredefinedMenuItem::separator(app)?,
             &quit,
         ],
     )?;
-    let tray_menu = Arc::new(TrayMenu { suspend, autostart });
+    let tray_menu = Arc::new(TrayMenu {
+        suspend,
+        autostart,
+        beta,
+    });
     let menu_gateway = Arc::clone(&gateway);
     let menu_items = Arc::clone(&tray_menu);
     TrayIconBuilder::with_id(TRAY)
@@ -392,6 +423,9 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>, start: AppStart) -> tau
             }
             MENU_DISCONNECT_ALL => {
                 tauri::async_runtime::spawn(disconnect_everything(Arc::clone(&menu_gateway)));
+            }
+            MENU_BETA => {
+                tauri::async_runtime::spawn(toggle_beta(Arc::clone(&menu_gateway), Arc::clone(&menu_items)));
             }
             MENU_AUTOSTART => {
                 if let Some(installed) = installed.as_ref() {
@@ -420,7 +454,12 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>, start: AppStart) -> tau
     tauri::async_runtime::spawn(follow_snapshot(handle.clone(), Arc::clone(&gateway), icons, tray_menu));
     tauri::async_runtime::spawn(follow_journal(handle.clone(), Arc::clone(&gateway)));
     if let Some(toaster) = app.try_state::<Arc<Toaster>>().map(|t| Arc::clone(t.inner())) {
-        tauri::async_runtime::spawn(follow_information(handle.clone(), Arc::clone(&gateway), toaster));
+        tauri::async_runtime::spawn(follow_information(
+            handle.clone(),
+            Arc::clone(&gateway),
+            Arc::clone(&toaster),
+        ));
+        tauri::async_runtime::spawn(update::follow(handle.clone(), Arc::clone(&gateway), toaster));
     }
     tauri::async_runtime::spawn(follow_exit_request(handle.clone(), Arc::clone(&gateway)));
 
@@ -483,6 +522,8 @@ struct TrayMenu {
     suspend: MenuItem<tauri::Wry>,
     /// « Démarrer avec Windows », checked as the `Run` value says.
     autostart: CheckMenuItem<tauri::Wry>,
+    /// « Recevoir les préversions », `UserSettings::beta_channel` (spec 020).
+    beta: CheckMenuItem<tauri::Wry>,
 }
 
 fn suspend_label(suspended: bool) -> &'static str {
@@ -495,9 +536,18 @@ fn suspend_label(suspended: bool) -> &'static str {
 
 /// The suspension item names what it would do, whether the change came from the menu or from the window.
 fn sync_menu(menu: &TrayMenu, gateway: &Gateway) {
-    let _ = menu
-        .suspend
-        .set_text(suspend_label(gateway.settings().gateway_suspended));
+    let settings = gateway.settings();
+    let _ = menu.suspend.set_text(suspend_label(settings.gateway_suspended));
+    let _ = menu.beta.set_checked(settings.beta_channel);
+}
+
+/// « Recevoir les préversions »: saved like every setting; the gateway checks for an update at once.
+async fn toggle_beta(gateway: Arc<Gateway>, menu: Arc<TrayMenu>) {
+    let wanted = !gateway.settings().beta_channel;
+    if let Err(error) = gateway.set_beta_channel(wanted).await {
+        tracing::warn!(%error, "canal des préversions : réglage non enregistré, il s'applique jusqu'à l'arrêt");
+    }
+    sync_menu(&menu, &gateway);
 }
 
 /// « Suspendre la passerelle » / « Reprendre ».
@@ -558,7 +608,7 @@ async fn follow_journal(app: AppHandle, gateway: Arc<Gateway>) {
 }
 
 /// An information toast, when toasts can be seen; a click opens the main window.
-fn inform(app: &AppHandle, toaster: &Arc<Toaster>, information: Information) {
+pub(crate) fn inform(app: &AppHandle, toaster: &Arc<Toaster>, information: Information) {
     let toaster = Arc::clone(toaster);
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -580,8 +630,8 @@ fn inform(app: &AppHandle, toaster: &Arc<Toaster>, information: Information) {
     });
 }
 
-/// The information notifications: settings reset at start, tools of an MCP changed. « Mise à jour prête » comes
-/// with spec 020.
+/// The information notifications: settings reset at start, tools of an MCP changed. « Mise à jour prête » and the
+/// critical release: `update::follow`.
 async fn follow_information(app: AppHandle, gateway: Arc<Gateway>, toaster: Arc<Toaster>) {
     let mut events = gateway.watcher().tracker().subscribe();
     if gateway

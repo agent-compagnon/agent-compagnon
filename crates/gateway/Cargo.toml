@@ -43,6 +43,7 @@ zeroize.workspace = true
 
 [dev-dependencies]
 base64.workspace = true
+ed25519-dalek.workspace = true
 http.workspace = true
 mcp-proxy-testkit = { path = "../testkit" }
 tokio = { workspace = true, features = ["test-util"] }

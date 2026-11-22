@@ -45,6 +45,7 @@ export function spyBackend(snapshot: AppSnapshot, journal: JournalEntry[] = []) 
         journalListener = null
       })
     }),
+    restartForUpdate: vi.fn<Backend['restartForUpdate']>(() => Promise.resolve()),
     exportDiagnostic: vi.fn<Backend['exportDiagnostic']>(() =>
       Promise.resolve<ExportOutcome>({ status: 'saved', path: 'C:\\Users\\exemple\\diagnostic.zip' }),
     ),

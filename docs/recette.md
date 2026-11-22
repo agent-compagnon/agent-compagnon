@@ -350,6 +350,67 @@ la version du dépôt, puis la même après avoir monté `version` dans `Cargo.t
   et le démarrer : aucune fenêtre d'installation ; l'appli démarre depuis `Téléchargements` (sa ligne de commande se
   termine par `--no-install`) et le client liste les outils.
 
+## 020 — Updater Artifactory : signature ed25519, remplacement de l'exe, canal bêta
+
+Préparation (une fois) :
+
+1. Un dépôt **générique** sur un Artifactory de test, lisible sans identifiant (par exemple `generic-test-local`), et
+   un compte qui peut y déposer des fichiers (interface web ou `jf rt upload`).
+2. Une clé de signature de recette, **hors du dépôt** : `cargo xtask keygen --out C:\cles\recette.key`. La commande
+   affiche la clé publique (64 caractères hexadécimaux) et son `key-id` ; la clé privée n'est que dans le fichier.
+   Copier la clé publique sur la ligne non commentée de `crates/deploy/keys/current.pub` (modification locale, **à ne
+   pas committer**). Contrôle : `cargo xtask check-release` affiche « clé courante : … » et « OK ».
+3. Dans `config/default.toml`, section `[update]` (modification locale, à ne pas committer) : `base_url` = l'URL de
+   l'Artifactory de test (`https://…/artifactory`), `repository` = le dépôt, `path = "mcp-proxy"`,
+   `check_interval_hours = 1`.
+4. Construire et installer la version du dépôt (0.1.0) comme en `EX-019-04`. Le journal est dans
+   `%LOCALAPPDATA%\MCP Proxy\logs\` et dans l'onglet Journal.
+5. Pour chaque version à publier : monter `version` dans le `Cargo.toml` racine, construire, puis signer en
+   PowerShell : `$env:ED25519_PRIVATE_KEY = Get-Content C:\cles\recette.key` puis
+   `cargo xtask sign --exe target\release\mcp-proxy.exe --version X.Y.Z` (ajouter `--critical true` pour une release
+   critique), et vérifier : `cargo xtask verify --exe target\release\mcp-proxy.exe`. Ni l'une ni l'autre commande
+   n'affiche la clé privée. Déposer `mcp-proxy.exe` et `mcp-proxy.exe.sig` dans `mcp-proxy/X.Y.Z/` du dépôt.
+   Remettre `ED25519_PRIVATE_KEY` à vide après la recette.
+
+La première vérification a lieu une minute après le démarrage de l'appli, puis toutes les heures ; cocher ou décocher
+« Recevoir les préversions » dans le menu de l'icône en lance une tout de suite. Chaque publication ci-dessous porte un
+numéro plus élevé que la précédente : l'updater n'essaie que la plus haute.
+
+- [ ] **EX-020-08** — Publier `0.1.1` signée. Dans la minute qui suit le démarrage de l'appli 0.1.0 installée : le
+  journal dit « mise à jour 0.1.1 prête : elle sera utilisée au prochain démarrage de MCP Proxy », une notification
+  « Mise à jour prête » s'affiche, l'en-tête montre « Redémarrer pour mettre à jour ». Dans
+  `%LOCALAPPDATA%\Programs\MCP Proxy\` : `mcp-proxy.exe` est le nouveau fichier (date, taille) et
+  `mcp-proxy.exe.old` l'ancien ; `%LOCALAPPDATA%\MCP Proxy\update\` est vide. Le bouton ouvre un dialogue qui
+  prévient que les connexions seront fermées ; « Annuler » ne change rien ; « Redémarrer » : l'icône disparaît puis
+  revient, l'en-tête affiche « version 0.1.1 », les sessions sont à rouvrir, `mcp-proxy.exe.old` a disparu. Le
+  Gestionnaire des tâches ne montre qu'un processus de l'appli.
+- [ ] **EX-020-09** — Publier `0.1.2` avec un `.sig` modifié à la main (un caractère de la ligne `sha256:` changé) :
+  le journal dit « vérification des mises à jour en échec : signature du manifeste invalide », sans adresse ni
+  chemin ; aucune notification, aucun bouton, l'exe installé n'a pas changé (date), `update\` est vide. Publier
+  `0.1.3` dont le `.sig` est celui de l'exe construit mais dont l'exe déposé est un autre fichier (par exemple l'exe
+  0.1.0) : « empreinte SHA-256 de l'exe différente de celle du manifeste », même absence d'effet.
+- [ ] **EX-020-10** — Déposer l'exe et le `.sig` de `0.1.1`, tels quels, sous `mcp-proxy/0.1.4/` : le journal dit
+  « le manifeste du dossier 0.1.4 annonce la version 0.1.1 », rien n'est remplacé. Signer l'exe 0.1.1 en prétendant
+  qu'il est 0.1.5 (`cargo xtask sign --exe … --version 0.1.5`) : la commande refuse (« l'exe porte la version
+  0.1.1 »).
+- [ ] **EX-020-11** — Publier `0.2.0-rc.1` signée : par défaut, rien (le fichier de log dit « aucune version plus
+  récente », le journal ne montre rien) ; cocher « Recevoir les préversions » dans le menu de l'icône : une
+  vérification part aussitôt, et `0.2.0-rc.1` est mise en place comme en `EX-020-08`. Quitter et relancer : la case
+  est restée cochée. Lancée hors de l'installation (`--no-install`), l'appli montre la case grisée et ne contacte pas
+  Artifactory.
+- [ ] **EX-020-19** — Publier `0.2.1` signée avec `--critical true` (décocher d'abord les préversions si besoin).
+  Avant la vérification, laisser une confirmation en attente (appel d'un outil `destructive` depuis un client LLM,
+  sans y répondre). La notification « Mise à jour critique » annonce le redémarrage et la reconnexion ; l'en-tête
+  affiche « Mise à jour critique » à côté du bouton. L'appli ne redémarre pas tant que la confirmation attend (même
+  après plus d'une minute) ; une fois la confirmation refusée et plus aucun appel en cours, elle redémarre seule :
+  le journal de l'ancienne instance se termine par « redémarrage automatique pour la mise à jour critique 0.2.1 ».
+- [ ] **EX-020-20** — Pendant `EX-020-08` (ou une publication suivante), garder un client LLM ouvert, connecté par le
+  pont `stdio` à l'exe installé : la mise en place réussit malgré l'exe tenu, le client continue de lister et
+  d'appeler les outils jusqu'au redémarrage, puis retrouve ses outils après relance de son serveur MCP. Tant que le
+  pont de l'ancienne version tourne, `mcp-proxy.exe.old` peut rester ; quitter le client puis relancer l'appli : il
+  a disparu. Noter si un `.old` encore tenu fait échouer la mise à jour suivante (« ancienne version encore utilisée
+  par un client LLM »).
+
 ## 025 — Module MCP local d'exemple (`jira-local`)
 
 À dérouler quand l'appli (spec 011) et les fenêtres de saisie Basic (spec 012) existent, avec une config dont

@@ -14,6 +14,8 @@ use mcp_proxy_core::session::{AuthKind, SessionInfo, SessionState};
 use mcp_proxy_core::settings::UserSettings;
 use serde::Serialize;
 
+use mcp_proxy_deploy::update::UpdateReady;
+
 use crate::registry::{CatalogSource, InstanceId, Registry};
 use crate::updates::{InstanceState, InstanceStatus, McpUpdate};
 
@@ -322,8 +324,17 @@ pub struct AppSnapshot {
     pub gateway_suspended: bool,
     pub pending_confirmations: usize,
     pub alerts: Vec<Alert>,
-    /// Update ready to apply (spec 020); always `None` before it.
-    pub update: Option<String>,
+    /// An update of MCP Proxy put in place, effective at the next start (spec 020).
+    pub update: Option<UpdateReadyView>,
+}
+
+/// `UpdateReady { version, critical }`: « Redémarrer pour mettre à jour » in the header; a critical one restarts by
+/// itself once nothing is in progress.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateReadyView {
+    pub version: String,
+    pub critical: bool,
 }
 
 /// What a snapshot is built from.
@@ -339,6 +350,8 @@ pub struct SnapshotInputs<'a> {
     pub alerts: &'a [Alert],
     /// Sessions whose login was asked by an LLM client, with that client.
     pub login_requesters: &'a [(SessionId, String)],
+    /// The update put in place, if any.
+    pub update: Option<&'a UpdateReady>,
     /// Local offset from UTC, east positive, for the « active jusqu'à HH:MM » labels.
     pub utc_offset: i32,
 }
@@ -604,7 +617,10 @@ impl AppSnapshot {
             gateway_suspended: inputs.settings.gateway_suspended,
             pending_confirmations: inputs.pending_confirmations,
             alerts,
-            update: None,
+            update: inputs.update.map(|ready| UpdateReadyView {
+                version: ready.version.to_string(),
+                critical: ready.critical,
+            }),
         }
     }
 }

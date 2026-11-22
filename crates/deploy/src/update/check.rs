@@ -246,6 +246,11 @@ impl Updater {
         &self.deps.current
     }
 
+    /// Without any key, no update can ever be accepted.
+    pub fn has_keys(&self) -> bool {
+        !self.deps.keys.is_empty()
+    }
+
     /// Nothing at or below the floor is ever installed: the running version, the version already put in place by
     /// an earlier check (`ready`), and the installed one.
     fn floor(&self, ready: Option<&Version>) -> Result<Version, UpdateError> {

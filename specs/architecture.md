@@ -27,7 +27,7 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 | HTTP/TLS | `reqwest` 0.13 en `native-tls` : SChannel et magasin de certificats Windows, aucune chaîne d'outils C |
 | Secrets | `secrecy` 0.10, `zeroize` 1.9, enveloppe : `chacha20poly1305` 0.11 (XChaCha20-Poly1305), `getrandom` 0.4, clé de session enveloppée par DPAPI utilisateur (WinRT `DataProtectionProvider`) |
 | Réglages scellés | `hmac` 0.13 (HMAC-SHA256 avec `sha2` 0.11), clé enveloppée par DPAPI utilisateur (spec 014) |
-| Mises à jour | `ed25519-dalek` 3, `self-replace` 1.5, `semver` 1.0 |
+| Mises à jour | `ed25519-dalek` 3, `semver` 1.0, `sha2`, `base64` ; remplacement par renommage (spec 019), pas `self-replace` |
 | Filtre de sortie | `memchr` 2.8, `regex` 1.13 (motifs génériques seulement), `serde_json` 1.0 |
 | Logs | `tracing`, `tracing-subscriber` 0.3, `tracing-appender` |
 | Front | Vue 3, Vite, TypeScript, Tailwind CSS 4, shadcn-vue (Reka UI), `@lucide/vue`, `valibot` (schémas de l'instantané), `@tauri-apps/api`, TanStack Table (`@tanstack/vue-table` 8), TanStack Virtual (`@tanstack/vue-virtual` 3), npm ; Vitest et Playwright pour les tests |
@@ -58,7 +58,7 @@ crates/modules/*       un crate par module MCP local
 app/                   mcp-proxy            appli Tauri, Windows uniquement, câblage seulement
 ui/                    front Vue
 config/                default.toml embarqué + catalog/*.json (instantanés d'outils)
-xtask/                 cargo xtask : ci, snapshot-catalog, keygen, sign, verify
+xtask/                 cargo xtask : ci, trace, snapshot-catalog, keygen, sign, verify, check-release
 ```
 
 Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` (posé par l'exe lui-même au premier
@@ -201,7 +201,8 @@ du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
   que les clics soient remis au processus quand l'AUMID n'est inscrit qu'au registre, sans activateur COM ni
   raccourci (recette `EX-013-05`, `EX-013-10`).
 - `self_replace` renomme l'exe en cours, pose le nouveau et programme la suppression de l'ancien. Le dossier de
-  l'exe doit être inscriptible.
+  l'exe doit être inscriptible. **Toujours vrai, mais plus utilisé** (spec 020) : l'updater remplace par renommage,
+  comme l'installation (spec 019).
 - Installation (spec 019, compilé en cible Windows, non exécuté) : valeur `Run` par `winreg` 0.56
   (`create_subkey_with_flags`, `set_value`, `delete_value`) ; raccourci par `mslnk` 0.1.8, lu dans ses sources :
   format `.lnk` écrit en Rust pur (en-tête, liste d'identifiants de la cible, chemin relatif, dossier de travail),
@@ -282,3 +283,11 @@ du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
   `mcp_proxy_deploy::install` (le crate `gateway` dépend de `deploy` pour les arguments `--autostart` et
   `--no-install`) ; rôle `controle` de la preuve mutuelle du pipe ; faits sur `winreg`, `mslnk` et la version d'un
   exe installé.
+- **2026-11-22** — Spec 020 : updater dans `mcp_proxy_deploy::update` (découverte, manifeste, clés, vérifications,
+  client anonyme, remplacement par renommage, nettoyage), planification et redémarrage dans
+  `mcp_proxy_gateway::self_update`. Ligne « Mises à jour » : `self-replace` retiré (un pont garde l'image de l'exe
+  chargée ; un seul mécanisme, celui de la spec 019). Clés publiques dans `crates/deploy/keys/`, lues par le
+  `build.rs` du crate ; outils de signature dans le binaire `update-tool`, lancé par `cargo xtask keygen`, `sign`,
+  `verify` et `check-release`. Constaté dans les sources de `tauri-plugin-single-instance` 2.5.5 et de Tauri 2.12.7 :
+  le verrou d'instance unique est libéré par `cleanup_before_exit`, que `run_return` appelle à la fin de la boucle
+  d'événements ; l'appli lance donc la nouvelle version après `run_return`, une fois ses tâches arrêtées.

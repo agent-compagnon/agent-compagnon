@@ -38,7 +38,8 @@ use crate::notify::{ConfirmationPresenter, NotificationBroker, PendingConfirmati
 use crate::registry::{
     CacheSeal, CatalogError, EmbeddedCatalog, FileCatalogCache, Registry, RegistryError, SealedCatalog,
 };
-use crate::server::{CallChain, CallChainDeps, ChainError, GatewayServer, OutputGate};
+use crate::self_update::{CallsInFlight, Counted, SelfUpdateState};
+use crate::server::{CallChain, CallChainDeps, CallPipeline, ChainError, GatewayServer, OutputGate};
 use crate::updates::{ListWatcher, ListWatcherDeps, UpdateTracker, WatchTiming};
 use crate::upstream::Upstreams;
 use crate::view::{Alert, AlertKind, AlertLevel, AppSnapshot, SnapshotInputs};
@@ -60,13 +61,15 @@ pub struct DataDirs {
     pub webview: PathBuf,
     /// Icon of the notifications, named by the registered AUMID (spec 013).
     pub notification_icon: PathBuf,
+    /// Downloads of the updater, one folder per version, emptied at start (spec 020).
+    pub update: PathBuf,
 }
 
 impl DataDirs {
     pub const FOLDER: &'static str = "MCP Proxy";
 
-    /// `<base>\MCP Proxy\` with `logs\`, `cache\catalog\`, `webview\`, `settings.json`, `settings.key` and
-    /// `notification-icon.png`.
+    /// `<base>\MCP Proxy\` with `logs\`, `cache\catalog\`, `webview\`, `update\`, `settings.json`, `settings.key`
+    /// and `notification-icon.png`.
     pub fn under(base: &Path) -> Self {
         let root = base.join(Self::FOLDER);
         Self {
@@ -76,6 +79,7 @@ impl DataDirs {
             settings_key: root.join("settings.key"),
             webview: root.join("webview"),
             notification_icon: root.join("notification-icon.png"),
+            update: root.join("update"),
             root,
         }
     }
@@ -171,6 +175,8 @@ pub struct Gateway {
     changes: broadcast::Sender<()>,
     /// Set once a proved control client asked the application to stop (spec 019).
     exit_requested: watch::Sender<bool>,
+    calls: CallsInFlight,
+    self_update: SelfUpdateState,
     utc_offset: i32,
     clock: Arc<dyn WallClock>,
     log_dir: PathBuf,
@@ -294,13 +300,19 @@ impl Gateway {
             output: output.clone(),
             trace: Arc::new(journal.clone()),
         })?);
+        let calls = CallsInFlight::default();
+        let counted: Arc<dyn CallPipeline> = Arc::new(Counted {
+            inner: chain,
+            calls: calls.clone(),
+        });
         let server = GatewayServer::new(
             Arc::clone(&registry),
             output.clone(),
-            chain,
+            counted,
             Duration::from_secs(config.gateway.list_ttl_secs),
         );
 
+        let self_update = SelfUpdateState::default();
         let (changes, _) = broadcast::channel(16);
         let forwarder = tokio::spawn(forward_changes(
             changes.clone(),
@@ -309,6 +321,7 @@ impl Gateway {
             watcher.tracker().subscribe(),
             settings_receiver,
             confirmations.pending().subscribe(),
+            self_update.ready.subscribe(),
         ));
         tracing::info!("passerelle prête");
 
@@ -327,6 +340,8 @@ impl Gateway {
             alerts: Mutex::new(alerts),
             changes,
             exit_requested: watch::Sender::new(false),
+            calls,
+            self_update,
             utc_offset: deps.utc_offset,
             clock: deps.clock,
             log_dir: deps.dirs.logs,
@@ -374,6 +389,24 @@ impl Gateway {
 
     pub(crate) fn registry(&self) -> &Arc<RwLock<Registry>> {
         &self.registry
+    }
+
+    /// The calls between their arrival and their answer (spec 020: a critical restart waits for none).
+    pub fn calls_in_flight(&self) -> &CallsInFlight {
+        &self.calls
+    }
+
+    pub(crate) fn self_update(&self) -> &SelfUpdateState {
+        &self.self_update
+    }
+
+    pub(crate) fn settings_receiver(&self) -> watch::Receiver<UserSettings> {
+        self.settings.subscribe()
+    }
+
+    /// Sessions whose login was asked for and is not finished.
+    pub fn logins_waiting(&self) -> usize {
+        crate::self_update::logins_in(&self.sessions.snapshot())
     }
 
     pub fn watcher(&self) -> &ListWatcher {
@@ -467,6 +500,7 @@ impl Gateway {
         let sessions = self.sessions.snapshot();
         let tracker = self.watcher.tracker();
         let alerts = self.alerts.lock().unwrap_or_else(PoisonError::into_inner).clone();
+        let update = self.update_ready();
         AppSnapshot::build(&SnapshotInputs {
             config: &self.config,
             registry: &registry,
@@ -477,6 +511,7 @@ impl Gateway {
             pending_confirmations: self.confirmations.pending().count(),
             alerts: &alerts,
             login_requesters: &self.authenticator.login_requesters(),
+            update: update.as_ref(),
             utc_offset: self.utc_offset,
         })
     }
@@ -543,6 +578,7 @@ async fn forward_changes(
     mut instances: broadcast::Receiver<crate::updates::UpdateEvent>,
     mut settings: watch::Receiver<UserSettings>,
     mut confirmations: watch::Receiver<usize>,
+    mut update: watch::Receiver<Option<mcp_proxy_deploy::update::UpdateReady>>,
 ) {
     use tokio::sync::broadcast::error::RecvError;
     loop {
@@ -552,6 +588,7 @@ async fn forward_changes(
             r = instances.recv() => matches!(r, Err(RecvError::Closed)),
             r = settings.changed() => r.is_err(),
             r = confirmations.changed() => r.is_err(),
+            r = update.changed() => r.is_err(),
         };
         if closed {
             return;
@@ -738,5 +775,6 @@ mod tests {
             Path::new("base").join("MCP Proxy").join("settings.key")
         );
         assert_eq!(dirs.webview, Path::new("base").join("MCP Proxy").join("webview"));
+        assert_eq!(dirs.update, Path::new("base").join("MCP Proxy").join("update"));
     }
 }

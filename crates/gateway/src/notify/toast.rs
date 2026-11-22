@@ -342,6 +342,8 @@ pub fn login_toast(number: u64, session: &SessionId, session_label: &str, client
 pub enum Information {
     /// A new version of MCP Proxy is ready (spec 020).
     UpdateReady { version: String },
+    /// A critical release is ready: the application restarts by itself once nothing is in progress (spec 020).
+    CriticalUpdate { version: String },
     /// The tools of an MCP changed (spec 008).
     McpUpdated { mcp: String, environment: String },
     /// The settings file was unreadable or its seal did not hold: the strictest settings replaced it.
@@ -353,6 +355,13 @@ pub fn information_toast(number: u64, information: &Information) -> ToastContent
         Information::UpdateReady { version } => (
             "Mise à jour prête".to_owned(),
             format!("MCP Proxy {} sera utilisé au prochain démarrage.", visible(version)),
+        ),
+        Information::CriticalUpdate { version } => (
+            "Mise à jour critique".to_owned(),
+            format!(
+                "MCP Proxy {} redémarrera dès que plus aucun appel n'est en cours. Il faudra ensuite vous reconnecter.",
+                visible(version)
+            ),
         ),
         Information::McpUpdated { mcp, environment } => (
             "MCP mis à jour".to_owned(),

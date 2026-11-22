@@ -18,6 +18,7 @@ mod notify;
 mod pipe;
 mod system;
 mod system_ops;
+mod update;
 mod wer;
 
 use std::process::ExitCode;

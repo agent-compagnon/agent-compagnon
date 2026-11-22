@@ -1,13 +1,13 @@
 ---
 id: "020"
-titre: "Updater Artifactory : signature ed25519, self-replace, canal bêta"
+titre: "Updater Artifactory : signature ed25519, remplacement de l'exe, canal bêta"
 etape: "7b"
 statut: "en cours"
 depend_de: ["011", "019"]
 suivi: "github#21"
 ---
 
-# 020 — Updater Artifactory : signature ed25519, self-replace, canal bêta
+# 020 — Updater Artifactory : signature ed25519, remplacement de l'exe, canal bêta
 
 > Le canal bêta est une option retenue au QCM (D14).
 
@@ -36,6 +36,13 @@ Pas de `latest.json`. Lecture anonyme (D11).
   case « Recevoir les préversions ») : elles sont admises. Choisir la plus haute selon la précédence semver.
 - Vérification au démarrage (après une minute) puis toutes les `check_interval_hours`. Un échec n'est visible que
   dans le journal.
+- Réalisation (amendement du 2026-11-22) : seuls les enfants `folder: true` dont le nom est un semver sous sa seule
+  écriture comptent ; la version retenue doit dépasser la version en cours, celle déjà mise en place par cette
+  exécution et celle lue dans l'exe installé (marque de version, spec 019) ; seule la plus haute est essayée. Cocher
+  ou décocher « Recevoir les préversions » lance une vérification tout de suite. La case est dans le **menu de
+  l'icône**, à côté de « Démarrer avec Windows », grisée quand l'updater ne tourne pas ; elle s'enregistre comme les
+  autres réglages scellés. L'updater ne tourne que dans l'exe installé et avec au moins une clé embarquée ; sans clé,
+  le journal le dit une fois.
 
 ### Fichier `.sig`
 
@@ -64,7 +71,15 @@ Dans cet ordre ; le moindre échec abandonne la mise à jour et supprime les fic
 3. la signature Ed25519 est valide (vérification stricte) ;
 4. `version` est égale au nom du dossier ;
 5. `version` est strictement supérieure à la version courante ;
-6. le SHA-256 de l'exe téléchargé est égal à `sha256`.
+6. le SHA-256 de l'exe téléchargé est égal à `sha256` ;
+7. la marque de version de l'exe téléchargé (spec 019) est égale à `version` (amendement du 2026-11-22).
+
+Réalisation : les étapes 1 à 5 portent sur le `.sig` seul, téléchargé et vérifié **avant** l'exe ; la « version
+courante » de l'étape 5 est le plus haut de la version en cours, de la version déjà mise en place et de celle de
+l'exe installé (un exe installé de version illisible n'est jamais remplacé). Lecture stricte du manifeste : 1 024
+octets au plus, aucun `\r`, six lignes terminées par LF, une seule écriture par champ (hexadécimal minuscule,
+base64 canonique, semver sous sa seule écriture). Les deux fichiers vont dans `update\<version>\`, retirés en entier
+quel que soit le résultat.
 
 ### Clés
 
@@ -72,12 +87,23 @@ Dans cet ordre ; le moindre échec abandonne la mise à jour et supprime les fic
 - Une clé de développement sert aux tests. `cargo xtask check-release` échoue si elle est embarquée, et le build
   de release aussi (`MCP_PROXY_RELEASE=1`).
 - `cargo xtask keygen`, `sign` (clé privée lue dans une variable d'environnement, jamais affichée) et `verify`.
+- Réalisation (amendement du 2026-11-22) : les emplacements sont `crates/deploy/keys/current.pub` et `next.pub`,
+  lus par le `build.rs` du crate `deploy` (vides tant que la spec 021 n'a pas créé la clé de release : l'exe ne se met
+  alors jamais à jour). La clé de développement (graine `DEV_SIGNING_SEED` du testkit, clé publique `keys/dev.pub`)
+  n'est **jamais** embarquée : **tout** build échoue si un emplacement la contient, l'exe l'écarterait quand même, et
+  les tests passent leurs clés à l'updater. Le build de release et `check-release` exigent en plus une clé courante ;
+  `check-release --exe <exe>` vérifie aussi qu'un exe construit contient la clé courante et pas les octets de la clé
+  de développement. Les commandes passent par le binaire `update-tool` du crate `deploy` ; `keygen --out <fichier>`
+  écrit la clé privée dans un fichier créé sans écraser et n'affiche que la clé publique ; `sign` lit la clé dans
+  `ED25519_PRIVATE_KEY` (ou `--key-env`), prend la version dans la marque de l'exe et refuse un `--version`
+  différent, `--critical true|false` ; `verify` contrôle signature, empreinte et marque avec `--public-key` ou les
+  clés embarquées.
 
 ### Application (D12)
 
 - Téléchargement dans `%LOCALAPPDATA%\MCP Proxy\update\<version>\`, avec taille bornée, délais, TLS natif, aucune
   redirection vers une autre origine.
-- Après vérification : `self_replace` **tout de suite**. La nouvelle version prend effet au prochain démarrage.
+- Après vérification : remplacement **tout de suite**. La nouvelle version prend effet au prochain démarrage.
 - État `UpdateReady { version, critical }` dans `AppSnapshot` : bouton « Redémarrer pour mettre à jour » dans
   l'en-tête.
 - Release **critique** : redémarrage automatique dès qu'aucun appel n'est en cours et qu'aucune connexion ni
@@ -85,11 +111,47 @@ Dans cet ordre ; le moindre échec abandonne la mise à jour et supprime les fic
 - Redémarrer efface les sessions, qui ne vivent qu'en mémoire : c'est attendu.
 - Au démarrage : nettoyage des restes (`.__relocated__.exe`, fichiers temporaires, anciens dossiers `update\`).
 
+Réalisation (amendement du 2026-11-22) :
+
+- **Remplacement** : le mécanisme de la spec 019 (I019.7), pas `self_replace` : copie vers `mcp-proxy.exe.new` dans
+  le dossier d'installation, nouvelle empreinte de la copie (elle doit être l'exe vérifié), exe installé renommé en
+  `mcp-proxy.exe.old` (un exe en cours, tenu par l'appli ou par un pont, se renomme mais ne se remplace pas), `.new`
+  renommé en `mcp-proxy.exe` ; un échec remet l'ancien exe et retire la copie. `.old` reste jusqu'au démarrage
+  suivant ; un `.old` encore tenu par un pont d'une version antérieure fait échouer le remplacement, réessayé à la
+  vérification suivante.
+- **Téléchargement** : client à part, anonyme (ni identifiant, ni cookie, ni `Referer`), TLS natif, `https` (`http`
+  vers la boucle locale seulement), redirections suivies dans la même origine seulement (5 au plus), 1 Mio pour la
+  liste, 1 024 octets pour le `.sig`, 256 Mio pour l'exe, délais bornés. Erreurs et journal sans adresse, chemin ni
+  contenu de réponse.
+- **Instantané** : `update` vaut `{ version, critical }` ou `null`. Une version mise en place après une critique
+  reste critique. Notifications : « Mise à jour prête » ou « Mise à jour critique » (redémarrage automatique,
+  reconnexion à prévoir), une fois par version.
+- **Redémarrage** : « Redémarrer pour mettre à jour » demande d'abord confirmation (les connexions seront fermées),
+  puis envoie `restart_for_update` (refusée sans mise à jour en place) ; l'appli quitte comme par « Quitter », et une
+  fois sa boucle d'événements terminée (instance unique libérée) et ses tâches arrêtées (pipe fermé), lance l'exe
+  installé.
+- **Release critique** : après la notification, au moins une minute de délai, puis attente qu'aucun appel ne soit en
+  cours (appels comptés de leur arrivée à leur réponse, ceux qui attendent une connexion ou une confirmation
+  compris), qu'aucune connexion ne soit demandée et qu'aucune confirmation n'attende ; puis redémarrage.
+- **Nettoyage au démarrage** : `mcp-proxy.exe.old`, `mcp-proxy.exe.new`, `*.__relocated__.exe`,
+  `*.__selfdelete__.exe` du dossier d'installation et tout le contenu de `update\` ; le journal ne donne que des
+  nombres.
+
 ### Organisation du code
 
 - `mcp_proxy_deploy::update`, indépendant de la plateforme : client HTTP injecté, trait `ExeReplacer` dont
-  l'implémentation réelle appelle `self_replace`.
+  l'implémentation réelle renomme l'exe installé (spec 019).
 - `FakeArtifactory` dans le testkit : API Storage et fichiers.
+
+Réalisation : `mcp_proxy_deploy::update` (`Updater`, `UpdaterDeps`, `Source`, `UpdateError`, `CheckOutcome`,
+`UpdateReady`, `Channel`, `parse_listing`, `choose`, `Manifest`, `KeyRing`, `KeyId`, `Fetch`, `AnonymousClient`,
+`ExeReplacer`, `RenameReplacer`, `VerifiedExe`, `UpdatePaths`, `clean_leftovers`, `release`, `slots`),
+`mcp_proxy_deploy::fake::FakeReplacer`, binaire `update-tool`. `mcp_proxy_gateway::self_update` (`SelfUpdateDeps`,
+`Pause`, `Restarter`, `Activity`, `ActivityProbe`, `CallsInFlight`, `restart_when_idle`, `update_information`,
+`Gateway::start_self_update`, `restart_for_update`, `set_beta_channel`), `view::UpdateReadyView`. `app/` :
+`update.rs` (client, remplaceur, redémarrage, notifications), entrée « Recevoir les préversions » du menu de
+l'icône, commande `restart_for_update`. Testkit : `FakeArtifactory`, `Served`, `DEV_SIGNING_SEED`. `ui/` : en-tête
+et son dialogue.
 
 ## Tests
 
@@ -139,3 +201,15 @@ Dans cet ordre ; le moindre échec abandonne la mise à jour et supprime les fic
 ## Hors périmètre
 
 Pipeline de publication (7c). Authenticode (`028-authenticode.md`).
+
+## Amendements
+
+- **2026-11-22** — Réalisation (I020.1 à I020.13). Écarts au texte : remplacement par renommage (mécanisme de la
+  spec 019) au lieu de `self_replace`, d'où le titre ; étape 7 de vérification ajoutée (marque de version de l'exe) ;
+  le `.sig` est vérifié avant le téléchargement de l'exe ; la clé de développement n'est jamais embarquée, même hors
+  release (tout build échoue si un emplacement la contient), et le build de release exige une clé courante ; case
+  « Recevoir les préversions » dans le menu de l'icône, qui lance une vérification ; délai d'au moins une minute
+  avant le redémarrage automatique d'une release critique ; dialogue de confirmation avant « Redémarrer pour mettre à
+  jour ». Critères ajoutés : `EX-020-12` à `EX-020-18` (automatiques), `EX-020-19` et `EX-020-20` (recette). Aucun
+  critère retiré. Raison : points laissés ouverts par le texte, tranchés par l'option la plus sûre, et `self_replace`
+  incompatible avec un exe tenu par les ponts des clients LLM (I019.7).

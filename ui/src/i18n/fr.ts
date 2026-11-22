@@ -31,6 +31,17 @@ export const fr = {
       "Cette page s'affiche dans la fenêtre de MCP Proxy. Ouverte ailleurs, elle n'a accès à aucune donnée.",
     invalidState: "L'état reçu de MCP Proxy est illisible : rien n'est affiché.",
     update: 'Redémarrer pour mettre à jour',
+    updateCritical: 'Mise à jour critique',
+    updateHelp: (version: string) => `MCP Proxy ${version} est installé : il sera utilisé au prochain démarrage.`,
+    updateCriticalHelp: (version: string) =>
+      `MCP Proxy ${version} corrige un problème important : il redémarrera de lui-même dès que plus aucun appel n'est en cours.`,
+    restart: {
+      title: (version: string) => `Redémarrer pour passer à MCP Proxy ${version} ?`,
+      sessions:
+        'Les connexions sont fermées au redémarrage : il faudra vous reconnecter, et les appels en cours des clients LLM seront interrompus.',
+      cancel: 'Annuler',
+      confirm: 'Redémarrer',
+    },
   },
   tabs: {
     label: 'Sections',

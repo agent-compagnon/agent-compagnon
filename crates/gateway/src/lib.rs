@@ -11,6 +11,7 @@ pub mod modules;
 pub mod notify;
 pub mod registry;
 pub mod runtime;
+pub mod self_update;
 pub mod server;
 pub mod updates;
 pub mod upstream;

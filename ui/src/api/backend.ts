@@ -37,6 +37,8 @@ export interface Backend {
   onJournal(listener: (event: JournalEvent) => void): Promise<() => void>
   /** « Exporter un diagnostic »: the application asks where (its save dialog), then writes the archive there. */
   exportDiagnostic(): Promise<ExportOutcome>
+  /** « Redémarrer pour mettre à jour », once confirmed: the application starts its new version, then stops. */
+  restartForUpdate(): Promise<void>
 }
 
 /** `get_journal` gave something that is not exactly a journal: nothing of it is shown. */

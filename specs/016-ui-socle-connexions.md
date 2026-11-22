@@ -64,7 +64,8 @@ attend une action. L'onglet Connexions est l'écran par défaut, le seul utile �
 - Réalisation :
   - en-tête : nom, version, sélecteur (menu déroulant à boutons radio, chaque profil avec ses environnements
     exposés, sensibles nommés) ; le bouton « Redémarrer pour mettre à jour » s'affiche quand `update` n'est pas
-    `null`, inactif jusqu'à la spec 020 qui apporte la commande ;
+    `null` ; depuis la spec 020, il demande d'abord confirmation (les connexions seront fermées) puis envoie
+    `restart_for_update` ;
   - premier lancement (`profile.firstLaunch`, donc aussi après une réinitialisation des réglages) : dialogue
     d'alerte que ni Échap ni un clic à côté ne ferment ; un profil à choisir (aucun présélectionné), sa phrase
     (`description` de la config) et ses environnements ; le profil le plus strict en dernier ; le message de
@@ -172,4 +173,6 @@ Onglets MCP (6b) et Journal (6c).
   commandes `resume_gateway` et `show_confirmations` (I016.4), retrait du menu « Profil » de l'icône (I016.7).
   Critères ajoutés : `EX-016-06` à `EX-016-08` (automatiques), `EX-016-09` et `EX-016-10` (recette). Aucun critère
   retiré.
-
+- **2026-11-22** — Spec 020 : le bouton « Redémarrer pour mettre à jour » est actif ; il ouvre un dialogue qui
+  prévient que les connexions seront fermées, puis envoie la commande `restart_for_update`. Une mise à jour
+  critique est signalée à côté du bouton (« Mise à jour critique »). Aucun critère touché.

@@ -183,4 +183,61 @@ describe('main window', () => {
       document.body.innerHTML = ''
     }
   })
+
+  // Exigence : EX-020-18
+  it('offers the restart once an update is in place, and says the sessions will be closed', async () => {
+    const { wrapper, backend } = await mountApp(snapshotOf('mise-a-jour-prete'))
+    const button = wrapper.get('[data-action="update"]')
+    expect(button.text()).toBe('Redémarrer pour mettre à jour')
+    expect((button.element as HTMLButtonElement).disabled).toBe(false)
+    expect(wrapper.find('[data-update-critical]').exists()).toBe(false)
+    expect(accessibleName(button.element)).toBe('Redémarrer pour mettre à jour')
+    expect(document.getElementById(button.attributes('aria-describedby') ?? '')?.textContent).toBe(
+      'MCP Proxy 0.2.0 est installé : il sera utilisé au prochain démarrage.',
+    )
+
+    // Asked first; « Annuler » restarts nothing.
+    await button.trigger('click')
+    await flushPromises()
+    const dialog = inBody('[data-dialog="restart"]')
+    expect(dialog?.getAttribute('role')).toBe('alertdialog')
+    expect(dialog?.textContent).toContain('Redémarrer pour passer à MCP Proxy 0.2.0 ?')
+    expect(dialog?.textContent).toContain('il faudra vous reconnecter')
+    const cancel = [...(dialog?.querySelectorAll('button') ?? [])].find((b) => b.textContent.trim() === 'Annuler')
+    cancel?.click()
+    await flushPromises()
+    expect(inBody('[data-dialog="restart"]')).toBeNull()
+    expect(backend.restartForUpdate).not.toHaveBeenCalled()
+
+    await button.trigger('click')
+    await flushPromises()
+    inBody('[data-action="confirm-restart"]')?.click()
+    await flushPromises()
+    expect(backend.restartForUpdate).toHaveBeenCalledOnce()
+    expect(inBody('[data-dialog="restart"]')).toBeNull()
+    wrapper.unmount()
+  })
+
+  // Exigence : EX-020-18
+  it('says when a critical update will restart by itself', async () => {
+    const { wrapper } = await mountApp(snapshotOf('mise-a-jour-critique'))
+    expect(wrapper.get('[data-update-critical]').text()).toBe('Mise à jour critique')
+    expect(wrapper.get('#update-help').text()).toContain('il redémarrera de lui-même dès que plus aucun appel')
+    await wrapper.get('[data-action="update"]').trigger('click')
+    await flushPromises()
+    expect(inBody('[data-dialog="restart"]')?.textContent).toContain('il redémarrera de lui-même')
+    wrapper.unmount()
+  })
+
+  // Exigence : EX-020-18
+  it('shows the reason when the restart is refused', async () => {
+    const { wrapper, backend } = await mountApp(snapshotOf('mise-a-jour-prete'))
+    backend.restartForUpdate.mockRejectedValueOnce('aucune mise à jour prête à appliquer')
+    await wrapper.get('[data-action="update"]').trigger('click')
+    await flushPromises()
+    inBody('[data-action="confirm-restart"]')?.click()
+    await flushPromises()
+    expect(wrapper.text()).toContain('Action impossible : aucune mise à jour prête à appliquer.')
+    wrapper.unmount()
+  })
 })

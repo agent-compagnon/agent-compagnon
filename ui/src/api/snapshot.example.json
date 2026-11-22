@@ -2607,5 +2607,8 @@
       "message": "Le dossier des fenêtres de connexion n'a pas pu être vidé (accès refusé) : aucune connexion par fenêtre n'est possible jusqu'au prochain démarrage de MCP Proxy."
     }
   ],
-  "update": null
+  "update": {
+    "version": "0.2.0",
+    "critical": true
+  }
 }
