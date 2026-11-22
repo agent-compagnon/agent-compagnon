@@ -2,7 +2,7 @@
 id: "025"
 titre: "Module MCP local d'exemple (`jira-local`)"
 etape: "8"
-statut: "prévue"
+statut: "en cours"
 depend_de: ["002", "007", "010"]
 suivi: "github#26"
 ---

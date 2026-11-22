@@ -69,7 +69,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [022](022-desinstallation.md) | 7d | Désinstallation propre | prévue | 019 | 5 |
 | [023](023-config-clients.md) | 7e | Configuration automatique des clients LLM | prévue | 016, 019 | 8 |
 | [024](024-doctor.md) | 7f | Auto-diagnostic (`doctor`) | prévue | 009, 011, 019, 020 | 8 |
-| [025](025-module-jira-local.md) | 8 | Module MCP local d'exemple (`jira-local`) | prévue | 002, 007, 010 | 8 |
+| [025](025-module-jira-local.md) | 8 | Module MCP local d'exemple (`jira-local`) | en cours | 002, 007, 010 | 8 |
 | [026](026-pont-resilient.md) | — | Pont stdio résilient : survivre au redémarrage de l'appli | proposée | 011, 020 | 9 |
 | [027](027-config-signee.md) | — | Config signée téléchargée depuis Artifactory | backlog | — | 0 |
 | [028](028-authenticode.md) | — | Signature Authenticode dans la CI | backlog | — | 0 |
