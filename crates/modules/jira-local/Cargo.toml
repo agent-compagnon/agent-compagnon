@@ -1,0 +1,13 @@
+[package]
+name = "mcp-proxy-module-jira-local"
+description = "Local MCP module for Jira."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

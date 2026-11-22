@@ -1,0 +1,13 @@
+[package]
+name = "mcp-proxy-gateway"
+description = "Tool registry, upstream clients, middleware chain, MCP server and bridge."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

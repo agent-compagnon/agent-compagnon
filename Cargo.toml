@@ -1,0 +1,43 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/core",
+    "crates/auth",
+    "crates/gateway",
+    "crates/deploy",
+    "crates/testkit",
+    "crates/modules/jira-local",
+    "xtask",
+]
+# `app/` (step 5a) is Windows-only and will stay out of the default members.
+default-members = [
+    "crates/core",
+    "crates/auth",
+    "crates/gateway",
+    "crates/deploy",
+    "crates/testkit",
+    "crates/modules/jira-local",
+    "xtask",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97.0"
+license = "LicenseRef-Proprietary"
+publish = false
+
+[workspace.dependencies]
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+todo = "deny"
+unimplemented = "deny"
