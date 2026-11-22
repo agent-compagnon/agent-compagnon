@@ -574,6 +574,7 @@ Constaté à la relecture de la spec 017 : `cargo xtask ci` échouait par interm
 |---|---|
 | IS.1 | Tickets : en plus des états de la règle 6 de `specs/README.md`, deux étiquettes (`livré - recette Windows à faire`, `en cours`) et un tableau d'avancement dans le ticket d'entrée, refaits à chaque alignement. Raison : onze tickets livrés restent ouverts pour la recette, et rien dans la liste ne les distinguait de ceux qui ne sont pas commencés. Ce sont des reflets de l'index et de `docs/recette.md` : en cas d'écart, le dépôt fait foi. |
 | IS.2 | `webview.os_primary_account_sso` : critère manuel `EX-012-18` ajouté. L'effet réel du réglage n'était vérifié nulle part (seule la construction des arguments l'est) ; la voie documentée par WebView2 demande du COM, écarté par D18. Si la recette montre que l'argument du navigateur est sans effet en mode InPrivate, le réglage sera retiré ou remplacé : décision à prendre à ce moment-là. |
+| IS.3 | Troisième étiquette, `livré - recette GitLab à faire`, pour le ticket du pipeline de release (spec 021) : ses vérifications manuelles se passent sur GitLab et Artifactory, pas sur un poste Windows. Complète IS.1. |
 
 ### Spec 021 — pipeline GitLab de release
 

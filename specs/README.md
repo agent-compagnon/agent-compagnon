@@ -36,8 +36,9 @@ on peut les recréer ailleurs à partir d'ici.
    texte n'est qu'un pointeur vers elle. Après chaque étape poussée, l'état du ticket est aligné sur la spec :
    - spec `implémentée` dont tous les critères sont prouvés par des tests : ticket **fermé** ;
    - spec `implémentée` avec des critères `(manuel)` : ticket **ouvert**, avec le nombre de vérifications qui
-     restent dans `docs/recette.md` et l'étiquette `livré - recette Windows à faire` ; c'est la personne qui passe
-     la recette qui le ferme ;
+     restent dans `docs/recette.md` et l'étiquette `livré - recette Windows à faire` (`livré - recette GitLab à
+     faire` pour le pipeline, dont la recette se passe sur GitLab) ; c'est la personne qui passe la recette qui le
+     ferme ;
    - spec `en cours` : ticket ouvert, étiquette `en cours` ;
    - autres statuts : ticket ouvert, sans étiquette.
 
