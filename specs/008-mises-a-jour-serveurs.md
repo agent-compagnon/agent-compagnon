@@ -2,7 +2,7 @@
 id: "008"
 titre: "gateway — mises à jour des serveurs MCP"
 etape: "3d"
-statut: "prévue"
+statut: "en cours"
 depend_de: ["005", "006", "007"]
 suivi: "github#9"
 ---
