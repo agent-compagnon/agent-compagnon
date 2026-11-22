@@ -75,6 +75,7 @@ async fn the_first_call_waits_for_the_login_then_goes_through() {
                     env: EnvId::new("dev").unwrap(),
                     mcp: McpId::new("kibana-logs").unwrap(),
                     tool: ToolName::new("search_logs").unwrap(),
+                    client: "rmcp".to_owned(),
                 }
             )]
         );

@@ -1,5 +1,6 @@
 //! Contract of the confirmation channel outside the chat (Windows notification, spec 013). Declared here so that the
-//! call pipeline (spec 007) and the test doubles share it.
+//! call pipeline (spec 007) and the test doubles share it; the application's broker is
+//! `mcp_proxy_gateway::notify::NotificationBroker`.
 
 use std::time::Instant;
 
@@ -43,16 +44,4 @@ impl ConfirmationOutcome {
 #[async_trait]
 pub trait ConfirmationBroker: Send + Sync {
     async fn confirm(&self, request: ConfirmationRequest) -> ConfirmationOutcome;
-}
-
-/// The channel until the Windows notifications exist (spec 013): every confirmation outside the chat is
-/// [`ConfirmationOutcome::Unavailable`], so the call is refused (INV-5).
-#[derive(Debug, Clone, Copy, Default)]
-pub struct UnavailableConfirmation;
-
-#[async_trait]
-impl ConfirmationBroker for UnavailableConfirmation {
-    async fn confirm(&self, _request: ConfirmationRequest) -> ConfirmationOutcome {
-        ConfirmationOutcome::Unavailable
-    }
 }

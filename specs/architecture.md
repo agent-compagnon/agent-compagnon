@@ -178,9 +178,23 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
 - Hors de portée sans `unsafe` : tout appel Win32 ou COM direct, donc `CryptProtectMemory`, `CryptProtectData`,
   `GetNamedPipeClientProcessId`, `SetCurrentProcessExplicitAppUserModelID`, `AttachConsole`, `IShellLinkW`, et toute
   l'API COM de WebView2 (`with_webview`, `add_WebResourceRequested`, création d'un `ICoreWebView2Environment`).
-- `tauri-winrt-notification` 0.8 : `add_button(texte, action)`, `on_activated(Fn(Option<String>))` reçoit l'action du
-  bouton, `on_dismissed` donne la raison. Pas d'API pour savoir si les toasts sont désactivés ni pour retirer un
-  toast : passer par le crate `windows` pour ces deux besoins.
+- `tauri-winrt-notification` 0.8.1 (lu dans les sources, non utilisé) : `add_button(texte, action)`,
+  `on_activated(Fn(Option<String>))` reçoit les arguments du bouton (ou du toast), `on_dismissed` la raison. Mais
+  `Toast::show` crée le `ToastNotification` en interne sans le rendre, ne pose d'étiquette qu'avec une barre de
+  progression, ne relaie pas `Failed` et ne règle pas d'échéance : on ne peut ni retirer le toast ni savoir qu'il a
+  échoué. Son exemple `unpackaged_app` utilise un AUMID inscrit au registre seulement (`DisplayName`, `IconUri` vers
+  un PNG).
+- Toasts par la projection WinRT (`windows` 0.62, features `Foundation`, `Data_Xml_Dom`, `UI_Notifications`,
+  compilé en cible Windows, non exécuté) : `XmlDocument` (`CreateElement`, `SetAttribute`, `SetInnerText`,
+  `AppendChild`), `ToastNotification::CreateToastNotification`, `SetTag`, `SetGroup`, `SetExpiresOnReboot`,
+  `SetExpirationTime` (`PropertyValue::CreateDateTime(..)?.cast::<IReference<DateTime>>()`), événements
+  `Activated` (arguments par `cast::<ToastActivatedEventArgs>()`), `Dismissed` (`ToastDismissalReason`), `Failed` ;
+  `CreateToastNotifierWithId(aumid)?.Show/Hide/Setting` ; `ToastNotificationManager::History()?`
+  (`RemoveGroupedTagWithId`, `ClearWithId`) ; « Ne pas déranger » par
+  `ToastNotificationManager::GetDefault()?.NotificationMode()` (`Unrestricted`, `PriorityOnly`, `AlarmsOnly`), que
+  `Setting` ne reflète pas. `ToastNotification`, `ToastNotifier` sont `Send + Sync`. Non attesté par les sources :
+  que les clics soient remis au processus quand l'AUMID n'est inscrit qu'au registre, sans activateur COM ni
+  raccourci (recette `EX-013-05`, `EX-013-10`).
 - `self_replace` renomme l'exe en cours, pose le nouveau et programme la suppression de l'ancien. Le dossier de
   l'exe doit être inscriptible.
 
@@ -231,3 +245,7 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
   cadre principal seulement, `freezePrototype` dans les pages distantes, commande interne des canaux exemptée de
   l'ACL, `on_navigation` limité au premier niveau, appels de cookies bloquants). Ce qui décide des fenêtres de
   login vit dans `mcp_proxy_auth::webview` ; `app/` devient bibliothèque `mcp_proxy` et binaire, pour la sonde.
+- **2026-11-22** — Spec 013 : faits sur les toasts corrigés après lecture des sources de `tauri-winrt-notification`
+  0.8.1 et du crate `windows` 0.62 : ce crate ne permet ni de retirer un toast ni d'en suivre l'échec, l'appli passe
+  donc directement par la projection WinRT ; « Ne pas déranger » se lit dans `NotificationMode`, pas dans `Setting`.
+  Les notifications et confirmations sont décidées dans `mcp_proxy_gateway::notify`.

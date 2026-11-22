@@ -106,6 +106,53 @@ la config embarquée sont fictifs) : la compiler dans l'exe (`config/default.tom
   Observer aussi que la page de login du SSO fonctionne normalement (le prototype `Object` y est figé par Tauri,
   I012.17) et le noter si ce n'est pas le cas.
 
+## 013 — app — notifications Windows et confirmations
+
+Préparation : comme pour la 011 (`cd ui && npm ci && npm run build`, puis compiler), profil « Développeur »
+(EX-011-06) avec PROD exposé (ajouter `"prod"` à `exposed_environments`). `prod_jira_add_comment` (écriture en PROD)
+demande une confirmation par notification ; tant que `sso-tools` n'a pas de `probe_url` réelle, l'appel autorisé
+échoue ensuite à la connexion, ce qui suffit à distinguer « autorisé » (« connexion … ») de « refusé » (« appel refusé
+par l'utilisateur »). Notifications de Windows activées, « Ne pas déranger » désactivé, sauf mention contraire. Le
+journal du jour dit pourquoi une fenêtre remplace un toast (« notifications indisponibles : … »).
+
+- [ ] **EX-013-10** — À faire en premier. Copier l'exe dans un dossier quelconque (par exemple `C:\Temp\mcp`), sans
+  raccourci dans le menu Démarrer, et le lancer. `reg query "HKCU\Software\Classes\AppUserModelId\McpProxy.Desktop"`
+  donne `DisplayName` « MCP Proxy » et `IconUri` vers `%LOCALAPPDATA%\MCP Proxy\notification-icon.png` (fichier
+  présent). Déclencher une confirmation (EX-013-05) : le toast porte le nom « MCP Proxy » et l'icône de l'appli. Si
+  aucun toast n'apparaît alors que le journal ne dit pas « notifications indisponibles », le noter : l'AUMID du
+  registre ne suffirait pas sur ce poste (non attesté par les sources).
+- [ ] **EX-013-05** — Appeler `prod_jira_add_comment` avec `{"key":"DEMO-1","body":"texte"}`. Un toast « Confirmation :
+  PROD / jira / add_comment » montre « Demandé par {client} » et les arguments, avec « Refuser » et « Autoriser une
+  fois », et reste affiché. « Autoriser une fois » : le LLM ne reçoit pas « appel refusé par l'utilisateur » (l'appel
+  passe à l'étape suivante). Recommencer, « Refuser » : le LLM reçoit « appel refusé par l'utilisateur. ». Si un
+  clic sur un bouton ne produit rien (le toast disparaît, l'appel attend puis expire), le noter : les clics ne
+  seraient pas remis au processus avec le seul AUMID du registre.
+- [ ] **EX-013-06** — Même appel avec un `body` de 300 caractères. Le toast propose « Refuser » et « Voir le détail »,
+  pas « Autoriser une fois ». « Voir le détail » : une fenêtre « Confirmation — PROD / jira / add_comment » s'ouvre
+  devant les autres, montre chemin, client, politique, les arguments complets et le compte à rebours ; la fermer par
+  la croix : « appel refusé par l'utilisateur. ». Recommencer et cliquer « Autoriser une fois » dans la fenêtre :
+  l'appel passe ; la fenêtre se ferme seule.
+- [ ] **EX-013-07** — Déclencher une confirmation et ne rien toucher pendant 30 s : le LLM reçoit « confirmation non
+  reçue dans le délai (30 s), appel refusé. » ; le toast disparaît de l'écran **et** du centre de notifications
+  (Win+N). Avec la fenêtre de détail ouverte : elle se ferme seule à l'échéance.
+- [ ] **EX-013-08** — Activer « Ne pas déranger » (Paramètres, Système, Notifications). Déclencher une confirmation :
+  aucun toast, la fenêtre de détail s'ouvre seule au premier plan ; le journal contient « notifications
+  indisponibles : mode « Ne pas déranger » ». Même chose après avoir désactivé les notifications de « MCP Proxy »
+  seulement. Réactiver ensuite.
+- [ ] **EX-013-09** — Pendant une confirmation en attente, l'icône est orange et son infobulle dit « 1 confirmation
+  attend » ; après la réponse (ou l'échéance), elle redevient neutre (« MCP Proxy — prêt »).
+- [ ] **EX-013-04** — Session `sso-corp` jamais connectée : appeler un outil de `gitlab-ops`. Un toast « Connexion
+  demandée » dit « {client} attend une connexion à SSO Entreprise » ; mettre une autre fenêtre devant la fenêtre de
+  connexion, puis cliquer le toast (ou son entrée dans Win+N) : la fenêtre de connexion revient devant. Idem avec une
+  session Basic (`sso-tools`) : la fenêtre de saisie revient devant.
+- [ ] **EX-013-15** — Toast de confirmation : le balayer (croix ou glissement) : « appel refusé par l'utilisateur. » ;
+  recommencer et cliquer sur le corps du toast (pas un bouton) : la fenêtre de détail s'ouvre, rien n'est approuvé.
+  Laisser un toast filer dans le centre de notifications sans répondre : après l'échéance, il n'y est plus. Quitter
+  l'appli avec une confirmation en attente : le LLM ne reçoit aucune autorisation (refus ou serveur fermé) et Win+N
+  ne garde aucun toast de l'appli. Information : modifier la liste d'outils d'un MCP connecté (ou, faute de MCP réel,
+  écrire `{ pas du json` dans `settings.json` puis relancer : toast « Réglages réinitialisés ») ; son clic ouvre la
+  fenêtre principale.
+
 ## 025 — Module MCP local d'exemple (`jira-local`)
 
 À dérouler quand l'appli (spec 011) et les fenêtres de saisie Basic (spec 012) existent, avec une config dont

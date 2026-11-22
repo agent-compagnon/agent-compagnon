@@ -125,6 +125,7 @@ pub fn reason() -> AccessReason {
         env: EnvId::new("prod").unwrap(),
         mcp: McpId::new("gitlab-ops").unwrap(),
         tool: ToolName::new("list_pipelines").unwrap(),
+        client: "Claude Desktop".to_owned(),
     }
 }
 

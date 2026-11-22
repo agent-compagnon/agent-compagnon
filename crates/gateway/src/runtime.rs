@@ -3,8 +3,8 @@
 //! the windows, the icon and the message boxes.
 //!
 //! Start order (I011.2): secret store (given), output filter, log file, global collector, journal, panic hook,
-//! settings, registry with its file cache, sessions, on-demand authenticator, upstreams, list watcher, call chain,
-//! MCP server. A failure of any step stops the start: there is no gateway without its filter, its journal or its
+//! settings, registry with its file cache, sessions, on-demand authenticator, upstreams, list watcher, confirmation
+//! broker, call chain, MCP server. A failure of any step stops the start: there is no gateway without its filter, its journal or its
 //! chain.
 
 use std::fs::{self, OpenOptions};
@@ -15,7 +15,6 @@ use std::time::{Duration, SystemTime};
 
 use mcp_proxy_auth::{AuthUi, AuthenticatorDeps, BasicProbe, HttpProbe, OnDemandAuthenticator, methods_from_config};
 use mcp_proxy_core::config::Config;
-use mcp_proxy_core::confirm::ConfirmationBroker;
 use mcp_proxy_core::filter::{FilterError, OutputFilter};
 use mcp_proxy_core::secrets::{OriginGuard, SecretStore};
 use mcp_proxy_core::session::{SessionGate, SessionRegistry};
@@ -33,6 +32,7 @@ use tokio::task::JoinHandle;
 use crate::bridge::{PeerProof, ProofError, Role, prove};
 use crate::journal::follow_tool_changes;
 use crate::modules;
+use crate::notify::{ConfirmationPresenter, NotificationBroker, PendingConfirmations};
 use crate::registry::{CatalogError, EmbeddedCatalog, FileCatalogCache, Registry, RegistryError};
 use crate::server::{CallChain, CallChainDeps, ChainError, GatewayServer, OutputGate};
 use crate::updates::{ListWatcher, ListWatcherDeps, UpdateTracker, WatchTiming};
@@ -52,12 +52,15 @@ pub struct DataDirs {
     pub settings: PathBuf,
     /// Shared profile of the login windows (spec 012), emptied at start and at exit.
     pub webview: PathBuf,
+    /// Icon of the notifications, named by the registered AUMID (spec 013).
+    pub notification_icon: PathBuf,
 }
 
 impl DataDirs {
     pub const FOLDER: &'static str = "MCP Proxy";
 
-    /// `<base>\MCP Proxy\` with `logs\`, `cache\catalog\`, `webview\` and `settings.json`.
+    /// `<base>\MCP Proxy\` with `logs\`, `cache\catalog\`, `webview\`, `settings.json` and
+    /// `notification-icon.png`.
     pub fn under(base: &Path) -> Self {
         let root = base.join(Self::FOLDER);
         Self {
@@ -65,6 +68,7 @@ impl DataDirs {
             catalog_cache: root.join("cache").join("catalog"),
             settings: root.join("settings.json"),
             webview: root.join("webview"),
+            notification_icon: root.join("notification-icon.png"),
             root,
         }
     }
@@ -86,8 +90,9 @@ pub struct RuntimeDeps {
     pub store: SecretStore,
     /// Login windows: the WebView2 windows of the application (spec 012), `UnavailableAuthUi` in tests.
     pub auth_ui: Arc<dyn AuthUi>,
-    /// Confirmations outside the chat (spec 013); `UnavailableConfirmation` until then.
-    pub broker: Arc<dyn ConfirmationBroker>,
+    /// Shows the confirmations outside the chat (spec 013): toasts and detail windows of the application,
+    /// `UnavailablePresenter` in tests.
+    pub presenter: Arc<dyn ConfirmationPresenter>,
     pub clock: Arc<dyn WallClock>,
     pub logging: Logging,
     /// Local offset from UTC (east positive) for the labels of the snapshot.
@@ -125,6 +130,7 @@ pub struct Gateway {
     authenticator: Arc<OnDemandAuthenticator>,
     watcher: ListWatcher,
     server: GatewayServer,
+    confirmations: Arc<NotificationBroker>,
     alerts: Mutex<Vec<Alert>>,
     changes: broadcast::Sender<()>,
     utc_offset: i32,
@@ -219,6 +225,11 @@ impl Gateway {
         let upstreams = Upstreams::from_config(&config, &gate, &modules::builtin());
 
         let output = OutputGate::new(filter);
+        let confirmations = Arc::new(NotificationBroker::new(
+            PendingConfirmations::new(),
+            deps.presenter,
+            output.clone(),
+        ));
         let (settings_sender, settings_receiver) = watch::channel(settings);
         let watcher = ListWatcher::spawn(ListWatcherDeps {
             config: Arc::clone(&config),
@@ -237,7 +248,7 @@ impl Gateway {
             settings: settings_receiver.clone(),
             upstreams,
             gate,
-            broker: deps.broker,
+            broker: confirmations.clone(),
             output: output.clone(),
             trace: Arc::new(journal.clone()),
         })?);
@@ -255,6 +266,7 @@ impl Gateway {
             sessions.subscribe(),
             watcher.tracker().subscribe(),
             settings_receiver,
+            confirmations.pending().subscribe(),
         ));
         tracing::info!("passerelle prête");
 
@@ -269,6 +281,7 @@ impl Gateway {
             authenticator,
             watcher,
             server,
+            confirmations,
             alerts: Mutex::new(alerts),
             changes,
             utc_offset: deps.utc_offset,
@@ -293,6 +306,18 @@ impl Gateway {
         &self.watcher
     }
 
+    /// The broker of the confirmations outside the chat, and through it the waiting requests that the toasts and
+    /// the detail windows answer.
+    pub fn confirmations(&self) -> &Arc<NotificationBroker> {
+        &self.confirmations
+    }
+
+    /// `text` through the output filter, for what the application shows outside the snapshot (notifications).
+    /// `None` when the filter is unavailable: nothing is shown then.
+    pub fn filter_text(&self, text: &str) -> Option<String> {
+        self.output.text(text)
+    }
+
     /// One accepted connection: the mutual proof as [`Role::Server`], then the MCP server until the client goes
     /// away. A failed proof closes the connection without any MCP byte, and is logged without any nonce.
     pub async fn serve_connection<S>(&self, proof: Arc<dyn PeerProof>, mut stream: S) -> Result<(), ProofError>
@@ -308,7 +333,8 @@ impl Gateway {
         Ok(())
     }
 
-    /// Fires whenever the snapshot may have changed: tools, sessions, instance states, settings, alerts.
+    /// Fires whenever the snapshot may have changed: tools, sessions, instance states, settings, alerts, waiting
+    /// confirmations.
     pub fn changes(&self) -> broadcast::Receiver<()> {
         self.changes.subscribe()
     }
@@ -333,7 +359,7 @@ impl Gateway {
             sessions: &sessions,
             instances: &tracker.statuses(),
             updates: &tracker.pending(),
-            pending_confirmations: 0,
+            pending_confirmations: self.confirmations.pending().count(),
             alerts: &alerts,
             utc_offset: self.utc_offset,
         })
@@ -371,6 +397,7 @@ async fn forward_changes(
     mut sessions: broadcast::Receiver<mcp_proxy_core::session::SessionEvent>,
     mut instances: broadcast::Receiver<crate::updates::UpdateEvent>,
     mut settings: watch::Receiver<UserSettings>,
+    mut confirmations: watch::Receiver<usize>,
 ) {
     use tokio::sync::broadcast::error::RecvError;
     loop {
@@ -379,6 +406,7 @@ async fn forward_changes(
             r = sessions.recv() => matches!(r, Err(RecvError::Closed)),
             r = instances.recv() => matches!(r, Err(RecvError::Closed)),
             r = settings.changed() => r.is_err(),
+            r = confirmations.changed() => r.is_err(),
         };
         if closed {
             return;

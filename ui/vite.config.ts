@@ -11,11 +11,13 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'es2022',
     assetsInlineLimit: 0,
-    // The main window, and the Basic input window of spec 012 (local page, no remote content).
+    // The main window, the Basic input window of spec 012 and the detail window of the confirmations of spec 013
+    // (local pages, no remote content).
     rolldownOptions: {
       input: {
         main: 'index.html',
         basic: 'basic.html',
+        confirm: 'confirm.html',
       },
     },
   },

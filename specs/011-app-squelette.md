@@ -252,3 +252,8 @@ Fenêtres de login (5b), notifications (5c), contenu de l'interface (6).
   ligne fixe dans le fichier du jour ; `AuthUiError::Unavailable` devient `SessionError::Unavailable` dans
   l'authentificateur (spec 010) ; le nom du processus parent du pont n'est pas lu ; boîtes de message par `rfd`.
   Raison : points laissés ouverts par le texte, tranchés par l'option la plus sûre, et contraintes de D18.
+- **2026-11-22** — Spec 013 : `mcp_proxy_core::confirm::UnavailableConfirmation` est supprimé ; `RuntimeDeps` reçoit
+  un `ConfirmationPresenter` au lieu d'un `ConfirmationBroker`, et la passerelle assemble elle-même le
+  `NotificationBroker`. Les tests et assemblages sans fenêtre passent `UnavailablePresenter`, dont toute confirmation
+  hors chat rend le même refus « confirmation impossible, aucun moyen de la demander à l'utilisateur ; appel
+  refusé. ».

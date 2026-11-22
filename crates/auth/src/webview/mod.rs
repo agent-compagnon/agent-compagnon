@@ -10,12 +10,14 @@
 
 mod basic;
 mod deposit;
+mod front;
 mod navigation;
 mod profile;
 mod script;
 
 pub use basic::{BasicPrompts, MalformedAnswer, parse_basic_answer};
 pub use deposit::{DepositRejection, LoginWindows};
+pub use front::SessionWindows;
 pub use navigation::{
     app_page_allowed, cookie_domain_matches, destination_for_log, navigation_allowed, remote_url_patterns,
 };

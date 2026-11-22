@@ -28,8 +28,17 @@ use crate::secrets::{OriginGuard, SecretError, SecretStore, SecretVersion};
 /// Why a session is needed, shown to the user when a connection is requested.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccessReason {
-    ListTools { env: EnvId, mcp: McpId },
-    ToolCall { env: EnvId, mcp: McpId, tool: ToolName },
+    ListTools {
+        env: EnvId,
+        mcp: McpId,
+    },
+    ToolCall {
+        env: EnvId,
+        mcp: McpId,
+        tool: ToolName,
+        /// `clientInfo.name` of the LLM client that called, filtered; empty when unknown.
+        client: String,
+    },
 }
 
 /// Why a session could not be used. French, never carries a secret.

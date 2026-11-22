@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "confirm",
+  "description": "Detail windows of the confirmations (spec 013): local page of the bundle, sends the answer of its own request. No remote URL, nothing else.",
+  "windows": ["confirm-*"],
+  "permissions": ["allow-answer-confirmation"]
+}

@@ -15,15 +15,18 @@ use std::time::SystemTime;
 
 use async_trait::async_trait;
 use mcp_proxy_auth::webview::{
-    BasicPrompts, LoginProfile, LoginWindows, app_page_allowed, basic_prompt_script, capture_script,
+    BasicPrompts, LoginProfile, LoginWindows, SessionWindows, app_page_allowed, basic_prompt_script, capture_script,
     check_runtime_version, cookie_domain_matches, destination_for_log, navigation_allowed, parse_basic_answer,
     remote_url_patterns,
 };
 use mcp_proxy_auth::{
     AuthUi, AuthUiError, BasicInput, BasicPromptSpec, CookiePair, LoginEvent, LoginWindow, LoginWindowSpec,
 };
+use mcp_proxy_core::config::SessionId;
 use mcp_proxy_core::config::WebviewConfig;
 use mcp_proxy_core::session::{AccessReason, SessionInfo};
+use mcp_proxy_gateway::notify::{ToastAction, ToastState, login_toast};
+use mcp_proxy_gateway::runtime::Gateway;
 use secrecy::SecretString;
 use serde_json::Value;
 use tauri::ipc::CapabilityBuilder;
@@ -34,6 +37,7 @@ use tokio::sync::{Mutex, mpsc};
 use url::Url;
 
 use crate::dialog;
+use crate::notify::{ToastEvent, Toaster};
 
 /// Hidden window that keeps the profile alive between logins. It never navigates.
 pub const KEEPER: &str = "login-keeper";
@@ -46,6 +50,8 @@ const DEPOSIT_PERMISSION: &str = "allow-deposit-login-header";
 pub struct LoginState {
     pub windows: LoginWindows,
     pub prompts: BasicPrompts,
+    /// The window of each session, for a click on the login notification.
+    pub sessions: SessionWindows,
     next: AtomicU64,
 }
 
@@ -64,6 +70,8 @@ pub struct WebviewAuthUi {
     profile_unusable: Option<String>,
     keeper: Mutex<()>,
     told_too_old: AtomicBool,
+    /// `None` for the WebView2 probe, which shows no notification.
+    toaster: Option<Arc<Toaster>>,
 }
 
 impl WebviewAuthUi {
@@ -74,6 +82,17 @@ impl WebviewAuthUi {
         data_directory: PathBuf,
         profile_reset: Result<(), String>,
     ) -> Self {
+        Self::with_toaster(app, config, data_directory, profile_reset, None)
+    }
+
+    /// The same, with the login notification (spec 013).
+    pub(crate) fn with_toaster(
+        app: &AppHandle,
+        config: &WebviewConfig,
+        data_directory: PathBuf,
+        profile_reset: Result<(), String>,
+        toaster: Option<Arc<Toaster>>,
+    ) -> Self {
         let state = Arc::new(LoginState::default());
         app.manage(Arc::clone(&state));
         Self {
@@ -83,6 +102,7 @@ impl WebviewAuthUi {
             profile_unusable: profile_reset.err(),
             keeper: Mutex::new(()),
             told_too_old: AtomicBool::new(false),
+            toaster,
         }
     }
 
@@ -212,6 +232,7 @@ impl AuthUi for WebviewAuthUi {
         self.ensure_keeper().await?;
 
         let label = self.state.label(LOGIN_PREFIX);
+        let spec_session = &spec.session().clone();
         if spec.capture().is_some() {
             self.add_deposit_capability(&label, &spec)?;
         }
@@ -233,6 +254,7 @@ impl AuthUi for WebviewAuthUi {
             }
         };
         let _ = window.set_focus();
+        self.state.sessions.opened(spec_session, &label);
         Ok(Box::new(TauriLoginWindow {
             window,
             label,
@@ -243,6 +265,7 @@ impl AuthUi for WebviewAuthUi {
 
     async fn basic_prompt(&self, spec: BasicPromptSpec) -> Result<Option<BasicInput>, AuthUiError> {
         let label = self.state.label(BASIC_PREFIX);
+        let session = spec.session().clone();
         let answer = self.state.prompts.open(&label);
         let app = self.app.clone();
         let state = Arc::clone(&self.state);
@@ -257,6 +280,7 @@ impl AuthUi for WebviewAuthUi {
                 return Err(error);
             }
         };
+        self.state.sessions.opened(&session, &label);
         // Closed when the answer arrives, and also if this future is dropped before.
         let _open = BasicWindow {
             window,
@@ -266,9 +290,42 @@ impl AuthUi for WebviewAuthUi {
         Ok(answer.await.unwrap_or(None))
     }
 
-    async fn notify_login_needed(&self, session: &SessionInfo, _reason: &AccessReason) {
-        // Windows notifications arrive with spec 013; the window itself is always shown.
+    async fn notify_login_needed(&self, session: &SessionInfo, reason: &AccessReason) {
         tracing::info!(session = session.id.as_str(), "connexion demandée par un appel");
+        let Some(toaster) = self.toaster.clone() else {
+            return;
+        };
+        let client = match reason {
+            AccessReason::ToolCall { client, .. } => client.as_str(),
+            AccessReason::ListTools { .. } => "",
+        };
+        // Filtered by the chain already; again here, and nothing is shown without the filter.
+        let Some(gateway) = self.app.try_state::<Arc<Gateway>>() else {
+            return;
+        };
+        let (Some(client), Some(label)) = (gateway.filter_text(client), gateway.filter_text(&session.label)) else {
+            return;
+        };
+        let app = self.app.clone();
+        let id = session.id.clone();
+        // The login window opens right after, visible whatever happens to the notification: it is not awaited.
+        tauri::async_runtime::spawn_blocking(move || {
+            if let ToastState::Unavailable(reason) = toaster.state() {
+                tracing::info!(%reason, "notification de connexion non affichée");
+                return;
+            }
+            let content = login_toast(toaster.next_number(), &id, &label, &client);
+            let shown = toaster.show(&content, None, move |event| {
+                if let ToastEvent::Activated(Some(arguments)) = event
+                    && let Some(ToastAction::Login(session)) = ToastAction::parse(&arguments)
+                {
+                    front_window_of(&app, &session);
+                }
+            });
+            if let Err(reason) = shown {
+                tracing::info!(%reason, "notification de connexion non affichée");
+            }
+        });
     }
 
     async fn clear_site_data(&self, hosts: &[String]) -> Result<(), AuthUiError> {
@@ -288,6 +345,22 @@ impl AuthUi for WebviewAuthUi {
         })
         .await
         .unwrap_or(Err(AuthUiError::ClearSiteData))
+    }
+}
+
+/// A click on the login notification: the login or Basic window of `session` comes to the front, if still open.
+fn front_window_of(app: &AppHandle, session: &SessionId) {
+    let Some(state) = app.try_state::<Arc<LoginState>>() else {
+        return;
+    };
+    if let Some(window) = state
+        .sessions
+        .of(session)
+        .and_then(|label| app.get_webview_window(&label))
+    {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
     }
 }
 
@@ -337,6 +410,7 @@ fn build_login_window(
     window.on_window_event(move |event| {
         if matches!(event, WindowEvent::Destroyed) {
             state.windows.closed(&closed);
+            state.sessions.closed(&closed);
         }
     });
     Ok(window)
@@ -375,6 +449,7 @@ fn build_basic_window(
     window.on_window_event(move |event| {
         if matches!(event, WindowEvent::Destroyed) {
             state.prompts.closed(&closed);
+            state.sessions.closed(&closed);
         }
     });
     let _ = window.set_focus();
@@ -392,6 +467,7 @@ struct TauriLoginWindow {
 impl Drop for TauriLoginWindow {
     fn drop(&mut self) {
         self.state.windows.forget(&self.label);
+        self.state.sessions.closed(&self.label);
         let _ = self.window.destroy();
     }
 }
@@ -433,6 +509,7 @@ struct BasicWindow {
 impl Drop for BasicWindow {
     fn drop(&mut self) {
         self.state.prompts.closed(&self.label);
+        self.state.sessions.closed(&self.label);
         let _ = self.window.destroy();
     }
 }

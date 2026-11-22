@@ -5,15 +5,18 @@
 #![allow(clippy::unwrap_used, clippy::panic)]
 
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
 
+use async_trait::async_trait;
 use mcp_proxy_auth::UnavailableAuthUi;
 use mcp_proxy_core::config::{Config, EnvId, ProfileId, SessionId};
-use mcp_proxy_core::confirm::UnavailableConfirmation;
 use mcp_proxy_core::secrets::{Credential, SecretStore};
 use mcp_proxy_core::trace::SystemWallClock;
 use mcp_proxy_gateway::bridge::{PeerProof, ProtectFailure, Role, prove};
+use mcp_proxy_gateway::notify::{
+    ConfirmationId, ConfirmationPresenter, DetailView, PresentError, ToastContent, ToastState, UnavailablePresenter,
+};
 use mcp_proxy_gateway::runtime::{DataDirs, Gateway, Logging, RuntimeDeps};
 use mcp_proxy_gateway::view::{AlertKind, AppStatus};
 use rmcp::ServiceExt;
@@ -65,12 +68,16 @@ fn config() -> Arc<Config> {
 }
 
 async fn start(dir: &TempDir, store: SecretStore) -> Gateway {
+    start_with(dir, store, Arc::new(UnavailablePresenter)).await
+}
+
+async fn start_with(dir: &TempDir, store: SecretStore, presenter: Arc<dyn ConfirmationPresenter>) -> Gateway {
     Gateway::start(RuntimeDeps {
         config: config(),
         dirs: DataDirs::under(&dir.0),
         store,
         auth_ui: Arc::new(UnavailableAuthUi),
-        broker: Arc::new(UnavailableConfirmation),
+        presenter,
         clock: Arc::new(SystemWallClock),
         logging: Logging::Local,
         utc_offset: 0,
@@ -333,4 +340,85 @@ async fn a_client_of_another_user_is_closed_before_any_mcp_byte() {
     let (client, server) = client_on_proven_pipe(Arc::clone(&gateway), 2).await;
     assert!(client.is_err());
     assert!(server.await.unwrap().is_err());
+}
+
+/// Toasts off: every confirmation opens its detail window, recorded here.
+#[derive(Default)]
+struct WindowsOnly {
+    opened: Mutex<Vec<DetailView>>,
+    withdrawn: Mutex<Vec<ConfirmationId>>,
+}
+
+#[async_trait]
+impl ConfirmationPresenter for WindowsOnly {
+    async fn toast_state(&self) -> ToastState {
+        ToastState::Unavailable("mode « Ne pas déranger » (prioritaires seulement)".to_owned())
+    }
+
+    async fn show_toast(&self, _id: ConfirmationId, _toast: ToastContent) -> Result<(), PresentError> {
+        panic!("no toast while toasts are off");
+    }
+
+    async fn open_detail(&self, _id: ConfirmationId, view: DetailView) -> Result<(), PresentError> {
+        self.opened.lock().unwrap().push(view);
+        Ok(())
+    }
+
+    fn withdraw(&self, id: ConfirmationId) {
+        self.withdrawn.lock().unwrap().push(id);
+    }
+}
+
+// Exigence : EX-013-13
+#[tokio::test]
+async fn a_waiting_confirmation_shows_in_the_snapshot_until_answered() {
+    let dir = TempDir::new();
+    let presenter = Arc::new(WindowsOnly::default());
+    let gateway = Arc::new(start_with(&dir, store_with_sentinel(), presenter.clone()).await);
+    choose_developer(&gateway, &["prod"]).await;
+    let mut changes = gateway.changes();
+    let (client, server) = client_on_proven_pipe(Arc::clone(&gateway), 1).await;
+    let client = Arc::new(client.unwrap());
+
+    // A write in PROD asks for a confirmation by notification (a known secret in the arguments would be blocked
+    // before: the secrets of a confirmation are tested with the broker).
+    let running = {
+        let client = Arc::clone(&client);
+        tokio::spawn(async move {
+            let mut params = CallToolRequestParams::new("prod_jira_add_comment".to_owned());
+            params.arguments = json!({ "key": "DEMO-1", "body": "texte" }).as_object().cloned();
+            text_of(&client.call_tool(params).await.unwrap())
+        })
+    };
+    let pending = Arc::clone(gateway.confirmations().pending());
+    while pending.count() == 0 {
+        assert!(!running.is_finished(), "{}", running.await.unwrap());
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    while changes.try_recv().is_ok() {}
+    let snapshot = gateway.snapshot_json().await.unwrap();
+    assert_eq!(snapshot["pendingConfirmations"], 1);
+    assert_eq!(snapshot["status"], "attention");
+    assert_eq!(snapshot["tooltip"], "MCP Proxy — 1 confirmation attend");
+
+    let view = presenter.opened.lock().unwrap()[0].clone();
+    assert_eq!(view.path, "PROD / jira / add_comment");
+    assert!(view.arguments.contains("DEMO-1"));
+
+    // Closing the window refuses; the icon goes back to neutral and a change is signalled.
+    pending.detail_closed(view.id);
+    let refused = running.await.unwrap();
+    assert!(refused.contains("appel refusé par l'utilisateur."), "{refused}");
+    assert_eq!(pending.count(), 0);
+    assert_eq!(*presenter.withdrawn.lock().unwrap(), [view.id]);
+    let snapshot = gateway.snapshot().await;
+    assert_eq!(snapshot.pending_confirmations, 0);
+    assert_eq!(snapshot.status, AppStatus::Neutral);
+    tokio::time::timeout(std::time::Duration::from_secs(5), changes.recv())
+        .await
+        .unwrap()
+        .unwrap();
+
+    Arc::try_unwrap(client).ok().unwrap().cancel().await.unwrap();
+    assert_eq!(server.await.unwrap(), Ok(()));
 }

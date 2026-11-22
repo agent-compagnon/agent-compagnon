@@ -1,5 +1,5 @@
 //! `mcp-proxy.exe`: the application (notification icon, gateway, login windows) without argument, the `stdio` bridge
-//! with `stdio`. Wiring only: the logic lives in `crates/` and is tested there (specs 011 and 012). A library so that
+//! with `stdio`. Wiring only: the logic lives in `crates/` and is tested there (specs 011 to 013). A library so that
 //! the WebView2 probe (`examples/webview_probe.rs`) runs the very login windows of the application.
 
 #[cfg(not(windows))]
@@ -7,9 +7,11 @@ compile_error!("MCP Proxy is a Windows application: check it with `--target x86_
 
 mod app;
 mod bridge;
+mod confirm;
 pub mod dialog;
 mod dpapi;
 pub mod login;
+mod notify;
 mod pipe;
 mod wer;
 

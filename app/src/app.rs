@@ -8,13 +8,14 @@ use std::time::SystemTime;
 
 use mcp_proxy_auth::AuthUi;
 use mcp_proxy_auth::webview::reset_profile_dir;
-use mcp_proxy_core::confirm::UnavailableConfirmation;
 use mcp_proxy_core::secrets::SecretStore;
 use mcp_proxy_core::trace::SystemWallClock;
 use mcp_proxy_gateway::bridge::{PeerProof, pipe_name};
+use mcp_proxy_gateway::notify::{ConfirmationPresenter, Information, ToastAction, ToastState, information_toast};
 use mcp_proxy_gateway::runtime::{
     DataDirs, Gateway, Logging, RuntimeDeps, StartupFailure, check_webview, record_startup_failure,
 };
+use mcp_proxy_gateway::updates::UpdateEvent;
 use mcp_proxy_gateway::view::{Alert, AlertKind, AlertLevel, AppStatus};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
@@ -22,9 +23,11 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tokio::sync::broadcast::error::RecvError;
 
+use crate::confirm::{self, WindowsPresenter};
 use crate::dialog;
 use crate::dpapi::DpapiProof;
 use crate::login::{self, WebviewAuthUi};
+use crate::notify::{ToastEvent, Toaster};
 use crate::{pipe, wer};
 
 const MAIN_WINDOW: &str = "main";
@@ -110,7 +113,8 @@ pub fn run() -> ExitCode {
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
             login::deposit_login_header,
-            login::submit_basic_credentials
+            login::submit_basic_credentials,
+            confirm::answer_confirmation
         ])
         .setup(|app| {
             // Tauri panics on a setup error: a failure here is explained, then the application exits.
@@ -135,15 +139,25 @@ pub fn run() -> ExitCode {
         }
     };
 
-    // First instance: the login windows, the gateway, then its pipe.
+    // First instance: the notifications, the login windows, the gateway, then its pipe. WinRT is called on a
+    // blocking thread, never on the main thread that the event loop initializes.
+    let toaster = {
+        let dirs = dirs.clone();
+        match tauri::async_runtime::block_on(tauri::async_runtime::spawn_blocking(move || Toaster::start(&dirs))) {
+            Ok(toaster) => Arc::new(toaster),
+            Err(_) => Arc::new(Toaster::unavailable("enregistrement interrompu")),
+        }
+    };
     let webview_dir = dirs.webview.clone();
-    let auth_ui = WebviewAuthUi::new(
+    let auth_ui = WebviewAuthUi::with_toaster(
         app.handle(),
         &config.webview,
         webview_dir.clone(),
         profile_reset.clone(),
+        Some(Arc::clone(&toaster)),
     );
-    let gateway = match start_gateway(config, dirs, Arc::new(auth_ui)) {
+    let presenter = Arc::new(WindowsPresenter::new(app.handle(), Arc::clone(&toaster)));
+    let gateway = match start_gateway(config, dirs, Arc::new(auth_ui), presenter) {
         Ok(gateway) => gateway,
         Err(code) => return code,
     };
@@ -158,6 +172,7 @@ pub fn run() -> ExitCode {
             ),
         });
     }
+    app.manage(Arc::clone(&toaster));
     app.manage(gateway);
 
     let code = app.run_return(move |app, event| match event {
@@ -169,8 +184,13 @@ pub fn run() -> ExitCode {
                 tracing::info!(kind = %error.kind(), "dossier du profil des fenêtres de connexion non vidé à l'arrêt");
             }
             if let Some(gateway) = app.try_state::<Arc<Gateway>>() {
+                // Every waiting confirmation is refused, none can be approved any more.
+                gateway.confirmations().pending().shutdown();
                 tracing::info!("arrêt de MCP Proxy");
                 let _ = gateway.journal().flush();
+            }
+            if let Some(toaster) = app.try_state::<Arc<Toaster>>() {
+                toaster.clear_all();
             }
         }
         _ => {}
@@ -184,6 +204,7 @@ fn start_gateway(
     config: Arc<mcp_proxy_core::config::Config>,
     dirs: DataDirs,
     auth_ui: Arc<dyn AuthUi>,
+    presenter: Arc<dyn ConfirmationPresenter>,
 ) -> Result<Arc<Gateway>, ExitCode> {
     let store = match SecretStore::for_platform() {
         Ok(store) => store,
@@ -198,7 +219,7 @@ fn start_gateway(
         dirs,
         store,
         auth_ui,
-        broker: Arc::new(UnavailableConfirmation),
+        presenter,
         clock: Arc::new(SystemWallClock),
         logging: Logging::Global,
         utc_offset: 0,
@@ -287,6 +308,9 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
 
     let handle = app.handle().clone();
     tauri::async_runtime::spawn(follow_snapshot(handle.clone(), Arc::clone(&gateway), icons));
+    if let Some(toaster) = app.try_state::<Arc<Toaster>>().map(|t| Arc::clone(t.inner())) {
+        tauri::async_runtime::spawn(follow_information(handle.clone(), Arc::clone(&gateway), toaster));
+    }
 
     // First launch: the window asks for the profile.
     if tauri::async_runtime::block_on(gateway.snapshot()).profile.first_launch {
@@ -317,6 +341,66 @@ async fn follow_snapshot(app: AppHandle, gateway: Arc<Gateway>, icons: Arc<TrayI
         }
         match changes.recv().await {
             Ok(()) | Err(RecvError::Lagged(_)) => {}
+            Err(RecvError::Closed) => return,
+        }
+    }
+}
+
+/// An information toast, when toasts can be seen; a click opens the main window.
+fn inform(app: &AppHandle, toaster: &Arc<Toaster>, information: Information) {
+    let toaster = Arc::clone(toaster);
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        if let ToastState::Unavailable(reason) = toaster.state() {
+            tracing::info!(%reason, "information non notifiée");
+            return;
+        }
+        let content = information_toast(toaster.next_number(), &information);
+        let shown = toaster.show(&content, None, move |event| {
+            if let ToastEvent::Activated(Some(arguments)) = event
+                && ToastAction::parse(&arguments) == Some(ToastAction::Open)
+            {
+                show_main_window(&app);
+            }
+        });
+        if let Err(reason) = shown {
+            tracing::info!(%reason, "information non notifiée");
+        }
+    });
+}
+
+/// The information notifications: settings reset at start, tools of an MCP changed. « Mise à jour prête » comes
+/// with spec 020.
+async fn follow_information(app: AppHandle, gateway: Arc<Gateway>, toaster: Arc<Toaster>) {
+    let mut events = gateway.watcher().tracker().subscribe();
+    if gateway
+        .snapshot()
+        .await
+        .alerts
+        .iter()
+        .any(|a| a.kind == AlertKind::SettingsReset)
+    {
+        inform(&app, &toaster, Information::SettingsReset);
+    }
+    let config = Arc::clone(gateway.config());
+    loop {
+        match events.recv().await {
+            Ok(UpdateEvent::UpdatePending { instance }) => {
+                let mcp = config
+                    .mcp
+                    .iter()
+                    .find(|m| m.id == instance.mcp)
+                    .map(|m| m.label.clone());
+                let env = config
+                    .environments
+                    .iter()
+                    .find(|e| e.id == instance.env)
+                    .map(|e| e.label.clone());
+                if let (Some(mcp), Some(environment)) = (mcp, env) {
+                    inform(&app, &toaster, Information::McpUpdated { mcp, environment });
+                }
+            }
+            Ok(_) | Err(RecvError::Lagged(_)) => {}
             Err(RecvError::Closed) => return,
         }
     }

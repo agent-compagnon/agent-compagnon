@@ -5,6 +5,7 @@ mod convert;
 pub mod journal;
 pub mod launch;
 pub mod modules;
+pub mod notify;
 pub mod registry;
 pub mod runtime;
 pub mod server;

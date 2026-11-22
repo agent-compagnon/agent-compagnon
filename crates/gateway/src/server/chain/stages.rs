@@ -199,6 +199,8 @@ async fn ensure_session(shared: &Shared, context: &CallContext, session: &Sessio
         env: tool.instance.env.clone(),
         mcp: tool.instance.mcp.clone(),
         tool: tool.tool.clone(),
+        // Shown in the login notification (spec 013).
+        client: shared.output.text(&context.client.name).unwrap_or_default(),
     };
     let ensured = tokio::select! {
         ensured = tokio::time::timeout_at(
