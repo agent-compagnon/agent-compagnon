@@ -18,8 +18,8 @@ use std::borrow::Cow;
 pub use error::{ConfigError, ConfigErrors};
 pub use ids::{EnvId, ID_MAX_LEN, IdError, McpAlias, McpId, ProfileId, SessionId, TOOL_NAME_MAX_LEN, ToolName};
 pub use model::{
-    AuthConfig, Config, Environment, GatewayConfig, Mcp, McpKind, Origin, Profile, RateLimit, Session, SessionRef,
-    SessionScope, ToolConfig, TraceConfig, UpdateConfig, UrlPattern, WebviewConfig, WebviewProfile,
+    AuthConfig, Config, Environment, FilterConfig, GatewayConfig, Mcp, McpKind, Origin, Profile, RateLimit, Session,
+    SessionRef, SessionScope, ToolConfig, TraceConfig, UpdateConfig, UrlPattern, WebviewConfig, WebviewProfile,
 };
 pub use policy::{Category, Channel, Decision, EnvPolicy, McpPolicy, PolicyTree, Rule, RuleSet};
 pub use validate::SCHEMA_VERSION;

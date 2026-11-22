@@ -11,7 +11,7 @@ mod origin;
 mod protector;
 mod sealed;
 mod store;
-mod variants;
+pub(crate) mod variants;
 
 #[cfg(test)]
 mod tests;

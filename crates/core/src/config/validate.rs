@@ -7,8 +7,8 @@ use url::Url;
 use super::error::ConfigError;
 use super::ids::{EnvId, IdError, McpAlias, McpId, ProfileId, SessionId, ToolName};
 use super::model::{
-    AuthConfig, Config, Environment, GatewayConfig, Mcp, McpKind, Origin, Profile, RateLimit, Session, SessionRef,
-    SessionScope, ToolConfig, TraceConfig, UpdateConfig, UrlPattern,
+    AuthConfig, Config, Environment, FilterConfig, GatewayConfig, Mcp, McpKind, Origin, Profile, RateLimit, Session,
+    SessionRef, SessionScope, ToolConfig, TraceConfig, UpdateConfig, UrlPattern,
 };
 use super::policy::{Category, Channel, Decision, EnvPolicy, McpPolicy, PolicyTree, Rule, RuleSet};
 use super::raw::{
@@ -312,6 +312,7 @@ impl Validator {
         self.gateway(&raw.gateway);
         self.trace(&raw.trace);
         self.update(&raw.update);
+        self.filter(&raw.filter);
 
         let environments = self.environments(&raw.environments);
         let env_ids: BTreeSet<EnvId> = environments.iter().map(|e| e.id.clone()).collect();
@@ -361,6 +362,7 @@ impl Validator {
             trace: raw.trace,
             webview: raw.webview,
             update: raw.update,
+            filter: raw.filter,
             environments,
             sessions,
             mcp: mcps,
@@ -411,6 +413,27 @@ impl Validator {
             self.non_empty(&path, name);
             if !seen.insert(name) {
                 self.err(path, format!("client « {name} » en double"));
+            }
+        }
+    }
+
+    fn filter(&mut self, f: &FilterConfig) {
+        self.key_list("filter.extra_key_segments", &f.extra_key_segments, |c| {
+            c.is_ascii_lowercase() || c.is_ascii_digit()
+        });
+        self.key_list("filter.extra_keys", &f.extra_keys, |c| {
+            c.is_ascii_alphanumeric() || "_-.".contains(c)
+        });
+    }
+
+    fn key_list(&mut self, name: &str, values: &[String], allowed: fn(char) -> bool) {
+        let mut seen = BTreeSet::new();
+        for (i, value) in values.iter().enumerate() {
+            let path = format!("{name}[{i}]");
+            if value.is_empty() || !value.chars().all(allowed) || !value.chars().any(|c| c.is_ascii_alphabetic()) {
+                self.err(&path, format!("clé « {} » invalide", value.escape_default()));
+            } else if !seen.insert(value.to_ascii_lowercase()) {
+                self.err(&path, format!("clé « {value} » en double"));
             }
         }
     }

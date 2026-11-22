@@ -29,16 +29,20 @@ publish = false
 
 [workspace.dependencies]
 base64 = "0.23.1"
+memchr = "2.8.3"
 proptest = "1.12.0"
+regex = "1.13.2"
 reqwest = { version = "0.13.5", default-features = false, features = ["native-tls"] }
 secrecy = "0.10.3"
 serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 serde_path_to_error = "0.1.20"
 sha2 = "0.11.1"
 thiserror = "2.0.21"
 tokio = "1.54.1"
 toml = "1.2.2"
 tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "std"] }
 url = "2.5.9"
 windows = "0.62.2"
 zeroize = "1.9.2"

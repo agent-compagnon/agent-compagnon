@@ -57,6 +57,19 @@ pub struct UpdateConfig {
     pub check_interval_hours: u32,
 }
 
+/// `[filter]`: sensitive keys added to the defaults of the output filter. Additions only: a default can never be
+/// removed (INV-6).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FilterConfig {
+    /// Last words of a key name that make it sensitive (`password`, `token`…), lower-case ASCII letters and digits.
+    #[serde(default)]
+    pub extra_key_segments: Vec<String>,
+    /// Whole key names that are sensitive whatever their separators and case (`api_key`…).
+    #[serde(default)]
+    pub extra_keys: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Environment {
     pub id: EnvId,
@@ -195,6 +208,7 @@ pub struct Config {
     pub trace: TraceConfig,
     pub webview: WebviewConfig,
     pub update: UpdateConfig,
+    pub filter: FilterConfig,
     pub environments: Vec<Environment>,
     pub sessions: Vec<Session>,
     pub mcp: Vec<Mcp>,

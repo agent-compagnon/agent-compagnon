@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-use super::model::{GatewayConfig, TraceConfig, UpdateConfig, WebviewConfig};
+use super::model::{FilterConfig, GatewayConfig, TraceConfig, UpdateConfig, WebviewConfig};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -15,6 +15,8 @@ pub struct RawConfig {
     pub trace: TraceConfig,
     pub webview: WebviewConfig,
     pub update: UpdateConfig,
+    #[serde(default)]
+    pub filter: FilterConfig,
     pub environments: Vec<RawEnvironment>,
     pub sessions: Vec<RawSession>,
     pub mcp: Vec<RawMcp>,

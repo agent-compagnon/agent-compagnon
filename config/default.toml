@@ -32,6 +32,11 @@ repository = "generic-release-local"
 path = "mcp-proxy"
 check_interval_hours = 6
 
+# Clés sensibles du filtre de sortie, ajoutées aux valeurs par défaut (qui ne peuvent pas être retirées).
+[filter]
+extra_key_segments = []             # dernier mot d'un nom de clé, ex. "passphrase"
+extra_keys = []                     # nom de clé complet, ex. "x-auth-key"
+
 # --- Environnements ------------------------------------------------------------------------------------------------
 
 [[environments]]

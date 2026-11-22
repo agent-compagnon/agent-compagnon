@@ -27,7 +27,8 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 | HTTP/TLS | `reqwest` 0.13 en `native-tls` : SChannel et magasin de certificats Windows, aucune chaîne d'outils C |
 | Secrets | `secrecy` 0.10, `zeroize` 1.9, `CryptProtectMemory` |
 | Mises à jour | `ed25519-dalek` 3, `self-replace` 1.5, `semver` |
-| Logs | `tracing`, `tracing-appender` |
+| Filtre de sortie | `memchr` 2.8, `regex` 1.13 (motifs génériques seulement), `serde_json` 1.0 |
+| Logs | `tracing`, `tracing-subscriber` 0.3, `tracing-appender` |
 | Front | Vue 3, Vite, TypeScript, Tailwind CSS, shadcn-vue (Reka UI), TanStack Table, npm |
 
 ## Architecture
