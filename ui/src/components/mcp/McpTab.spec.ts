@@ -2,13 +2,12 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import type { AppSnapshot } from '@/api/types'
 import { STORE, createStore } from '@/store/snapshot'
-import { snapshotOf, spyBackend } from '@/test/fixtures'
+import { inTooltips, snapshotOf, spyBackend } from '@/test/fixtures'
 import McpTab from './McpTab.vue'
 
 function mountTab(snapshot: AppSnapshot) {
   const spy = spyBackend(snapshot)
-  const wrapper = mount(McpTab, {
-    props: { snapshot },
+  const wrapper = mount(inTooltips(McpTab, { snapshot }), {
     global: { provide: { [STORE as symbol]: createStore(spy.backend) } },
     attachTo: document.body,
   })

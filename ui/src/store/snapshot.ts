@@ -1,9 +1,11 @@
-// The last snapshot of the application, kept up to date by `snapshot-changed`, and the commands of the window.
-// Nothing here is secret: the snapshot holds none, and the commands send identifiers only.
+// The last snapshot of the application, kept up to date by `snapshot-changed`, the journal (spec 018) and the
+// commands of the window. Nothing here is secret: the snapshot and the journal hold none, and the commands send
+// identifiers only.
 
 import { type InjectionKey, inject, reactive, shallowReadonly } from 'vue'
 import { type Backend, reason } from '@/api/backend'
 import type { AppSnapshot } from '@/api/types'
+import { createJournal } from './journal'
 
 export type Phase = 'loading' | 'ready' | 'unavailable' | 'invalid'
 
@@ -16,6 +18,8 @@ export interface StoreState {
 
 export function createStore(backend: Backend) {
   const state = reactive<StoreState>({ phase: 'loading', snapshot: null, commandError: null })
+  // Followed from the start, whichever tab is shown: the entries of the session are all there when it opens.
+  const journal = createJournal(backend)
   let stop: (() => void) | null = null
   // A snapshot from the event is never replaced by an older answer of `get_snapshot`.
   let received = 0
@@ -32,6 +36,7 @@ export function createStore(backend: Backend) {
   }
 
   async function start(): Promise<void> {
+    const following = journal.start()
     stop = await backend.onSnapshot(accept)
     const before = received
     try {
@@ -40,11 +45,13 @@ export function createStore(backend: Backend) {
     } catch {
       if (received === before) state.phase = 'unavailable'
     }
+    await following
   }
 
   function close() {
     stop?.()
     stop = null
+    journal.close()
   }
 
   async function run(command: () => Promise<void>): Promise<boolean> {
@@ -60,6 +67,7 @@ export function createStore(backend: Backend) {
 
   return {
     state: shallowReadonly(state),
+    journal,
     start,
     close,
     connect: (session: string) => run(() => backend.connectSession(session)),

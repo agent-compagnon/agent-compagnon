@@ -35,8 +35,21 @@ pub enum DiagnosticError {
     FilterUnavailable,
 }
 
+/// The kind of the failure, in French: the message is shown in the window (spec 018). Never the path or the
+/// content.
 fn io_error(error: &io::Error) -> DiagnosticError {
-    DiagnosticError::Io(error.kind().to_string())
+    let reason = match error.kind() {
+        io::ErrorKind::NotFound => "dossier ou fichier introuvable".to_owned(),
+        io::ErrorKind::PermissionDenied => "accès refusé".to_owned(),
+        io::ErrorKind::AlreadyExists => "un fichier du même nom existe déjà".to_owned(),
+        io::ErrorKind::StorageFull => "disque plein".to_owned(),
+        io::ErrorKind::ReadOnlyFilesystem => "emplacement en lecture seule".to_owned(),
+        io::ErrorKind::IsADirectory => "un dossier porte ce nom".to_owned(),
+        io::ErrorKind::InvalidFilename => "nom de fichier invalide".to_owned(),
+        io::ErrorKind::ResourceBusy => "fichier utilisé par un autre programme".to_owned(),
+        other => format!("erreur d'écriture ({other})"),
+    };
+    DiagnosticError::Io(reason)
 }
 
 fn zip_error(_: zip::result::ZipError) -> DiagnosticError {

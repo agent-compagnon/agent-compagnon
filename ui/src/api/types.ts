@@ -175,6 +175,111 @@ export type InstanceView = v.InferOutput<typeof InstanceViewSchema>
 export type McpView = v.InferOutput<typeof McpViewSchema>
 export type AppSnapshot = v.InferOutput<typeof AppSnapshotSchema>
 
+// The journal (spec 018): `get_journal` and each `journal-entry`, the exact mirror of
+// `mcp_proxy_gateway::journal_view`. Already filtered by the core; the window shows it as text and filters nothing.
+
+export const EntryKindSchema = v.picklist(['call', 'toolsChanged', 'panic', 'event'])
+export const CallStatusSchema = v.picklist([
+  'ok',
+  'leakMasked',
+  'error',
+  'denied',
+  'refused',
+  'timeout',
+  'blocked',
+  'rateLimited',
+  'authRequired',
+  'suspended',
+  'inputRequired',
+  'cancelled',
+])
+export const MaskedKindSchema = v.picklist([
+  'knownSecret',
+  'jwt',
+  'authorizationHeader',
+  'cookieHeader',
+  'sensitiveField',
+  'privateKey',
+  'urlCredentials',
+  'other',
+])
+
+/** What the output filter masked: counts and kinds, never a value. */
+export const MaskedViewSchema = v.strictObject({
+  exact: count,
+  generic: count,
+  kinds: v.array(MaskedKindSchema),
+})
+
+/** The unfolded part of a row: only for a call whose content the core kept. */
+export const DetailsViewSchema = v.strictObject({
+  callId: count,
+  client: text,
+  session: nullableText,
+  policy: v.nullable(PolicyViewSchema),
+  /** Arguments and response, filtered JSON of any shape: shown as text. */
+  request: v.unknown(),
+  response: v.unknown(),
+  masked: MaskedViewSchema,
+})
+
+export const EntryViewSchema = v.strictObject({
+  seq: count,
+  at: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  kind: EntryKindSchema,
+  status: v.nullable(CallStatusSchema),
+  statusLabel: nullableText,
+  slow: v.boolean(),
+  client: nullableText,
+  /** Identifiers: the window shows the labels of the snapshot. */
+  environment: nullableText,
+  mcp: nullableText,
+  tool: nullableText,
+  durationMs: v.nullable(count),
+  decision: v.nullable(DecisionKindSchema),
+  summary: text,
+  /** Filters `Problèmes` and `Politiques`, computed by the core. */
+  problem: v.boolean(),
+  policy: v.boolean(),
+  details: v.nullable(DetailsViewSchema),
+})
+
+export const JournalViewSchema = v.strictObject({
+  entries: v.array(EntryViewSchema),
+})
+
+export const ExportOutcomeSchema = v.variant('status', [
+  v.strictObject({ status: v.literal('saved'), path: text }),
+  v.strictObject({ status: v.literal('cancelled') }),
+])
+
+export type EntryKind = v.InferOutput<typeof EntryKindSchema>
+export type CallStatus = v.InferOutput<typeof CallStatusSchema>
+export type MaskedKind = v.InferOutput<typeof MaskedKindSchema>
+export type MaskedView = v.InferOutput<typeof MaskedViewSchema>
+export type DetailsView = v.InferOutput<typeof DetailsViewSchema>
+export type JournalEntry = v.InferOutput<typeof EntryViewSchema>
+export type JournalView = v.InferOutput<typeof JournalViewSchema>
+export type ExportOutcome = v.InferOutput<typeof ExportOutcomeSchema>
+
+/** The entries of `get_journal`, or `null` if `value` is not exactly a journal. */
+export function parseJournal(value: unknown): JournalEntry[] | null {
+  const result = v.safeParse(JournalViewSchema, value)
+  return result.success ? result.output.entries : null
+}
+
+/** One entry of `journal-entry`, or `null`. */
+export function parseEntry(value: unknown): JournalEntry | null {
+  const result = v.safeParse(EntryViewSchema, value)
+  return result.success ? result.output : null
+}
+
+/** The answer of `export_diagnostic`, or `null`. */
+export function parseExportOutcome(value: unknown): ExportOutcome | null {
+  const result = v.safeParse(ExportOutcomeSchema, value)
+  return result.success ? result.output : null
+}
+
 /** The snapshot, or `null` if `value` is not exactly one. */
 export function parseSnapshot(value: unknown): AppSnapshot | null {
   const result = v.safeParse(AppSnapshotSchema, value)

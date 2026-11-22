@@ -152,7 +152,7 @@
         "durationMs": 3,
         "environment": "prod",
         "kind": "call",
-        "mcp": "kubernetes-admin",
+        "mcp": "k8s-admin",
         "policy": true,
         "problem": false,
         "seq": 4,
@@ -259,7 +259,7 @@
           "session": null
         },
         "durationMs": 1,
-        "environment": "int",
+        "environment": "rec",
         "kind": "call",
         "mcp": "jira",
         "policy": true,
@@ -268,11 +268,11 @@
         "slow": false,
         "status": "blocked",
         "statusLabel": "bloqué",
-        "summary": "Claude Desktop → int_jira_add_comment : bloqué, 1 ms",
-        "tool": "int_jira_add_comment"
+        "summary": "Claude Desktop → rec_jira_add_comment : bloqué, 1 ms",
+        "tool": "rec_jira_add_comment"
       },
       {
-        "at": 1795356000000,
+        "at": 1795356100000,
         "client": null,
         "decision": null,
         "details": null,

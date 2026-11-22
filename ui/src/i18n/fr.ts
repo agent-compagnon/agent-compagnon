@@ -5,6 +5,16 @@ function plural(count: number, one: string, many: string): string {
   return `${String(count)} ${count <= 1 ? one : many}`
 }
 
+/** `5 000`: thousands separated, as French writes them. */
+function number(count: number): string {
+  return count.toLocaleString('fr-FR')
+}
+
+/** Like `plural`, with the thousands separated. */
+function many(count: number, one: string, several: string): string {
+  return `${number(count)} ${count <= 1 ? one : several}`
+}
+
 /** « DEV, INT et REC », « PROD », « » */
 export function list(items: readonly string[]): string {
   if (items.length <= 1) return items.join('')
@@ -27,9 +37,6 @@ export const fr = {
     connections: 'Connexions',
     mcp: 'MCP',
     journal: 'Journal',
-  },
-  shells: {
-    journal: 'Les appels et les événements de la passerelle apparaîtront ici.',
   },
   profile: {
     label: 'Profil',
@@ -223,6 +230,99 @@ export const fr = {
       noResult: (query: string) => `Aucun MCP ne correspond à « ${query} ».`,
       noRow: 'Aucun MCP dans cet environnement.',
     },
+  },
+  journal: {
+    kind: { call: 'appel', toolsChanged: "liste d'outils", panic: 'panic', event: 'événement' },
+    slow: 'lent',
+    slowHelp: 'Appel lent : son contenu est gardé pour comprendre ce qui a pris du temps.',
+    columns: {
+      time: 'Heure',
+      client: 'Client',
+      environment: 'Env.',
+      mcp: 'MCP',
+      tool: 'Outil',
+      status: 'Statut',
+      duration: 'Durée',
+    },
+    search: {
+      label: 'Rechercher dans le journal',
+      placeholder: 'Rechercher un client, un outil, un MCP, un statut…',
+      clear: 'Effacer la recherche',
+    },
+    filter: {
+      label: 'Environnement affiché',
+      all: 'Tous',
+      choice: (label: string, count: number) => `${label} · ${many(count, 'entrée', 'entrées')}`,
+    },
+    status: {
+      label: 'Statut affiché',
+      all: 'Tout',
+      problems: 'Problèmes',
+      policies: 'Politiques',
+      problemsHelp: 'Erreur, bloqué, lent, fuite masquée, délai dépassé, connexion requise, limite de débit, annulé.',
+      policiesHelp: 'Interdit, refusé, confirmation demandée, acceptée ou refusée, passerelle suspendue.',
+    },
+    live: {
+      live: 'En direct',
+      paused: 'En pause',
+      pause: 'Mettre le journal en pause',
+      resume: 'Reprendre le direct',
+    },
+    pending: (count: number) =>
+      count === 0
+        ? 'Aucune nouvelle entrée depuis la pause.'
+        : `${many(count, 'nouvelle entrée', 'nouvelles entrées')} depuis la pause.`,
+    showPending: 'Afficher',
+    count: (shown: number, total: number) =>
+      shown === total ? many(total, 'entrée', 'entrées') : `${number(shown)} sur ${many(total, 'entrée', 'entrées')}`,
+    limit: (limit: number) => `La fenêtre garde les ${number(limit)} entrées les plus récentes.`,
+    export: {
+      button: 'Exporter un diagnostic',
+      running: 'Export en cours…',
+      saved: 'Diagnostic exporté :',
+      // The core says « export de diagnostic impossible : accès refusé »: said once, as a sentence.
+      failed: (reason: string) =>
+        reason.startsWith('export de diagnostic impossible')
+          ? `E${reason.slice(1)}.`
+          : `Export de diagnostic impossible : ${reason}.`,
+      dismiss: 'Fermer',
+    },
+    row: {
+      show: (what: string) => `Afficher le détail : ${what}`,
+      hide: (what: string) => `Masquer le détail : ${what}`,
+    },
+    details: {
+      trace: 'Trace',
+      client: 'Client',
+      session: 'Session',
+      noSession: 'aucune',
+      policy: 'Politique',
+      noPolicy: 'non résolue',
+      masked: 'Masqué par le filtre',
+      maskedCount: (count: number, kinds: readonly string[]) =>
+        `${plural(count, 'valeur masquée', 'valeurs masquées')}${kinds.length > 0 ? ` (${kinds.join(', ')})` : ''}`,
+      request: 'Requête, filtrée',
+      response: 'Réponse, filtrée',
+    },
+    maskedKind: {
+      knownSecret: 'secret connu',
+      jwt: 'jeton JWT',
+      authorizationHeader: 'en-tête Authorization',
+      cookieHeader: 'cookie',
+      sensitiveField: 'champ sensible',
+      privateKey: 'clé privée',
+      urlCredentials: "identifiants d'URL",
+      other: 'autre',
+    },
+    empty: {
+      none: 'Aucune entrée pour le moment. Les appels des clients LLM et les événements de MCP Proxy apparaîtront ici.',
+      noResult: (query: string) => `Aucune entrée ne correspond à « ${query} ».`,
+      noMatch: 'Aucune entrée ne correspond à ces filtres.',
+      clear: 'Retirer les filtres',
+    },
+    loading: 'Lecture du journal…',
+    unavailable: "Le journal n'a pas pu être lu : MCP Proxy ne l'a pas transmis.",
+    invalid: "Le journal reçu de MCP Proxy est illisible : rien n'est affiché.",
   },
   basic: {
     attempt: (attempt: number, max: number) => `Essai ${String(attempt)} sur ${String(max)}`,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import journalExample from './journal.example.json'
 import example from './snapshot.example.json'
-import { parseSnapshot } from './types'
+import { parseEntry, parseExportOutcome, parseJournal, parseSnapshot } from './types'
 
 describe('contract of the snapshot', () => {
   // Exigence : EX-016-06
@@ -28,5 +29,49 @@ describe('contract of the snapshot', () => {
     Object.assign(kind.sessions[0]?.state ?? {}, { kind: 'connected' })
     expect(parseSnapshot(kind)).toBeNull()
     expect(parseSnapshot(null)).toBeNull()
+  })
+})
+
+describe('contract of the journal', () => {
+  // Exigence : EX-018-10
+  it('reads exactly the journal and the export answers written by the gateway', () => {
+    const entries = parseJournal(structuredClone(journalExample.getJournal))
+    expect(entries?.map((e) => e.seq)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    expect(entries?.map((e) => e.kind)).toEqual([
+      'call',
+      'call',
+      'call',
+      'call',
+      'call',
+      'call',
+      'call',
+      'toolsChanged',
+      'event',
+      'panic',
+    ])
+    // Every optional field of the fixture is filled at least once (see `journal_contract.rs`).
+    expect(entries?.some((e) => e.details?.policy !== null && e.details?.session !== null)).toBe(true)
+    expect(entries?.some((e) => e.details !== null && e.details.session === null)).toBe(true)
+    expect(entries?.some((e) => (e.details?.masked.kinds.length ?? 0) > 0)).toBe(true)
+    expect(entries?.some((e) => e.slow)).toBe(true)
+    expect(journalExample.exportDiagnostic.map((o) => parseExportOutcome(o)?.status)).toEqual(['saved', 'cancelled'])
+  })
+
+  // Exigence : EX-018-10
+  it('refuses an entry with a key more, a key less or a value of another type', () => {
+    const [first] = structuredClone(journalExample.getJournal.entries)
+    expect(parseEntry(first)).not.toBeNull()
+    expect(parseEntry({ ...first, secret: 'x' })).toBeNull()
+    expect(parseEntry({ ...first, status: 'exploded' })).toBeNull()
+    expect(parseEntry({ ...first, seq: '1' })).toBeNull()
+    const missing: Record<string, unknown> = { ...first }
+    delete missing.problem
+    expect(parseEntry(missing)).toBeNull()
+    const error = structuredClone(journalExample.getJournal.entries[1])
+    Object.assign(error?.details ?? {}, { token: 'x' })
+    expect(parseJournal({ entries: [error] })).toBeNull()
+    expect(parseJournal({ entries: [first], more: true })).toBeNull()
+    expect(parseExportOutcome({ status: 'saved' })).toBeNull()
+    expect(parseExportOutcome({ status: 'cancelled', path: 'C:\\x.zip' })).toBeNull()
   })
 })

@@ -1,19 +1,30 @@
 // The application's backend: the commands of the window `main` (declared in `app/build.rs`, granted by
-// `app/capabilities/main.json`) and the `snapshot-changed` event. A snapshot that is not exactly the expected shape
-// is refused rather than half shown.
+// `app/capabilities/main.json`) and the `snapshot-changed`, `journal-entry` and `journal-resync` events. A snapshot,
+// a journal or an entry that is not exactly the expected shape is refused rather than half shown.
 
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import type { Backend } from './backend'
-import { type AppSnapshot, parseSnapshot } from './types'
+import { type Backend, InvalidJournal } from './backend'
+import {
+  type AppSnapshot,
+  type ExportOutcome,
+  type JournalEntry,
+  parseExportOutcome,
+  parseEntry,
+  parseJournal,
+  parseSnapshot,
+} from './types'
 
 export const SNAPSHOT_CHANGED = 'snapshot-changed'
+export const JOURNAL_ENTRY = 'journal-entry'
+export const JOURNAL_RESYNC = 'journal-resync'
 
 export class InvalidSnapshot extends Error {
   constructor() {
     super('état illisible')
   }
 }
+
 
 function checked(value: unknown): AppSnapshot {
   const snapshot = parseSnapshot(value)
@@ -56,6 +67,30 @@ export const tauriBackend: Backend = {
   },
   async reloadMcp(environment, mcp) {
     await invoke('reload_mcp', { environment, mcp })
+  },
+  async getJournal(): Promise<JournalEntry[]> {
+    const entries = parseJournal(await invoke('get_journal'))
+    if (entries === null) throw new InvalidJournal()
+    return entries
+  },
+  async onJournal(listener) {
+    const stopEntries = await listen<unknown>(JOURNAL_ENTRY, (event) => {
+      const entry = parseEntry(event.payload)
+      // An entry that cannot be read is asked again with the whole journal, which then says it is unreadable.
+      listener(entry === null ? { type: 'resync' } : { type: 'entry', entry })
+    })
+    const stopResync = await listen<unknown>(JOURNAL_RESYNC, () => {
+      listener({ type: 'resync' })
+    })
+    return () => {
+      stopEntries()
+      stopResync()
+    }
+  },
+  async exportDiagnostic(): Promise<ExportOutcome> {
+    const outcome = parseExportOutcome(await invoke('export_diagnostic'))
+    if (outcome === null) throw new Error('réponse illisible')
+    return outcome
   },
 }
 

@@ -139,7 +139,7 @@ fn example_journal(clock: &ManualWallClock) -> Journal {
         45,
         3,
         "prod",
-        "kubernetes-admin",
+        "k8s-admin",
         "prod_k8s_delete_pod",
         CallStatus::Denied,
         Some((
@@ -186,9 +186,9 @@ fn example_journal(clock: &ManualWallClock) -> Journal {
         47,
         90,
         1,
-        "int",
+        "rec",
         "jira",
-        "int_jira_add_comment",
+        "rec_jira_add_comment",
         CallStatus::Blocked,
         Some((
             Decision::Confirm(Channel::Elicitation),
@@ -199,6 +199,7 @@ fn example_journal(clock: &ManualWallClock) -> Journal {
     );
     blocked.session = None;
     journal.record_call(blocked);
+    clock.set(at(100));
     journal.record_tool_changes(
         &EnvId::new("dev").unwrap(),
         &McpId::new("gitlab-ops").unwrap(),
@@ -206,7 +207,7 @@ fn example_journal(clock: &ManualWallClock) -> Journal {
         &[],
         &[ToolName::new("retry_job").unwrap()],
     );
-    clock.advance(Duration::from_secs(120));
+    clock.set(at(120));
     journal.record_event(tracing::Level::INFO, "environnement « PROD » exposé par l'utilisateur");
     journal.record_panic("crates/gateway/src/server/mod.rs:120:9", "index hors limites");
     journal

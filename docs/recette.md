@@ -264,6 +264,34 @@ Appli compilée sous Windows, profil « Développeur » (DEV, INT et REC exposé
   injoignable montre « injoignable » en rouge et sa dernière erreur dans la ligne dépliée, « Recharger la liste »
   relance la lecture. Exposer tous les environnements : le compteur passe à l'orange au-delà de 100 outils.
 
+## 018 — ui — onglet Journal
+
+Préparation : l'appli de la spec 011, un client LLM (Claude Desktop ou VS Code) branché sur le pont, le profil
+« Développeur » avec PROD exposé (onglet MCP), une session active en DEV. Ouvrir l'onglet Journal ; la console de
+la fenêtre (compilation de débogage) doit rester sans erreur de CSP pendant toute la section. Un secret de test
+connu (le mot de passe d'une session Basic, par exemple) sert à vérifier qu'il n'apparaît nulle part.
+
+- [ ] **EX-018-07** — Depuis le client : un appel de lecture en DEV (`dev_kibana_search_logs`) apparaît aussitôt en
+  tête avec « réussi » et sa durée, sans chevron ; un appel destructif refusé par la politique
+  (`prod_k8s_delete_pod`) apparaît « interdit », en noir et blanc ; un appel qui dure plus de 5 s (requête large sur
+  Kibana, ou serveur ralenti) apparaît avec la marque « lent » ; un appel dont les arguments contiennent le secret
+  de test apparaît « bloqué ». Les filtres « Problèmes » (lent, bloqué) et « Politiques » (interdit) les
+  retrouvent ; la recherche « kibána » trouve l'appel de Kibana Logs.
+- [ ] **EX-018-08** — La ligne « bloqué » se déplie : trace, client, session, politique ; la requête montre
+  `[SECRET MASQUÉ]` à la place du secret de test, qui n'apparaît ni dans la ligne, ni dans le détail, ni dans la
+  recherche (le chercher ne trouve rien).
+- [ ] **EX-018-09** — « Exporter un diagnostic », enregistrer : le message donne le chemin ; ouvrir l'archive avec
+  l'Explorateur : `LISEZMOI.txt`, `version.txt`, `systeme.txt` (version de Windows et de WebView2),
+  `config.txt`, `reglages.json`, `instances.txt` et `logs\mcp-proxy-*.log` ; rechercher le secret de test dans
+  tous les fichiers (`findstr /s /i` sur le dossier extrait) : aucun résultat.
+- [ ] **EX-018-13** — En clair puis en sombre (réglage de Windows) : les entrées arrivent en direct ; « En
+  direct » passe à « En pause », la liste ne bouge plus et « 2 nouvelles entrées depuis la pause. » s'affiche après
+  deux appels ; « Afficher » les met en tête. Les infobulles « Problèmes », « Politiques » et « lent », et le menu
+  de l'environnement, s'ouvrent sans erreur de CSP. « Exporter un diagnostic » ouvre le dialogue de Windows devant
+  la fenêtre, sur « Téléchargements », avec le nom `mcp-proxy-diagnostic-AAAAMMJJ-HHMM.zip` ; « Annuler » ne montre
+  rien ; un emplacement sans droit d'écriture (`C:\Windows`) donne un bandeau rouge « Export de diagnostic
+  impossible : accès refusé. » et aucun fichier.
+
 ## 025 — Module MCP local d'exemple (`jira-local`)
 
 À dérouler quand l'appli (spec 011) et les fenêtres de saisie Basic (spec 012) existent, avec une config dont

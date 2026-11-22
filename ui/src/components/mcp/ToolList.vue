@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { fr } from '@/i18n/fr'
 import DecisionIcon from './DecisionIcon.vue'
-import HighlightedText from './HighlightedText.vue'
+import HighlightedText from '@/components/common/HighlightedText.vue'
 import type { McpRow } from './model'
 
 // The tools of an unfolded row: all of them, or those the search found (their matching words highlighted). New and

@@ -3,11 +3,20 @@
 // `scripts/check-dist.mjs` fails the build if it does.
 //
 // Its data is the snapshot of the example configuration written by the gateway (`snapshot.example.json`), reshaped
-// by scenario. Choose one with `?scenario=…`.
+// by scenario, and a journal made from the example entries (`journal.example.json`) and generated calls. Choose a
+// scenario with `?scenario=…`.
 
-import type { Backend } from './backend'
+import type { Backend, JournalEvent } from './backend'
+import { EXAMPLE_SPAN_MS, eventEntry, generatedCall, withExamples, workingDay } from './mock-journal'
 import example from './snapshot.example.json'
-import { type AppSnapshot, type McpView, type SessionStateView, type ToolView, parseSnapshot } from './types'
+import {
+  type AppSnapshot,
+  type JournalEntry,
+  type McpView,
+  type SessionStateView,
+  type ToolView,
+  parseSnapshot,
+} from './types'
 
 /** Marker searched for in the application's build by `scripts/check-dist.mjs`. */
 export const MOCK_MARKER = 'mcp-proxy-simulated-backend'
@@ -24,12 +33,22 @@ export const SCENARIOS = [
   'seuil',
   'volumineux',
   'rien-expose',
+  'journal-direct',
+  'journal-volumineux',
+  'journal-vide',
+  'export-echec',
+  'export-annule',
 ] as const
 
 export type Scenario = (typeof SCENARIOS)[number]
 
 const HOUR = 3_600_000
 const LOGIN_DELAY_MS = 1500
+/** A new call in `journal-direct`. */
+export const LIVE_PERIOD_MS = 1200
+const EXPORT_DELAY_MS = 600
+/** Entries of `journal-volumineux`: as many as the window keeps. */
+export const LARGE_JOURNAL = 5000
 
 function base(): AppSnapshot {
   const snapshot = parseSnapshot(structuredClone(example))
@@ -169,7 +188,31 @@ export function scenario(name: Scenario, now: number): AppSnapshot {
       snapshot.environments = snapshot.environments.map((e) => ({ ...e, exposed: false }))
       return snapshot
     }
+    case 'journal-direct':
+    case 'journal-volumineux':
+    case 'journal-vide':
+    case 'export-echec':
+    case 'export-annule':
+      return working(now)
   }
+}
+
+/** The journal of a scenario as `get_journal` first gives it, oldest first. */
+export function journalOf(name: Scenario, now: number): JournalEntry[] {
+  switch (name) {
+    case 'journal-vide':
+      return []
+    case 'journal-volumineux':
+      return withExamples(workingDay(LARGE_JOURNAL - 10, now - EXAMPLE_SPAN_MS, 9000), now)
+    default:
+      return withExamples(workingDay(50, now - EXAMPLE_SPAN_MS), now)
+  }
+}
+
+/** `mcp-proxy-diagnostic-AAAAMMJJ-HHMM.zip`, in UTC like the core. */
+function archiveName(at: number): string {
+  const iso = new Date(at).toISOString()
+  return `mcp-proxy-diagnostic-${iso.slice(0, 10).replaceAll('-', '')}-${iso.slice(11, 16).replace(':', '')}.zip`
 }
 
 /** Two tools listed by the server since the last visit, unknown to the configuration. */
@@ -358,6 +401,26 @@ export function scenarioOf(search: string): Scenario {
 export function createMockBackend(name: Scenario, clock: () => number = Date.now): Backend {
   let current = initialSnapshot(name, clock())
   const listeners = new Set<(snapshot: AppSnapshot) => void>()
+  const journal = journalOf(name, clock())
+  const journalListeners = new Set<(event: JournalEvent) => void>()
+
+  function record(entry: JournalEntry) {
+    journal.push(entry)
+    if (journal.length > LARGE_JOURNAL) journal.splice(0, journal.length - LARGE_JOURNAL)
+    for (const listener of journalListeners) listener({ type: 'entry', entry: structuredClone(entry) })
+  }
+  const nextSeq = () => (journal[journal.length - 1]?.seq ?? 0) + 1
+  function recordEvent(summary: string) {
+    record(eventEntry(nextSeq(), clock(), summary))
+  }
+  if (name === 'journal-direct') {
+    setInterval(() => {
+      const seq = nextSeq()
+      record(generatedCall(seq + 7919, seq, clock()))
+    }, LIVE_PERIOD_MS)
+  }
+  const label = (items: readonly { id: string; label: string }[], id: string) =>
+    items.find((i) => i.id === id)?.label ?? id
 
   function publish(change: (snapshot: AppSnapshot) => void) {
     const next = structuredClone(current)
@@ -417,6 +480,7 @@ export function createMockBackend(name: Scenario, clock: () => number = Date.now
         const pending = s.pendingConfirmations
         const suspended = s.gatewaySuspended
         withProfile(s, profile)
+        recordEvent(`profil « ${label(s.profile.choices, profile)} » choisi par l'utilisateur`)
         s.sessions = sessions
         s.alerts = alerts
         s.pendingConfirmations = pending
@@ -428,6 +492,7 @@ export function createMockBackend(name: Scenario, clock: () => number = Date.now
       publish((s) => {
         s.gatewaySuspended = false
       })
+      recordEvent("passerelle reprise par l'utilisateur")
       return Promise.resolve()
     },
     showConfirmations() {
@@ -442,6 +507,8 @@ export function createMockBackend(name: Scenario, clock: () => number = Date.now
       publish((s) => {
         s.environments = s.environments.map((e) => (e.id === environment ? { ...e, exposed } : e))
       })
+      const env = label(current.environments, environment)
+      recordEvent(`environnement « ${env} » ${exposed ? 'exposé' : 'retiré'} par l'utilisateur`)
       return Promise.resolve()
     },
     setMcpExposed(mcp, exposed) {
@@ -449,6 +516,7 @@ export function createMockBackend(name: Scenario, clock: () => number = Date.now
       publish((s) => {
         s.mcps = s.mcps.map((m) => (m.id === mcp ? { ...m, disabled: !exposed } : m))
       })
+      recordEvent(`MCP « ${label(current.mcps, mcp)} » ${exposed ? 'rétabli' : 'coupé'} par l'utilisateur`)
       return Promise.resolve()
     },
     acknowledgeMcpUpdate(environment, mcp) {
@@ -476,6 +544,30 @@ export function createMockBackend(name: Scenario, clock: () => number = Date.now
             target.refreshedAt = clock()
           }
         })
+      })
+    },
+    getJournal() {
+      return Promise.resolve(structuredClone(journal))
+    },
+    onJournal(listener) {
+      journalListeners.add(listener)
+      return Promise.resolve(() => journalListeners.delete(listener))
+    },
+    exportDiagnostic() {
+      // The save dialog belongs to the application: the simulation answers as if a path had been chosen.
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          if (name === 'export-annule') {
+            resolve({ status: 'cancelled' })
+          } else if (name === 'export-echec') {
+            const reason = 'export de diagnostic impossible : accès refusé'
+            recordEvent(reason)
+            reject(new Error(reason))
+          } else {
+            recordEvent("diagnostic exporté par l'utilisateur")
+            resolve({ status: 'saved', path: `C:\\Users\\exemple\\Downloads\\${archiveName(clock())}` })
+          }
+        }, EXPORT_DELAY_MS)
       })
     },
   }
