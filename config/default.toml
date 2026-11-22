@@ -1,0 +1,370 @@
+# Configuration embarquée de MCP Proxy.
+#
+# Données d'exemple : tous les hôtes sont fictifs (*.example.internal). Les clés sont en anglais ASCII (S13).
+# Toute modification est validée strictement au démarrage : voir mcp_proxy_core::config.
+
+schema_version = 1
+
+[gateway]
+call_budget_secs = 50
+confirmation_timeout_secs = 30
+auth_timeout_secs = 45
+upstream_timeout_secs = 120
+slow_call_threshold_secs = 5
+tool_name_max_len = 64
+exposed_tools_warning_threshold = 100
+refresh_interval_secs = 300
+list_ttl_secs = 60
+elicitation_clients = []            # valeurs de clientInfo.name jugées fiables pour le canal elicitation
+
+[trace]
+ring_capacity = 500
+ring_max_bytes = 33554432
+log_retention_days = 7
+
+[webview]
+profile = "in_memory"               # in_memory | ephemeral_disk
+os_primary_account_sso = false
+
+[update]
+base_url = "https://artifactory.example.internal/artifactory"
+repository = "generic-release-local"
+path = "mcp-proxy"
+check_interval_hours = 6
+
+# --- Environnements ------------------------------------------------------------------------------------------------
+
+[[environments]]
+id = "dev"
+label = "DEV"
+description = "Développement"
+
+[[environments]]
+id = "int"
+label = "INT"
+description = "Intégration"
+
+[[environments]]
+id = "qua"
+label = "QUA"
+description = "Qualification"
+
+[[environments]]
+id = "rec"
+label = "REC"
+description = "Recette"
+
+[[environments]]
+id = "perf"
+label = "PERF"
+description = "Performance"
+
+[[environments]]
+id = "pprod"
+label = "PPROD"
+description = "Préproduction"
+sensitive = true
+
+[[environments]]
+id = "prod"
+label = "PROD"
+description = "Production"
+sensitive = true
+
+[[environments]]
+id = "pra"
+label = "PRA"
+description = "Plan de reprise d'activité"
+sensitive = true
+
+# --- Sessions globales ---------------------------------------------------------------------------------------------
+
+[[sessions]]
+id = "sso-corp"
+label = "SSO Entreprise"
+scope = "global"                    # global | env
+[sessions.auth]
+method = "jwt_header"               # jwt_header | cookie | basic
+login_url = "https://portal.example.internal/"
+capture_url_pattern = "https://api.example.internal/*"
+capture_header = "Authorization"
+capture_scheme = "Bearer"
+expected_audience = "api://internal"
+allowed_navigation = ["portal.example.internal", "login.example.internal"]
+max_ttl_hours = 24
+
+[[sessions]]
+id = "sso-tools"
+label = "SSO Outils"
+scope = "global"
+[sessions.auth]
+method = "basic"
+ttl_hours = 8
+probe_url = "https://jira.example.internal/rest/api/2/myself"
+
+# --- Sessions d'environnement (une par environnement) --------------------------------------------------------------
+
+[[sessions]]
+id = "sso-dev"
+label = "SSO DEV"
+scope = "env"
+environment = "dev"
+[sessions.auth]
+method = "cookie"
+login_url = "https://sso.dev.example.internal/login"
+cookie_url = "https://apps.dev.example.internal/"
+cookie_names = ["SESSION"]
+success_url_pattern = "https://apps.dev.example.internal/*"
+allowed_navigation = ["sso.dev.example.internal", "apps.dev.example.internal"]
+ttl_hours = 8
+
+[[sessions]]
+id = "sso-int"
+label = "SSO INT"
+scope = "env"
+environment = "int"
+[sessions.auth]
+method = "cookie"
+login_url = "https://sso.int.example.internal/login"
+cookie_url = "https://apps.int.example.internal/"
+cookie_names = ["SESSION"]
+success_url_pattern = "https://apps.int.example.internal/*"
+allowed_navigation = ["sso.int.example.internal", "apps.int.example.internal"]
+ttl_hours = 8
+
+[[sessions]]
+id = "sso-qua"
+label = "SSO QUA"
+scope = "env"
+environment = "qua"
+[sessions.auth]
+method = "cookie"
+login_url = "https://sso.qua.example.internal/login"
+cookie_url = "https://apps.qua.example.internal/"
+cookie_names = ["SESSION"]
+success_url_pattern = "https://apps.qua.example.internal/*"
+allowed_navigation = ["sso.qua.example.internal", "apps.qua.example.internal"]
+ttl_hours = 8
+
+[[sessions]]
+id = "sso-rec"
+label = "SSO REC"
+scope = "env"
+environment = "rec"
+[sessions.auth]
+method = "cookie"
+login_url = "https://sso.rec.example.internal/login"
+cookie_url = "https://apps.rec.example.internal/"
+cookie_names = ["SESSION"]
+success_url_pattern = "https://apps.rec.example.internal/*"
+allowed_navigation = ["sso.rec.example.internal", "apps.rec.example.internal"]
+ttl_hours = 8
+
+[[sessions]]
+id = "sso-perf"
+label = "SSO PERF"
+scope = "env"
+environment = "perf"
+[sessions.auth]
+method = "cookie"
+login_url = "https://sso.perf.example.internal/login"
+cookie_url = "https://apps.perf.example.internal/"
+cookie_names = ["SESSION"]
+success_url_pattern = "https://apps.perf.example.internal/*"
+allowed_navigation = ["sso.perf.example.internal", "apps.perf.example.internal"]
+ttl_hours = 8
+
+[[sessions]]
+id = "sso-pprod"
+label = "SSO PPROD"
+scope = "env"
+environment = "pprod"
+[sessions.auth]
+method = "cookie"
+login_url = "https://sso.pprod.example.internal/login"
+cookie_url = "https://apps.pprod.example.internal/"
+cookie_names = ["SESSION"]
+success_url_pattern = "https://apps.pprod.example.internal/*"
+allowed_navigation = ["sso.pprod.example.internal", "apps.pprod.example.internal"]
+ttl_hours = 8
+
+[[sessions]]
+id = "sso-prod"
+label = "SSO PROD"
+scope = "env"
+environment = "prod"
+[sessions.auth]
+method = "cookie"
+login_url = "https://sso.prod.example.internal/login"
+cookie_url = "https://apps.prod.example.internal/"
+cookie_names = ["SESSION"]
+success_url_pattern = "https://apps.prod.example.internal/*"
+allowed_navigation = ["sso.prod.example.internal", "apps.prod.example.internal"]
+ttl_hours = 8
+
+[[sessions]]
+id = "sso-pra"
+label = "SSO PRA"
+scope = "env"
+environment = "pra"
+[sessions.auth]
+method = "cookie"
+login_url = "https://sso.pra.example.internal/login"
+cookie_url = "https://apps.pra.example.internal/"
+cookie_names = ["SESSION"]
+success_url_pattern = "https://apps.pra.example.internal/*"
+allowed_navigation = ["sso.pra.example.internal", "apps.pra.example.internal"]
+ttl_hours = 8
+
+# --- MCP -----------------------------------------------------------------------------------------------------------
+
+[[mcp]]
+id = "kibana-logs"
+alias = "kibana"
+label = "Kibana Logs"
+kind = "remote"                     # remote | local
+session = "env"                     # "env" = SSO de l'environnement de l'instance, sinon id d'une session globale
+list_requires_auth = true
+rate_limit = { per_minute = 60, burst = 10 }
+[mcp.instances]
+dev = { url = "https://kibana-mcp.dev.example.internal/mcp" }
+int = { url = "https://kibana-mcp.int.example.internal/mcp" }
+qua = { url = "https://kibana-mcp.qua.example.internal/mcp" }
+rec = { url = "https://kibana-mcp.rec.example.internal/mcp" }
+perf = { url = "https://kibana-mcp.perf.example.internal/mcp" }
+pprod = { url = "https://kibana-mcp.pprod.example.internal/mcp" }
+prod = { url = "https://kibana-mcp.prod.example.internal/mcp" }
+pra = { url = "https://kibana-mcp.pra.example.internal/mcp" }
+[mcp.tools]
+search_logs = { category = "read" }
+get_log_entry = { category = "read" }
+list_indices = { category = "read" }
+delete_index = { category = "destructive" }
+
+[[mcp]]
+id = "gitlab-ops"
+alias = "gitlab"
+label = "GitLab Ops"
+kind = "remote"
+session = "sso-corp"
+rate_limit = { per_minute = 120, burst = 20 }
+[mcp.instances]
+dev = { url = "https://gitlab-mcp.dev.example.internal/mcp" }
+rec = { url = "https://gitlab-mcp.rec.example.internal/mcp" }
+prod = { url = "https://gitlab-mcp.example.internal/mcp" }
+[mcp.tools]
+list_pipelines = { category = "read" }
+get_job_log = { category = "read" }
+retry_job = { category = "write" }
+cancel_pipeline = { category = "write" }
+delete_branch = { category = "destructive" }
+
+[[mcp]]
+id = "k8s-admin"
+alias = "k8s"
+label = "Kubernetes Admin"
+kind = "remote"
+session = "env"
+list_requires_auth = true
+rate_limit = { per_minute = 30, burst = 5 }
+[mcp.instances]
+dev = { url = "https://k8s-mcp.dev.example.internal/mcp" }
+int = { url = "https://k8s-mcp.int.example.internal/mcp" }
+rec = { url = "https://k8s-mcp.rec.example.internal/mcp" }
+perf = { url = "https://k8s-mcp.perf.example.internal/mcp" }
+pprod = { url = "https://k8s-mcp.pprod.example.internal/mcp" }
+prod = { url = "https://k8s-mcp.prod.example.internal/mcp" }
+pra = { url = "https://k8s-mcp.pra.example.internal/mcp" }
+[mcp.tools]
+list_pods = { category = "read" }
+get_pod_logs = { category = "read" }
+scale_deployment = { category = "write" }
+restart_deployment = { category = "write" }
+delete_pod = { category = "destructive" }
+
+[[mcp]]
+id = "db-readonly"
+alias = "db"
+label = "Base de données (lecture)"
+kind = "remote"
+session = "sso-corp"
+rate_limit = { per_minute = 30, burst = 5 }
+[mcp.instances]
+int = { url = "https://db-mcp.int.example.internal/mcp" }
+rec = { url = "https://db-mcp.rec.example.internal/mcp" }
+pprod = { url = "https://db-mcp.pprod.example.internal/mcp" }
+prod = { url = "https://db-mcp.prod.example.internal/mcp" }
+[mcp.tools]
+list_tables = { category = "read" }
+describe_table = { category = "read" }
+run_select = { category = "read" }
+
+[[mcp]]
+id = "jira"
+alias = "jira"
+label = "Jira"
+kind = "local"
+module = "jira-local"
+session = "sso-tools"
+rate_limit = { per_minute = 60, burst = 10 }
+[mcp.instances]
+rec = { base_url = "https://jira.example.internal" }
+prod = { base_url = "https://jira.example.internal" }
+[mcp.tools]
+search_issues = { category = "read" }
+get_issue = { category = "read" }
+add_comment = { category = "write" }
+
+# --- Politique de base ---------------------------------------------------------------------------------------------
+# Arbre : racine → env → mcp → tool. Sévérité : allow < confirm (elicitation) < confirm (notification) < deny.
+
+[policy]
+default = { decision = "confirm", channel = "notification" }
+read = { decision = "allow" }
+destructive = { decision = "deny" }
+
+[policy.env.pprod]
+write = { decision = "confirm", channel = "notification", locked = true }
+
+[policy.env.prod]
+write = { decision = "confirm", channel = "notification", locked = true }
+
+[policy.env.prod.mcp.kibana-logs.tool.delete_index]
+rule = { decision = "deny", locked = true }
+
+[policy.env.prod.mcp.k8s-admin]
+destructive = { decision = "deny", locked = true }
+
+[policy.env.prod.mcp.db-readonly.tool.run_select]
+rule = { decision = "confirm", channel = "notification" }
+
+# --- Profils -------------------------------------------------------------------------------------------------------
+
+[profiles.developpeur]
+label = "Développeur"
+default_environments = ["dev", "int", "rec"]
+unknown_tools = "confirm"           # confirm (notification obligatoire) | deny
+
+[profiles.developpeur.policy.env.dev]
+default = { decision = "allow" }
+
+[profiles.developpeur.policy.env.rec]
+default = { decision = "allow" }
+
+[profiles.support]
+label = "Support"
+default_environments = ["rec", "pprod", "prod"]
+unknown_tools = "confirm"
+
+[profiles.support.policy.env.prod.mcp.k8s-admin]
+write = { decision = "deny" }
+
+[profiles.lecture-seule]
+label = "Lecture seule"
+strictest = true                    # profil de repli quand les réglages sont invalides
+default_environments = ["rec"]
+unknown_tools = "deny"
+
+[profiles.lecture-seule.policy]
+write = { decision = "deny", locked = true }
+destructive = { decision = "deny", locked = true }

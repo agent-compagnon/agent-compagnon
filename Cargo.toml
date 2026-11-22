@@ -28,6 +28,12 @@ license = "LicenseRef-Proprietary"
 publish = false
 
 [workspace.dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_path_to_error = "0.1.20"
+sha2 = "0.11.1"
+thiserror = "2.0.21"
+toml = "1.2.2"
+url = "2.5.9"
 
 [workspace.lints.rust]
 unsafe_code = "deny"
