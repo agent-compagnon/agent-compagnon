@@ -6,3 +6,4 @@ pub mod naming;
 pub mod platform;
 pub mod policy;
 pub mod secrets;
+pub mod settings;

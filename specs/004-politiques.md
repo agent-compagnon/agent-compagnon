@@ -2,7 +2,7 @@
 id: "004"
 titre: "core — moteur de politiques, profils et durcissement"
 etape: "2c"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["001"]
 suivi: "github#5"
 ---
@@ -59,7 +59,8 @@ La résolution est totale : la validation de la config impose une règle racine 
 elle (hors validation) et sans aucune candidate donne `Deny` (échec fermé, INV-5).
 
 API : `PolicyEngine::new(&Config, &Profile, &PolicyTree)` puis
-`resolve(env, mcp, outil, annotations: Option<&ToolAnnotations>) -> Resolution`.
+`resolve(env, mcp, outil, annotations: Option<&ToolAnnotations>) -> Resolution`. `UserSettings::engine(&Config)`
+construit le moteur du profil en vigueur.
 
 Exemples à couvrir tels quels :
 
@@ -112,9 +113,26 @@ journal et l'infobulle « politique » de l'onglet MCP. Prévoir un rendu texte 
 - Profils issus de la config : `label`, `default_environments`, `unknown_tools`, `strictest`, arbre de règles.
 - `core::settings::UserSettings` : profil choisi (absent au premier lancement), environnements exposés, MCP coupés,
   arbre de durcissement, options (`autostart`, `beta_channel`, `gateway_suspended`), `schema_version`.
+  Les options sont des champs directs (`UserSettings::autostart`…), comme les citent les specs 015, 019 et 020.
+  Un MCP coupé l'est dans tous les environnements (`disabled_mcp: BTreeSet<McpId>`). Aucun secret.
 - Trait `SettingsStore { load, save }` et une implémentation fichier JSON simple (chemin injecté). Le scellement
   vient en 5d.
-- Tant qu'aucun profil n'est choisi : profil `strictest` et aucun environnement exposé.
+  - `load()` n'échoue jamais : il renvoie `LoadedSettings { settings, origin }`, `origin` valant `Stored`, `Missing`
+    (premier lancement) ou `Reset(erreur)` (fichier illisible, JSON non conforme, champ manquant ou inconnu,
+    identifiant invalide, version de schéma autre que 1, fichier de plus de 1 Mio). Hors `Stored`, les réglages
+    sont `UserSettings::default()`, les plus stricts : aucun profil, rien d'exposé, aucune option. `Reset`
+    permet à l'appli de prévenir l'utilisateur (5d).
+  - Les messages d'erreur, en français, ne citent aucune valeur du fichier (seulement une position ou un
+    identifiant déjà validé).
+  - `save()` écrit un fichier temporaire voisin puis le renomme.
+  - Format : les champs de `UserSettings`, l'arbre `hardening` ayant la forme des arbres de la config (`default`,
+    `read`, `write`, `destructive`, `env.<id>.mcp.<id>.tool.<nom>.rule`), règles sans `locked`. Les règles visant un
+    environnement, un MCP ou un outil inconnus de la config sont gardées : elles ne peuvent que durcir.
+- Tant qu'aucun profil n'est choisi : profil `strictest` et aucun environnement exposé. De même si le profil choisi
+  n'existe plus dans la config. Les environnements exposés inconnus de la config sont ignorés
+  (`UserSettings::active_profile`, `UserSettings::exposed_environments`).
+- `UserSettings::choose_profile` : les environnements exposés reviennent aux `default_environments` du profil, les
+  durcissements sont conservés (spec 016).
 - `PolicyEngine::summary(env, mcp)` : politique « par défaut » d'un MCP à afficher dans le tableau (décision pour
   chaque catégorie). C'est la décision pour un outil déclaré de cette catégorie sans règle d'outil, durcissement
   utilisateur compris, avec sa provenance.
@@ -137,6 +155,9 @@ journal et l'infobulle « politique » de l'onglet MCP. Prévoir un rendu texte 
   candidate ; quand le plancher relève la gagnante, c'est une règle que la validation (I1.21) ne pouvait pas
   refuser ; une règle que seul le plancher corrigerait dans la même couche est refusée au chargement.
 - **EX-004-10** — `summary` : une décision par catégorie, durcissement compris, règles d'outil ignorées.
+- **EX-004-11** — Réglages : profil choisi absent de la config → profil `strictest` et aucun environnement exposé ; changer de
+  profil expose ses `default_environments` et garde les durcissements ; un environnement inconnu n'est pas exposé.
+- **EX-004-12** — Les erreurs de chargement des réglages ne citent aucune valeur du fichier.
 
 ## Vérification
 
@@ -148,7 +169,7 @@ Exécution des confirmations (3c et 5c). Scellement des réglages (5d).
 
 ## Amendements
 
-- **2026-11-22** — Implémentation (I004.1 à I004.9). Écarts par rapport au texte initial, reportés ci-dessus ; la
+- **2026-11-22** — Implémentation (I004.1 à I004.13). Écarts par rapport au texte initial, reportés ci-dessus ; la
   sémantique de la résolution (D5, D6) est inchangée :
   - `Decision::Confirm(channel)` (type existant de l'étape 1) au lieu de `Confirm { channel }` ;
   - précisions de déterminisme et d'échec fermé : plancher à sévérité égale départagé par la précision, `Deny` sans
@@ -160,4 +181,8 @@ Exécution des confirmations (3c et 5c). Scellement des réglages (5d).
     large (test `a_more_precise_user_rule_replaces_a_broader_one`), sans jamais descendre sous la config ;
   - les exemples 3 et 4 ne s'écrivent pas tels quels dans une config valide (I1.21) : ils sont testés sur des
     arbres construits en mémoire ;
-  - critères ajoutés : `EX-004-09` (cohérence avec la validation), `EX-004-10` (`summary`).
+  - réglages : options en champs directs, MCP coupés pour tous les environnements, `load` sans échec avec origine
+    (`Stored`, `Missing`, `Reset`), profil disparu traité comme absent, `choose_profile`, limite de taille, format
+    JSON de l'arbre de durcissement sans `locked` ;
+  - critères ajoutés : `EX-004-09` (cohérence avec la validation), `EX-004-10` (`summary`), `EX-004-11` (profil en
+    vigueur et environnements exposés), `EX-004-12` (erreurs sans contenu du fichier).
