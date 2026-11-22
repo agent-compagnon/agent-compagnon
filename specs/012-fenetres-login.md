@@ -2,7 +2,7 @@
 id: "012"
 titre: "app — fenêtres de login WebView2 (JWT, cookie, Basic), profil InPrivate"
 etape: "5b"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["010", "011"]
 suivi: "github#13"
 ---
