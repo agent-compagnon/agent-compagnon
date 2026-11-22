@@ -764,7 +764,7 @@ fn origins_are_per_session() {
 
 #[test]
 fn guard_from_embedded_config() {
-    let config = Config::embedded().unwrap();
+    let config = Config::embedded(crate::config::TEST_MODULES).unwrap();
     let guard = OriginGuard::from_config(&config);
     let tools = sid("sso-tools");
     let url = |u: &str| Url::parse(u).unwrap();
@@ -1026,4 +1026,125 @@ fn client_requires_a_known_session() {
         AuthenticatedHttpClient::new(sid("sso-prod"), store, guard, Duration::from_secs(5)).unwrap_err(),
         SecretError::UnknownSession(sid("sso-prod"))
     );
+}
+
+// --- Client given to local modules (spec 025) --------------------------------------------------------------------------
+
+fn gate_client(
+    session: &SessionId,
+    store: &Arc<SecretStore>,
+    origins: &[&str],
+) -> (AuthenticatedHttpClient, RejectionCounter) {
+    let gate: Arc<dyn crate::session::SessionGate> = Arc::new(crate::session::StoreSessionGate::new(
+        Arc::clone(store),
+        Arc::new(guard_for(session, origins)),
+    ));
+    AuthenticatedHttpClient::through_gate(session.clone(), gate, Duration::from_secs(5)).unwrap()
+}
+
+// Exigence : EX-025-07
+#[tokio::test]
+async fn a_narrowed_client_refuses_the_other_origins_of_its_session_before_sending() {
+    let declared = TestServer::start(ok_response("")).await;
+    let other = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let other_origin = format!("http://{}", other.local_addr().unwrap());
+    let s = sid("sso-tools");
+    let store = Arc::new(store());
+    store.put(&s, basic("jdoe", SENTINEL)).unwrap();
+    let (client, _) = gate_client(&s, &store, &[&declared.origin(), &other_origin]);
+    let client = client
+        .only_towards(Origin::of(&declared.url("/")).unwrap())
+        // Narrowing again cannot widen nor move it.
+        .only_towards(Origin::of(&Url::parse(&other_origin).unwrap()).unwrap());
+
+    let error = client
+        .execute(client.request(Method::GET, Url::parse(&format!("{other_origin}/x")).unwrap()))
+        .await
+        .unwrap_err();
+    assert!(matches!(error, SecretError::OriginNotAllowed { .. }), "{error:?}");
+    assert!(!format!("{error} {error:?}").contains(SENTINEL));
+    assert_no_connection(&other).await;
+
+    let response = client
+        .execute(client.request(Method::GET, declared.url("/ok")))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(declared.requests().len(), 1);
+}
+
+// Exigence : EX-025-10
+#[tokio::test]
+async fn trace_and_connect_are_refused_before_sending() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let s = sid("sso-tools");
+    let store = Arc::new(store());
+    store.put(&s, bearer(SENTINEL)).unwrap();
+    let (client, _) = gate_client(&s, &store, &[&origin]);
+    for method in [Method::TRACE, Method::CONNECT] {
+        let url = Url::parse(&format!("{origin}/")).unwrap();
+        let error = client.execute(client.request(method.clone(), url)).await.unwrap_err();
+        assert_eq!(
+            error,
+            SecretError::MethodNotAllowed {
+                method: method.as_str().to_owned()
+            }
+        );
+    }
+    assert_no_connection(&listener).await;
+}
+
+// Exigence : EX-025-10
+#[tokio::test]
+async fn a_refusal_of_the_server_marks_the_secret_sent_rejected() {
+    for status in ["401 Unauthorized", "403 Forbidden"] {
+        let server = TestServer::start(format!(
+            "HTTP/1.1 {status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        ))
+        .await;
+        let s = sid("sso-tools");
+        let store = Arc::new(store());
+        store.put(&s, bearer(SENTINEL)).unwrap();
+        let (client, rejections) = gate_client(&s, &store, &[&server.origin()]);
+        assert_eq!(rejections.count(), 0);
+
+        let response = client
+            .execute(client.request(Method::GET, server.url("/")))
+            .await
+            .unwrap();
+        assert!(matches!(response.status().as_u16(), 401 | 403));
+        assert_eq!(rejections.count(), 1, "{status}");
+        assert!(!store.has(&s), "{status}: the secret sent is wiped");
+    }
+
+    let server = TestServer::start(ok_response("")).await;
+    let s = sid("sso-tools");
+    let store = Arc::new(store());
+    store.put(&s, bearer(SENTINEL)).unwrap();
+    let (client, rejections) = gate_client(&s, &store, &[&server.origin()]);
+    client
+        .execute(client.request(Method::GET, server.url("/")))
+        .await
+        .unwrap();
+    assert_eq!(rejections.count(), 0);
+    assert!(store.has(&s));
+}
+
+// Exigence : EX-025-03
+#[test]
+fn module_context_debug_has_no_secret() {
+    let s = sid("sso-tools");
+    let store = Arc::new(store());
+    store.put(&s, basic("jdoe", SENTINEL)).unwrap();
+    let (client, rejections) = gate_client(&s, &store, &["https://jira.example.internal"]);
+    let context = crate::module::ModuleContext {
+        http: client.only_towards(Origin::of(&Url::parse("https://jira.example.internal").unwrap()).unwrap()),
+        base_url: Url::parse("https://jira.example.internal").unwrap(),
+        env: crate::config::EnvId::new("prod").unwrap(),
+    };
+    let debug = format!("{context:?} {rejections:?}");
+    assert!(!debug.contains(SENTINEL), "{debug}");
+    assert!(!debug.contains("amRvZT"), "no base64 of the identifiers: {debug}");
+    assert!(debug.contains("sso-tools") && debug.contains("prod"), "{debug}");
 }

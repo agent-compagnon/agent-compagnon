@@ -1,10 +1,12 @@
 //! Server side of the gateway: one `Upstream` per instance (environment, MCP).
 //!
 //! `HttpUpstream` talks to a remote MCP over Streamable HTTP, in either protocol generation, with the credential
-//! injected by the `SessionGate` when each request is sent. Local modules (spec 025) will be another implementation.
+//! injected by the `SessionGate` when each request is sent. `LocalUpstream` runs an instance of a local module
+//! (spec 025), whose HTTP client injects through the same gate.
 
 mod http;
 mod http_client;
+mod local;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -12,6 +14,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use mcp_proxy_core::config::{Config, McpKind, SessionId, ToolName};
+use mcp_proxy_core::module::ModuleRegistry;
 use mcp_proxy_core::session::{SessionError, SessionGate};
 use rmcp::model::{CallToolResult, JsonObject};
 use thiserror::Error;
@@ -19,6 +22,7 @@ use tokio::sync::{RwLock, broadcast, mpsc};
 
 pub use self::http::{HttpUpstream, HttpUpstreamConfig};
 pub use self::http_client::InjectingHttpClient;
+pub use self::local::{LocalUpstream, LocalUpstreamConfig, LocalUpstreamError};
 use crate::registry::{InstanceId, Registry, RegistryError, ToolDefinition, ToolDiff};
 
 /// A progress notification received from a server, not filtered yet.
@@ -107,8 +111,10 @@ impl std::fmt::Debug for Upstreams {
 }
 
 impl Upstreams {
-    /// An `HttpUpstream` for every instance of every remote MCP of `config`. Local modules come with spec 025.
-    pub fn from_config(config: &Config, gate: &Arc<dyn SessionGate>) -> Self {
+    /// An `HttpUpstream` for every instance of every remote MCP of `config`, a `LocalUpstream` for every instance of
+    /// every local MCP whose module is in `modules`. An instance that cannot get one is left out (its calls are
+    /// refused) and reported in the log.
+    pub fn from_config(config: &Config, gate: &Arc<dyn SessionGate>, modules: &ModuleRegistry) -> Self {
         let mut upstreams = Self::default();
         for mcp in config.mcp.iter().filter(|m| m.kind == McpKind::Remote) {
             for env in mcp.instances.keys() {
@@ -116,6 +122,12 @@ impl Upstreams {
                 if let Some(target) = HttpUpstreamConfig::for_instance(config, &instance) {
                     upstreams.insert(Arc::new(HttpUpstream::new(target, Arc::clone(gate))));
                 }
+            }
+        }
+        for local in LocalUpstream::all_from_config(config, modules, gate) {
+            match local {
+                Ok(local) => upstreams.insert(Arc::new(local)),
+                Err(error) => tracing::warn!(%error, "module local sans amont"),
             }
         }
         upstreams

@@ -29,8 +29,9 @@ pub use validate::SCHEMA_VERSION;
 /// The configuration compiled into the executable.
 pub const EMBEDDED_TOML: &str = include_str!("../../../../config/default.toml");
 
-/// Local modules compiled into the executable. Step 8 replaces this list with the module registry.
-pub const BUILTIN_MODULES: &[&str] = &["jira-local"];
+/// Module ids accepted by the unit tests of the core, which knows no module: those of the embedded configuration.
+#[cfg(test)]
+pub(crate) const TEST_MODULES: &[&str] = &["jira-local"];
 
 /// Where a configuration comes from. `Embedded` is the only implementation; a signed remote configuration
 /// (backlog) would be another one.
@@ -55,9 +56,10 @@ impl ConfigSource for Embedded {
 }
 
 impl Config {
-    /// Loads and validates the embedded configuration with the built-in modules.
-    pub fn embedded() -> Result<Self, ConfigErrors> {
-        Self::load(&Embedded, BUILTIN_MODULES)
+    /// Loads and validates the embedded configuration. `known_modules`: ids of the local modules compiled into the
+    /// executable (`ModuleRegistry::ids`); the core itself knows none.
+    pub fn embedded(known_modules: &[&str]) -> Result<Self, ConfigErrors> {
+        Self::load(&Embedded, known_modules)
     }
 
     pub fn load(source: &dyn ConfigSource, known_modules: &[&str]) -> Result<Self, ConfigErrors> {

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 use http::{HeaderName, HeaderValue};
-use mcp_proxy_core::config::{Config, EnvId, McpId};
+use mcp_proxy_core::config::{EnvId, McpId};
 use mcp_proxy_gateway::registry::{EmbeddedCatalog, InstanceId};
 use mcp_proxy_testkit::{MockMcpServer, catalog_tools};
 
@@ -70,7 +70,7 @@ async fn the_snapshot_is_read_back_by_the_embedded_catalog() {
 
     let written = std::fs::read_to_string(&out).unwrap();
     assert!(!written.contains(TOKEN));
-    let config = Config::embedded().unwrap();
+    let config = mcp_proxy_gateway::modules::embedded_config().unwrap();
     let catalog = EmbeddedCatalog::from_files(&config, &[("kibana-logs.json", &written)]).unwrap();
     let instance = InstanceId::new(EnvId::new("dev").unwrap(), McpId::new("kibana-logs").unwrap());
     let names: Vec<String> = catalog

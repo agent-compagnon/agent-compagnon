@@ -193,3 +193,7 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
   `Subscription::end` (`Abrupt` : à rouvrir). Le transport HTTP client réinitialise en silence une session expirée
   (404, `reinit_on_expired_session`, actif par défaut). Côté serveur, une session ancien protocole expire après 300 s
   d'inactivité (`SessionConfig::DEFAULT_KEEP_ALIVE`).
+- **2026-11-22** — Modules locaux (spec 025) : contrat dans `mcp_proxy_core::module`, registre des modules compilés
+  dans `mcp_proxy_gateway::modules` (la passerelle dépend de `crates/modules/*`, le core d'aucun), `LocalUpstream` à
+  côté de `HttpUpstream`. Le client authentifié des modules injecte par le `SessionGate` et ne joint que l'origine
+  de `base_url`.

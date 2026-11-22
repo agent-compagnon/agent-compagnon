@@ -56,6 +56,9 @@ pub enum SecretError {
     #[error("destination refusée pour la session « {session} » : l'URL contient des identifiants")]
     CredentialsInUrl { session: SessionId },
 
+    #[error("requête HTTP refusée : méthode {method} non autorisée")]
+    MethodNotAllowed { method: String },
+
     #[error("client HTTP : initialisation impossible")]
     ClientInit,
 

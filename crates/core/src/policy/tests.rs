@@ -104,7 +104,7 @@ fn tree(rules: &[(&str, Rule)]) -> PolicyTree {
 
 /// The embedded configuration with every policy tree replaced.
 fn config_with(base: PolicyTree, profile: PolicyTree) -> Config {
-    let mut config = Config::embedded().unwrap();
+    let mut config = Config::embedded(crate::config::TEST_MODULES).unwrap();
     config.policy = base;
     for p in config.profiles.values_mut() {
         p.policy = profile.clone();
@@ -981,7 +981,7 @@ fn provenance_renders_in_french() {
 // Exigence : EX-004-10
 #[test]
 fn summary_of_the_embedded_config() {
-    let config = Config::embedded().unwrap();
+    let config = Config::embedded(crate::config::TEST_MODULES).unwrap();
     let none = PolicyTree::default();
     let support = &config.profiles[&ProfileId::new("support").unwrap()];
     let summary = PolicyEngine::new(&config, support, &none).summary(&env("prod"), &mcp("k8s-admin"));
@@ -1070,7 +1070,7 @@ const EMBEDDED_DECISIONS: &[Expected] = &[
 // Exigence : EX-004-13
 #[test]
 fn embedded_config_gives_the_expected_decisions() {
-    let config = Config::embedded().unwrap();
+    let config = Config::embedded(crate::config::TEST_MODULES).unwrap();
     let none = PolicyTree::default();
     for (profile, e, m, t, annotations, expected) in EMBEDDED_DECISIONS {
         let profile = &config.profiles[&ProfileId::new(*profile).unwrap()];
@@ -1128,7 +1128,7 @@ fn locked_candidates(
 /// have rejected that winner (the lock does not cover it, or it is a profile lock over a base rule).
 #[test]
 fn floor_agrees_with_validation_on_the_embedded_config() {
-    let config = Config::embedded().unwrap();
+    let config = Config::embedded(crate::config::TEST_MODULES).unwrap();
     let none = PolicyTree::default();
     let annotations = [
         None,
@@ -1188,7 +1188,7 @@ fn validation_rejects_what_only_the_floor_would_fix() {
         "[policy.env.prod.mcp.k8s-admin.tool.scale_deployment]\nrule = { decision = \"allow\" }\n\n\
          [policy.env.prod.mcp.db-readonly.tool.run_select]",
     );
-    let errors = Config::from_toml(&toml, crate::config::BUILTIN_MODULES).unwrap_err();
+    let errors = Config::from_toml(&toml, crate::config::TEST_MODULES).unwrap_err();
     assert!(
         errors
             .errors

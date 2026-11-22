@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn sessions_know_the_services_they_unlock_and_broadcast_their_changes() {
-        let config = Config::embedded().unwrap();
+        let config = Config::embedded(crate::config::TEST_MODULES).unwrap();
         let registry = SessionRegistry::from_config(&config);
         let dev = registry.info(&sid("sso-dev")).unwrap();
         assert_eq!(dev.method, AuthKind::Cookie);

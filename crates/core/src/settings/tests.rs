@@ -87,7 +87,7 @@ fn full_settings() -> UserSettings {
 
 fn assert_strictest(loaded: &LoadedSettings) {
     assert_eq!(loaded.settings, UserSettings::default());
-    let config = Config::embedded().unwrap();
+    let config = Config::embedded(crate::config::TEST_MODULES).unwrap();
     let profile = loaded.settings.active_profile(&config).unwrap();
     assert!(profile.strictest);
     assert!(loaded.settings.exposed_environments(&config).is_empty());
@@ -264,7 +264,7 @@ fn errors_never_quote_the_file() {
 // Exigence : EX-004-08
 #[test]
 fn defaults_are_the_strictest() {
-    let config = Config::embedded().unwrap();
+    let config = Config::embedded(crate::config::TEST_MODULES).unwrap();
     let settings = UserSettings::default();
     assert_eq!(settings.profile, None);
     assert!(settings.exposed_environments.is_empty());
@@ -278,7 +278,7 @@ fn defaults_are_the_strictest() {
 // Exigence : EX-004-11
 #[test]
 fn a_profile_absent_from_the_config_falls_back_to_strictest_with_nothing_exposed() {
-    let config = Config::embedded().unwrap();
+    let config = Config::embedded(crate::config::TEST_MODULES).unwrap();
     let mut settings = full_settings();
     settings.profile = Some(ProfileId::new("ancien-profil").unwrap());
     assert!(settings.active_profile(&config).unwrap().strictest);
@@ -288,7 +288,7 @@ fn a_profile_absent_from_the_config_falls_back_to_strictest_with_nothing_exposed
 // Exigence : EX-004-11
 #[test]
 fn choosing_a_profile_exposes_its_defaults_and_keeps_hardening() {
-    let config = Config::embedded().unwrap();
+    let config = Config::embedded(crate::config::TEST_MODULES).unwrap();
     let mut settings = full_settings();
     let hardening = settings.hardening.clone();
     let developer = &config.profiles[&ProfileId::new("developpeur").unwrap()];
@@ -302,7 +302,7 @@ fn choosing_a_profile_exposes_its_defaults_and_keeps_hardening() {
 // Exigence : EX-004-11
 #[test]
 fn environments_unknown_to_the_config_are_not_exposed() {
-    let config = Config::embedded().unwrap();
+    let config = Config::embedded(crate::config::TEST_MODULES).unwrap();
     let mut settings = full_settings();
     settings.exposed_environments.insert(EnvId::new("ancien-env").unwrap());
     let exposed = settings.exposed_environments(&config);

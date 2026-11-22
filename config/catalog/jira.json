@@ -2,40 +2,85 @@
   {
     "name": "search_issues",
     "title": "Search issues",
-    "description": "Searches issues with a JQL query.",
+    "description": "Searches Jira issues with a JQL query and returns, for each match, its key, summary, status, type, priority, assignee and last update, most recently updated first unless the query has an ORDER BY. Example: project = OPS AND status != Done ORDER BY updated DESC.",
     "inputSchema": {
-      "type": "object",
+      "additionalProperties": false,
       "properties": {
-        "jql": { "type": "string" },
-        "max_results": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+        "jql": {
+          "description": "JQL query, e.g. project = OPS AND text ~ \"timeout\".",
+          "maxLength": 2000,
+          "minLength": 1,
+          "type": "string"
+        },
+        "max_results": {
+          "default": 20,
+          "description": "Maximum number of issues returned.",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        }
       },
-      "required": ["jql"]
+      "required": [
+        "jql"
+      ],
+      "type": "object"
     },
-    "annotations": { "readOnlyHint": true }
+    "annotations": {
+      "readOnlyHint": true
+    }
   },
   {
     "name": "get_issue",
     "title": "Get issue",
-    "description": "Returns an issue with its fields and last comments.",
+    "description": "Returns one Jira issue: summary, status, type, priority, assignee, reporter, dates, description and its last comments. Long texts are shortened.",
     "inputSchema": {
-      "type": "object",
-      "properties": { "key": { "type": "string", "description": "Issue key, e.g. OPS-123" } },
-      "required": ["key"]
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "description": "Issue key: project key, dash, number, e.g. OPS-123.",
+          "maxLength": 64,
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*-[1-9][0-9]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "type": "object"
     },
-    "annotations": { "readOnlyHint": true }
+    "annotations": {
+      "readOnlyHint": true
+    }
   },
   {
     "name": "add_comment",
     "title": "Add comment",
-    "description": "Adds a comment to an issue.",
+    "description": "Adds a comment to a Jira issue, as the connected user. The text is posted as is (Jira wiki markup). Returns the id and date of the new comment.",
     "inputSchema": {
-      "type": "object",
+      "additionalProperties": false,
       "properties": {
-        "key": { "type": "string" },
-        "body": { "type": "string" }
+        "body": {
+          "description": "Text of the comment.",
+          "maxLength": 32767,
+          "minLength": 1,
+          "type": "string"
+        },
+        "key": {
+          "description": "Issue key: project key, dash, number, e.g. OPS-123.",
+          "maxLength": 64,
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*-[1-9][0-9]*$",
+          "type": "string"
+        }
       },
-      "required": ["key", "body"]
+      "required": [
+        "key",
+        "body"
+      ],
+      "type": "object"
     },
-    "annotations": { "readOnlyHint": false, "destructiveHint": false }
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false
+    }
   }
 ]

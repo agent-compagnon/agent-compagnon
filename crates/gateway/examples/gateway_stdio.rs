@@ -5,7 +5,8 @@
 //!
 //! Profile `developpeur`, its default environments exposed. Each remote MCP is served by one fake server (on
 //! `127.0.0.1`) for all its environments, with the tools of its snapshot; every session holds a demonstration token,
-//! allowed only towards the fake servers of the MCPs that use it. Every call goes through the whole call chain; a
+//! allowed only towards the fake servers of the MCPs that use it. `jira` runs the `jira-local` module against a
+//! `FakeJira`, with demonstration Basic identifiers for its session. Every call goes through the whole call chain; a
 //! confirmation outside the chat is always refused (no notification here). Tool lists are followed by the
 //! `ListWatcher` (spec 008). Every call goes to the journal of spec 009, whose log file, with every `tracing` event,
 //! is written in `MCP_PROXY_LOG_DIR` (default: `mcp-proxy-gateway-stdio-logs` in the temporary directory). Stdout
@@ -17,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::time::Duration;
 
-use mcp_proxy_core::config::{Config, McpKind, Origin, SessionId};
+use mcp_proxy_core::config::{McpKind, Origin, SessionId};
 use mcp_proxy_core::filter::OutputFilter;
 use mcp_proxy_core::secrets::{Credential, OriginGuard, SecretStore};
 use mcp_proxy_core::session::{SessionGate, StoreSessionGate};
@@ -26,20 +27,26 @@ use mcp_proxy_core::trace::{
     Journal, JournalConfig, LogFileOptions, SystemWallClock, install_global, install_panic_hook, open_log,
 };
 use mcp_proxy_gateway::journal::follow_tool_changes;
+use mcp_proxy_gateway::modules;
 use mcp_proxy_gateway::registry::{EmbeddedCatalog, InstanceId, NoCatalogCache, Registry};
 use mcp_proxy_gateway::server::{CallChain, CallChainDeps, GatewayServer, OutputGate};
 use mcp_proxy_gateway::updates::{ListWatcher, ListWatcherDeps, UpdateTracker, WatchTiming};
-use mcp_proxy_gateway::upstream::{HttpUpstream, HttpUpstreamConfig, Upstream, Upstreams, refresh};
-use mcp_proxy_testkit::{FakeConfirmationBroker, MockMcpServer, catalog_tools};
+use mcp_proxy_gateway::upstream::{
+    HttpUpstream, HttpUpstreamConfig, LocalUpstream, LocalUpstreamConfig, Upstream, Upstreams, refresh,
+};
+use mcp_proxy_testkit::{FakeConfirmationBroker, FakeJira, MockMcpServer, catalog_tools};
 use secrecy::SecretString;
 use tokio::sync::{RwLock, watch};
 use url::Url;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 
+const DEMO_LOGIN: &str = "demo";
+const DEMO_PASSWORD: &str = "mot-de-passe-de-demonstration";
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let config = Arc::new(Config::embedded()?);
+    let config = Arc::new(mcp_proxy_gateway::modules::embedded_config()?);
 
     let mut servers = BTreeMap::new();
     for mcp in config.mcp.iter().filter(|m| m.kind == McpKind::Remote) {
@@ -69,10 +76,41 @@ async fn main() -> Result<(), Error> {
         }
     }
 
+    // Local modules: the instance's `base_url` is replaced by the fake Jira's.
+    let jira = FakeJira::start(DEMO_LOGIN, DEMO_PASSWORD).await?;
+    eprintln!("faux Jira : {}", jira.url());
+    let jira_url = Url::parse(&jira.url())?;
+    let mut locals = Vec::new();
+    let mut basic_sessions = BTreeSet::new();
+    for mcp in &config.mcp {
+        if !matches!(mcp.kind, McpKind::Local { .. }) {
+            continue;
+        }
+        for env in mcp.instances.keys() {
+            let instance = InstanceId::new(env.clone(), mcp.id.clone());
+            let mut target = LocalUpstreamConfig::for_instance(&config, &instance)?;
+            target.base_url = jira_url.clone();
+            if let Some(origin) = Origin::of(&jira_url) {
+                origins.entry(target.session.clone()).or_default().insert(origin);
+            }
+            basic_sessions.insert(target.session.clone());
+            locals.push(target);
+        }
+    }
+
     let store = Arc::new(SecretStore::for_platform()?);
     for session in &config.sessions {
-        let token = SecretString::from(format!("jeton-de-demonstration-{}", session.id));
-        store.put(&session.id, Credential::Bearer { token })?;
+        let credential = if basic_sessions.contains(&session.id) {
+            Credential::Basic {
+                login: DEMO_LOGIN.to_owned(),
+                password: SecretString::from(DEMO_PASSWORD),
+            }
+        } else {
+            Credential::Bearer {
+                token: SecretString::from(format!("jeton-de-demonstration-{}", session.id)),
+            }
+        };
+        store.put(&session.id, credential)?;
     }
     let guard = Arc::new(OriginGuard::new(origins));
     let gate: Arc<dyn SessionGate> = Arc::new(StoreSessionGate::new(Arc::clone(&store), guard));
@@ -117,6 +155,17 @@ async fn main() -> Result<(), Error> {
         let upstream: Arc<dyn Upstream> = Arc::new(HttpUpstream::new(target, Arc::clone(&gate)));
         if exposed && let Err(error) = refresh(&registry, upstream.as_ref()).await {
             eprintln!("{} : liste non chargée : {error}", upstream.instance());
+        }
+        upstreams.insert(upstream);
+    }
+    let modules = modules::builtin();
+    for target in locals {
+        let module = modules
+            .get(&target.module)
+            .ok_or_else(|| format!("module local {} absent", target.module))?;
+        let upstream: Arc<dyn Upstream> = Arc::new(LocalUpstream::new(target, Arc::clone(module), Arc::clone(&gate))?);
+        if registry.read().await.exposure().exposes(upstream.instance()) {
+            refresh(&registry, upstream.as_ref()).await?;
         }
         upstreams.insert(upstream);
     }

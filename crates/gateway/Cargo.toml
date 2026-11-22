@@ -16,6 +16,7 @@ async-trait.workspace = true
 futures.workspace = true
 getrandom.workspace = true
 mcp-proxy-core = { path = "../core" }
+mcp-proxy-module-jira-local = { path = "../modules/jira-local" }
 reqwest.workspace = true
 rmcp = { workspace = true, features = [
     "server",

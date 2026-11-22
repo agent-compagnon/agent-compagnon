@@ -79,7 +79,11 @@ enveloppée par DPAPI.
 
 - `AuthenticatedHttpClient`, construit par le core pour une session. C'est ce que reçoivent les modules locaux.
 - À chaque requête : `authorize`, puis injection des en-têtes au moment de l'envoi via `with_exposed`
-  (`Authorization: Bearer …`, `Cookie: …`, `Authorization: Basic …`).
+  (`Authorization: Bearer …`, `Cookie: …`, `Authorization: Basic …`). `new(session, store, guard, timeout)` injecte
+  par un `StoreSessionGate` ; `through_gate(session, gate, timeout)` injecte par le `SessionGate` donné (spec 025).
+- Spec 025 : `only_towards(origine)` restreint le client à une seule origine (jamais élargi) ; `TRACE` et `CONNECT`
+  sont refusés avant tout envoi ; un 401 ou un 403 marque refusé le secret envoyé (`SessionGate::mark_rejected`) et
+  incrémente le `RejectionCounter` rendu par `through_gate`.
 - L'appelant ne peut lire ni l'en-tête injecté ni le secret ; les en-têtes `Authorization` et `Cookie` qu'il aurait
   posés sont retirés. Les en-têtes de réponse `Set-Cookie`, `Authorization`, `WWW-Authenticate`,
   `Proxy-Authenticate` sont retirés avant de rendre la réponse, ainsi que `Proxy-Authorization` et `Set-Cookie2`.
@@ -177,3 +181,8 @@ Calcul des variantes de masquage et filtre (2b). Acquisition des secrets (étape
   échec fermé sans repli. Le trait `MemoryProtector`, `PROTECT_BLOCK_SIZE`, l'alignement sur 16 octets et
   `ProtectionFailure::Misaligned` disparaissent. Critères retirés : `EX-002-01`, `EX-002-07`, `EX-002-08` ; ajoutés :
   `EX-002-11` à `EX-002-17` (I002.4 à I002.9).
+- **2026-11-22** — Spec 025 : le client authentifié injecte par un `SessionGate` (`StoreSessionGate` pour `new`,
+  celui de la passerelle pour `through_gate`), peut être restreint à une seule origine, refuse `TRACE` et `CONNECT`,
+  et marque refusé le secret envoyé sur un 401 ou un 403. Raison : les modules locaux doivent suivre l'échéance et
+  l'authentification à la demande de leur session comme un MCP distant, et ne joindre que leur `base_url` (I025.2 à
+  I025.5). Les critères de cette spec sont inchangés.

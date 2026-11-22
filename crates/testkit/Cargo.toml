@@ -1,6 +1,6 @@
 [package]
 name = "mcp-proxy-testkit"
-description = "Test doubles: fake MCP servers, fake SSO, fake Artifactory."
+description = "Test doubles: fake MCP servers, fake SSO, fake Jira, fake Artifactory."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -932,6 +932,7 @@ dependencies = [
  "http",
  "mcp-proxy-auth",
  "mcp-proxy-core",
+ "mcp-proxy-module-jira-local",
  "mcp-proxy-testkit",
  "reqwest",
  "rmcp",
@@ -953,6 +954,9 @@ dependencies = [
 [[package]]
 name = "mcp-proxy-module-jira-local"
 version = "0.1.0"
+dependencies = [
+ "mcp-proxy-core",
+]
 
 [[package]]
 name = "mcp-proxy-testkit"

@@ -135,7 +135,7 @@ impl Drop for TempDir {
 }
 
 fn config() -> Config {
-    Config::embedded().unwrap()
+    crate::modules::embedded_config().unwrap()
 }
 
 fn inst(env: &str, mcp: &str) -> InstanceId {

@@ -87,7 +87,7 @@ pub fn basic_probe_at(url: String) -> impl FnOnce(&mut Config) {
 }
 
 pub fn harness_with(edit: impl FnOnce(&mut Config)) -> Harness {
-    let mut config = Config::embedded().unwrap();
+    let mut config = Config::embedded(&["jira-local"]).unwrap();
     edit(&mut config);
     let config = Arc::new(config);
     let store = Arc::new(SecretStore::for_platform().unwrap());

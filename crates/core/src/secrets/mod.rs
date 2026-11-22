@@ -25,7 +25,7 @@ mod tests;
 pub use clock::{Clock, SystemClock};
 pub use credential::{Credential, ExposedCookie, ExposedCredential, MAX_SECRET_LEN};
 pub use error::{ProtectionFailure, SecretError};
-pub use http::{AuthenticatedHttpClient, basic_authorization};
+pub use http::{AuthenticatedHttpClient, RejectionCounter, basic_authorization};
 pub use key::SESSION_KEY_LEN;
 pub use origin::OriginGuard;
 pub use sealed::SealedSecret;

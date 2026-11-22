@@ -5,6 +5,7 @@ pub mod config;
 pub mod confirm;
 pub mod diagnostics;
 pub mod filter;
+pub mod module;
 pub mod naming;
 pub mod platform;
 pub mod policy;

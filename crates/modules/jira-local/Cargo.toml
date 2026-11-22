@@ -7,7 +7,9 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+# The module API of the core only (`mcp_proxy_core::module`): the module never reaches the secret store.
 [dependencies]
+mcp-proxy-core = { path = "../../core" }
 
 [lints]
 workspace = true

@@ -438,9 +438,13 @@ fn the_slow_call_threshold_is_configurable() {
         journal.record(r);
         journal.snapshot(&JournalFilter::default()).pop().unwrap()
     };
-    let default = journal(&f, JournalConfig::from_config(&Config::embedded().unwrap()), None);
+    let default = journal(
+        &f,
+        JournalConfig::from_config(&Config::embedded(crate::config::TEST_MODULES).unwrap()),
+        None,
+    );
     assert_eq!(
-        JournalConfig::from_config(&Config::embedded().unwrap()).slow_threshold,
+        JournalConfig::from_config(&Config::embedded(crate::config::TEST_MODULES).unwrap()).slow_threshold,
         Duration::from_secs(5)
     );
     assert!(!at(&default, 4_999).slow);
@@ -699,7 +703,7 @@ fn diagnostics(f: &Fixture, logs: &Path, log: Option<FileLog>) -> Diagnostics {
     Diagnostics {
         version: "0.1.0".to_owned(),
         system: "Windows 11 (test)".to_owned(),
-        config: Arc::new(Config::embedded().unwrap()),
+        config: Arc::new(Config::embedded(crate::config::TEST_MODULES).unwrap()),
         log_dir: logs.to_path_buf(),
         filter: Arc::clone(&f.filter),
         clock: Arc::new(f.clock.clone()),

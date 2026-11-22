@@ -1052,26 +1052,24 @@ fn embedded_with_filter(section: &str) -> String {
 // Exigence : EX-003-14
 #[test]
 fn filter_section_is_validated() {
-    let embedded = Config::embedded().unwrap();
+    let embedded = Config::embedded(crate::config::TEST_MODULES).unwrap();
     assert_eq!(embedded.filter, FilterConfig::default());
 
     let toml = embedded_with_filter("[filter]\nextra_key_segments = [\"passphrase\"]\nextra_keys = [\"X-Auth-Key\"]\n");
     assert_ne!(toml, crate::config::EMBEDDED_TOML);
-    let config = Config::from_toml(&toml, crate::config::BUILTIN_MODULES).unwrap();
+    let config = Config::from_toml(&toml, crate::config::TEST_MODULES).unwrap();
     assert_eq!(config.filter.extra_key_segments, ["passphrase"]);
 
     let without = embedded_with_filter("");
     assert_eq!(
-        Config::from_toml(&without, crate::config::BUILTIN_MODULES)
-            .unwrap()
-            .filter,
+        Config::from_toml(&without, crate::config::TEST_MODULES).unwrap().filter,
         FilterConfig::default()
     );
 
     let toml = embedded_with_filter(
         "[filter]\nextra_key_segments = [\"two_words\", \"\", \"ok\", \"ok\"]\nextra_keys = [\"a b\", \"--\"]\n",
     );
-    let errors = Config::from_toml(&toml, crate::config::BUILTIN_MODULES).unwrap_err();
+    let errors = Config::from_toml(&toml, crate::config::TEST_MODULES).unwrap_err();
     let paths: Vec<&str> = errors.errors.iter().map(|e| e.path.as_str()).collect();
     assert_eq!(
         paths,
@@ -1085,5 +1083,5 @@ fn filter_section_is_validated() {
     );
 
     let toml = embedded_with_filter("[filter]\nremove_defaults = true\n");
-    assert!(Config::from_toml(&toml, crate::config::BUILTIN_MODULES).is_err());
+    assert!(Config::from_toml(&toml, crate::config::TEST_MODULES).is_err());
 }

@@ -335,7 +335,7 @@ impl StackBuilder {
         } else {
             Arc::new(FakeSessionGate::with_bearer(&session(), TOKEN, &[&server.url()]).unwrap())
         };
-        let mut config = Config::embedded().unwrap();
+        let mut config = mcp_proxy_gateway::modules::embedded_config().unwrap();
         let kibana_config = config.mcp.iter_mut().find(|m| m.id.as_str() == "kibana-logs").unwrap();
         for tool in TEST_TOOLS {
             kibana_config.tools.insert(

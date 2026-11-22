@@ -34,7 +34,7 @@ fn library_records_and_panics_reach_the_file_filtered() {
         )
         .unwrap();
     let filter = Arc::new(OutputFilter::new(store, &FilterConfig::default()).unwrap());
-    let config = Config::embedded().unwrap();
+    let config = Config::embedded(&["jira-local"]).unwrap();
     let clock = Arc::new(ManualWallClock::new(UNIX_EPOCH + Duration::from_secs(1_795_356_187)));
     let (log, guard) = open_log(
         LogFileOptions::new(&dir, &config.trace),

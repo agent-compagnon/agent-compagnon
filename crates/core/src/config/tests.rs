@@ -112,7 +112,7 @@ unknown_tools = "deny"
 "#;
 
 fn load(toml: &str) -> Result<Config, ConfigErrors> {
-    Config::from_toml(toml, BUILTIN_MODULES)
+    Config::from_toml(toml, TEST_MODULES)
 }
 
 fn errors(toml: &str) -> Vec<ConfigError> {
@@ -147,7 +147,7 @@ fn assert_error(toml: &str, path: &str, fragment: &str) {
 // Exigence : EX-001-01
 #[test]
 fn embedded_config_loads_and_validates() {
-    let config = match Config::embedded() {
+    let config = match Config::embedded(crate::config::TEST_MODULES) {
         Ok(config) => config,
         Err(e) => panic!("{e}"),
     };

@@ -165,7 +165,7 @@ fn url_patterns_match_on_the_canonical_prefix() {
 // Exigence : EX-010-02
 #[test]
 fn a_captured_header_must_match_url_header_and_scheme() {
-    let config = Config::embedded().unwrap();
+    let config = Config::embedded(&["jira-local"]).unwrap();
     let session = config.session(&SessionId::new("sso-corp").unwrap()).unwrap();
     assert!(matches!(session.auth, AuthConfig::JwtHeader { .. }));
     let method = JwtHeaderMethod::from_config(session).unwrap();
