@@ -1001,7 +1001,89 @@ fn summary_of_the_embedded_config() {
     let summary = PolicyEngine::new(&config, dev, &hardened).summary(&env("dev"), &mcp("k8s-admin"));
     assert_eq!(summary.get(Category::Read).decision, ALLOW);
     assert_eq!(summary.get(Category::Write).decision, CE);
-    assert_eq!(summary.get(Category::Destructive).decision, DENY);
+    assert_eq!(summary.get(Category::Destructive).decision, CE);
+}
+
+/// One expected decision: (profile, env, MCP, tool, annotations, decision).
+type Expected = (
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    Option<ToolAnnotations>,
+    Decision,
+);
+
+/// Decisions expected from the embedded configuration, without user hardening.
+const EMBEDDED_DECISIONS: &[Expected] = &[
+    // Developer in their environments: everything allowed, destructive confirmed in the chat, unknown by
+    // notification.
+    ("developpeur", "dev", "kibana-logs", "search_logs", None, ALLOW),
+    ("developpeur", "dev", "k8s-admin", "scale_deployment", None, ALLOW),
+    ("developpeur", "dev", "kibana-logs", "delete_index", None, CE),
+    ("developpeur", "dev", "gitlab-ops", "get_merge_request", None, CE),
+    (
+        "developpeur",
+        "dev",
+        "gitlab-ops",
+        "get_merge_request",
+        ann(Some(true), None),
+        ALLOW,
+    ),
+    ("developpeur", "dev", "kibana-logs", "unknown_tool", None, CN),
+    ("developpeur", "int", "k8s-admin", "delete_pod", None, CE),
+    ("developpeur", "int", "db-readonly", "run_select", None, ALLOW),
+    ("developpeur", "rec", "jira", "add_comment", None, ALLOW),
+    ("developpeur", "rec", "gitlab-ops", "delete_branch", None, CE),
+    ("developpeur", "rec", "jira", "unknown_tool", None, CN),
+    // Developer outside their environments: the base applies.
+    ("developpeur", "qua", "kibana-logs", "delete_index", None, DENY),
+    ("developpeur", "qua", "kibana-logs", "unknown_tool", None, DENY),
+    ("developpeur", "perf", "k8s-admin", "scale_deployment", None, CN),
+    ("developpeur", "pprod", "k8s-admin", "scale_deployment", None, CN),
+    ("developpeur", "prod", "k8s-admin", "scale_deployment", None, CN),
+    ("developpeur", "prod", "jira", "add_comment", None, CN),
+    ("developpeur", "prod", "k8s-admin", "delete_pod", None, DENY),
+    ("developpeur", "prod", "kibana-logs", "delete_index", None, DENY),
+    ("developpeur", "prod", "kibana-logs", "search_logs", None, ALLOW),
+    ("developpeur", "prod", "db-readonly", "run_select", None, CN),
+    // Support.
+    ("support", "prod", "k8s-admin", "scale_deployment", None, DENY),
+    ("support", "prod", "gitlab-ops", "retry_job", None, CN),
+    ("support", "rec", "kibana-logs", "unknown_tool", None, DENY),
+    (
+        "support",
+        "rec",
+        "gitlab-ops",
+        "add_merge_request_note",
+        ann(None, Some(false)),
+        CN,
+    ),
+    // Read only.
+    ("lecture-seule", "prod", "jira", "add_comment", None, DENY),
+    ("lecture-seule", "dev", "k8s-admin", "scale_deployment", None, DENY),
+    ("lecture-seule", "dev", "kibana-logs", "delete_index", None, DENY),
+    ("lecture-seule", "prod", "kibana-logs", "search_logs", None, ALLOW),
+    ("lecture-seule", "rec", "kibana-logs", "unknown_tool", None, DENY),
+];
+
+// Exigence : EX-004-13
+#[test]
+fn embedded_config_gives_the_expected_decisions() {
+    let config = Config::embedded().unwrap();
+    let none = PolicyTree::default();
+    for (profile, e, m, t, annotations, expected) in EMBEDDED_DECISIONS {
+        let profile = &config.profiles[&ProfileId::new(*profile).unwrap()];
+        let resolution =
+            PolicyEngine::new(&config, profile, &none).resolve(&env(e), &mcp(m), &tool(t), annotations.as_ref());
+        assert_eq!(
+            resolution.decision,
+            *expected,
+            "{} / {e} / {m} / {t}: {}",
+            profile.id.as_str(),
+            resolution.describe(&config)
+        );
+    }
 }
 
 // Exigence : EX-004-10

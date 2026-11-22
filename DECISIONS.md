@@ -110,7 +110,7 @@ viennent du cadrage du 2026-11-22 ; la dernière section est alimentée à chaqu
 | # | Décision |
 |---|---|
 | I1.28 | `kibana-logs` (session `env`) a une instance dans les 8 environnements, ce qui donne une origine à chaque session d'environnement. `k8s-admin` (session `env`) : 7 environnements ; `gitlab-ops` et `db-readonly` (session `sso-corp`) ; `jira` (module local, `sso-tools`) en REC et PROD sur la même instance Jira. |
-| I1.29 | Politique de base : le schéma de référence, plus `write` verrouillé en confirmation (notification) en PPROD, `destructive` verrouillé en refus pour `k8s-admin` en PROD et `run_select` de `db-readonly` en confirmation en PROD. Profil `support` ajouté (REC, PPROD, PROD ; `write` refusé pour `k8s-admin` en PROD). `developpeur` autorise par défaut en DEV et REC. |
+| I1.29 | Politique de base : le schéma de référence, plus `write` verrouillé en confirmation (notification) en PPROD, `destructive` verrouillé en refus pour `k8s-admin` en PROD et `run_select` de `db-readonly` en confirmation en PROD. Profil `support` ajouté (REC, PPROD, PROD ; `write` refusé pour `k8s-admin` en PROD). `developpeur` autorise par défaut en DEV et REC. — remplacée en partie par I004.14 |
 
 **Outillage**
 
@@ -244,3 +244,9 @@ viennent du cadrage du 2026-11-22 ; la dernière section est alimentée à chaqu
 | I-D18.5 | Spec 012, commande de dépôt : valeur candidate de 16 Kio au plus, aucune réponse (ni succès ni erreur, pour que la page n'apprenne rien), seul le premier jeton valide retenu. La capacité `remote` est créée à l'ouverture de la fenêtre et retirée à sa fermeture. Le script n'est injecté que pour la méthode `jwt_header`. |
 | I-D18.6 | Spec 012 : toutes les fenêtres de login et la gardienne reçoivent exactement les mêmes arguments de navigateur et le même dossier de données, faute de quoi WebView2 refuse de partager le dossier. Le point « InPrivate effectif » de la sonde vérifie aussi l'absence de cookie de la session dans le dossier de données. |
 | I-D18.7 | Spec 024 : le rapport va toujours sur la sortie standard (perdue sans redirection, l'exe étant fenêtré) et dans `logs\doctor-<horodatage>.txt`. « Sans redirection » se détecte sans `unsafe` : poignée de sortie standard absente (`std::io::stdout().as_raw_handle()` nulle, simple comparaison). Dans ce cas seulement, une boîte de message indique le chemin du fichier, pour ne jamais bloquer un script qui redirige la sortie. |
+
+### Spec 004 — config d'exemple (amendement du 2026-11-22)
+
+| # | Décision |
+|---|---|
+| I004.14 | Profil `developpeur` de la config embarquée : en `dev`, `int` et `rec`, `default = allow` et `destructive = confirm` par elicitation (INT s'ajoute aux deux environnements déjà autorisés par défaut). Un outil inconnu y est donc relevé par `unknown_tools` à la confirmation par notification, et un outil déclaré sans catégorie ni annotation (destructif par S11) à la confirmation par elicitation. Hors de ces trois environnements, la base s'applique (destructif refusé, écriture en confirmation par notification) ; la base et les verrous de PPROD et PROD ne changent pas. Le test `EX-004-13` fige la table des décisions attendues. |

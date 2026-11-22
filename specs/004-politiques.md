@@ -158,6 +158,22 @@ journal et l'infobulle « politique » de l'onglet MCP. Prévoir un rendu texte 
 - **EX-004-11** — Réglages : profil choisi absent de la config → profil `strictest` et aucun environnement exposé ; changer de
   profil expose ses `default_environments` et garde les durcissements ; un environnement inconnu n'est pas exposé.
 - **EX-004-12** — Les erreurs de chargement des réglages ne citent aucune valeur du fichier.
+- **EX-004-13** — Décisions attendues sur la config embarquée, sans durcissement (extrait ; le test en couvre
+  davantage, dont chaque environnement du profil Développeur) :
+
+  | Profil | Environnement | Appel | Décision |
+  |---|---|---|---|
+  | Développeur | DEV, INT, REC | lecture ou écriture | autorisé |
+  | Développeur | DEV | outil destructif (`delete_index`) | confirmation (elicitation) |
+  | Développeur | DEV | outil déclaré sans catégorie ni annotation | confirmation (elicitation) |
+  | Développeur | DEV | outil inconnu | confirmation (notification) |
+  | Développeur | QUA | outil destructif ou inconnu | refusé |
+  | Développeur | PERF | écriture | confirmation (notification) |
+  | Développeur | PPROD, PROD | écriture | confirmation (notification) |
+  | Développeur | PROD | `delete_pod` de Kubernetes Admin | refusé |
+  | Support | PROD | écriture sur Kubernetes Admin | refusé |
+  | Lecture seule | PROD | écriture | refusé |
+  | Lecture seule | PROD | lecture | autorisé |
 
 ## Vérification
 
@@ -186,3 +202,8 @@ Exécution des confirmations (3c et 5c). Scellement des réglages (5d).
     JSON de l'arbre de durcissement sans `locked` ;
   - critères ajoutés : `EX-004-09` (cohérence avec la validation), `EX-004-10` (`summary`), `EX-004-11` (profil en
     vigueur et environnements exposés), `EX-004-12` (erreurs sans contenu du fichier).
+- **2026-11-22** — Config d'exemple rendue parlante. Avec `destructive = deny` à la racine et rien dans le profil,
+  un outil destructif ou inconnu était refusé partout, même en DEV pour un développeur, et `unknown_tools =
+  "confirm"` ne servait jamais. Le profil Développeur reçoit, en DEV, INT et REC, `default = allow` et
+  `destructive = confirm` par elicitation ; la base et les verrous de PPROD et PROD sont inchangés. Nouveau critère
+  `EX-004-13`, qui fixe par une table les décisions attendues sur la config embarquée (I004.14).

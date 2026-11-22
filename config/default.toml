@@ -353,11 +353,20 @@ label = "Développeur"
 default_environments = ["dev", "int", "rec"]
 unknown_tools = "confirm"           # confirm (notification obligatoire) | deny
 
+# Environnements de travail du développeur : tout est autorisé, sauf le destructif (et l'inconnu, traité comme
+# destructif), soumis à confirmation dans le chat quand le client le permet. `unknown_tools` relève l'inconnu à la
+# notification. PPROD et PROD gardent les verrous de la base.
 [profiles.developpeur.policy.env.dev]
 default = { decision = "allow" }
+destructive = { decision = "confirm", channel = "elicitation" }
+
+[profiles.developpeur.policy.env.int]
+default = { decision = "allow" }
+destructive = { decision = "confirm", channel = "elicitation" }
 
 [profiles.developpeur.policy.env.rec]
 default = { decision = "allow" }
+destructive = { decision = "confirm", channel = "elicitation" }
 
 [profiles.support]
 label = "Support"
