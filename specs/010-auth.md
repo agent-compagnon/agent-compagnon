@@ -105,6 +105,8 @@ Avec `FakeAuthUi` :
   unique ;
 - **EX-010-11** — aucun secret dans `Debug`, les erreurs ni les événements.
 - **EX-010-12** — un refus portant sur un secret déjà remplacé n'efface pas le secret plus récent.
+- **EX-010-13** — `connect` sans notification ; `disconnect` efface le secret, appelle `clear_site_data` sur les hôtes de
+  la session et libère les appels en attente d'une connexion en cours, dont le résultat éventuel est ignoré.
 
 ## Vérification
 
@@ -120,3 +122,5 @@ Fenêtres WebView2 réelles (5b). Notifications réelles (5c).
   secret injecté et `mark_rejected` la reçoit, pour ne jamais effacer un secret renouvelé par un appel concurrent
   (I007.7). Variante `SessionError::LoginFailed` ajoutée (connexion terminée sans identifiant utilisable). Critère
   ajouté : `EX-010-12`.
+- **2026-11-22** — Critère ajouté : `EX-010-13` (boutons « Se connecter » et « Déconnecter »), qui n'avait pas de
+  test prévu.

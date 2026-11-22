@@ -870,6 +870,22 @@ checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 [[package]]
 name = "mcp-proxy-auth"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "base64",
+ "mcp-proxy-core",
+ "mcp-proxy-testkit",
+ "reqwest",
+ "secrecy",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+]
 
 [[package]]
 name = "mcp-proxy-core"
@@ -944,6 +960,7 @@ dependencies = [
  "async-trait",
  "axum",
  "http",
+ "mcp-proxy-auth",
  "mcp-proxy-core",
  "reqwest",
  "rmcp",
