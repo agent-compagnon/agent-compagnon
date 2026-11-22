@@ -2,7 +2,7 @@
 id: "011"
 titre: "app — squelette Tauri, pont stdio (named pipe), instance unique, tray, réglages"
 etape: "5a"
-statut: "prévue"
+statut: "en cours"
 depend_de: ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"]
 suivi: "github#12"
 ---
