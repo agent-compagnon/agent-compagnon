@@ -1,11 +1,9 @@
-//! Deposits that are ignored, and what the log says of them (spec 012). Alone in its test binary: `tracing` caches
-//! the interest of a call site process-wide, and a test of another thread without a collector could hide its lines.
+//! Deposits that are ignored, and what the log says of them (spec 012).
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
 mod common;
 
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use common::{SENTINEL, jwt};
@@ -13,6 +11,7 @@ use mcp_proxy_auth::method::{CookieMethod, JwtHeaderMethod};
 use mcp_proxy_auth::webview::LoginWindows;
 use mcp_proxy_auth::{LoginEvent, LoginWindowSpec};
 use mcp_proxy_core::config::{AuthConfig, Config};
+use mcp_proxy_testkit::CapturedLogs;
 use secrecy::SecretString;
 use serde_json::{Value, json};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -76,48 +75,10 @@ fn drain(events: &mut UnboundedReceiver<LoginEvent>) -> Vec<LoginEvent> {
     all
 }
 
-/// Collects every log line written on this thread while the guard lives.
-#[derive(Clone, Default)]
-struct Captured(Arc<Mutex<Vec<u8>>>);
-
-impl std::io::Write for Captured {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap().extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Captured {
-    type Writer = Captured;
-
-    fn make_writer(&'a self) -> Self::Writer {
-        self.clone()
-    }
-}
-
-impl Captured {
-    fn install(&self) -> tracing::subscriber::DefaultGuard {
-        let subscriber = tracing_subscriber::fmt()
-            .with_writer(self.clone())
-            .with_max_level(tracing::Level::TRACE)
-            .finish();
-        tracing::subscriber::set_default(subscriber)
-    }
-
-    fn text(&self) -> String {
-        String::from_utf8(self.0.lock().unwrap().clone()).unwrap()
-    }
-}
-
 // Exigence : EX-012-09
 #[test]
 fn every_other_deposit_is_ignored_and_logged_without_the_value() {
-    let logs = Captured::default();
-    let _guard = logs.install();
+    let (logs, _guard) = CapturedLogs::start();
     let windows = LoginWindows::default();
     let spec = corp_spec();
     let mut events = windows.open("login-1", &spec);

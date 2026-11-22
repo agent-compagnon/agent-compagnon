@@ -4,7 +4,7 @@
 
 mod common;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use common::{
@@ -14,6 +14,7 @@ use common::{
 use mcp_proxy_auth::{BasicInput, CookiePair, LoginEvent, OnDemandAuthenticator};
 use mcp_proxy_core::config::SessionId;
 use mcp_proxy_core::session::{SessionChange, SessionError, SessionGate, SessionState};
+use mcp_proxy_testkit::CapturedLogs;
 use reqwest::header::HeaderMap;
 use secrecy::SecretString;
 use tokio::task::JoinHandle;
@@ -538,38 +539,11 @@ async fn disconnect_all_wipes_every_secret_and_releases_the_waiting_calls() {
     assert!(h.auth.is_active(&dev));
 }
 
-/// Collects every log line written while the test runs (current-thread runtime: spawned tasks included).
-#[derive(Clone, Default)]
-struct Captured(Arc<Mutex<Vec<u8>>>);
-
-impl std::io::Write for Captured {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap().extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for Captured {
-    type Writer = Captured;
-
-    fn make_writer(&'a self) -> Self::Writer {
-        self.clone()
-    }
-}
-
 // Exigence : EX-010-11
 #[tokio::test(start_paused = true)]
 async fn no_secret_in_debug_errors_events_or_logs() {
-    let logs = Captured::default();
-    let subscriber = tracing_subscriber::fmt()
-        .with_writer(logs.clone())
-        .with_max_level(tracing::Level::TRACE)
-        .finish();
-    let _guard = tracing::subscriber::set_default(subscriber);
+    // Current-thread runtime: the tasks the test spawns log here too.
+    let (logs, _guard) = CapturedLogs::start();
 
     // Connection refused at once: the Basic login fails without leaving the machine.
     let mut h = harness_with(basic_probe_at("http://127.0.0.1:9/probe".to_owned()));
@@ -633,7 +607,7 @@ async fn no_secret_in_debug_errors_events_or_logs() {
     ));
     seen.push(format!("{:?}", h.ui.prompts()));
     seen.push(format!("{:?}", h.ui.windows()));
-    let logged = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
+    let logged = logs.text();
     assert!(
         logged.contains("valeur candidate de la fenêtre de connexion ignorée"),
         "{logged}"

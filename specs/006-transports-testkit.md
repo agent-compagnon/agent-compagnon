@@ -26,6 +26,9 @@ les deux générations du protocole, avec injection des identifiants côté serv
   - une route de redirection vers une autre origine ;
   - journal des requêtes reçues, pour les assertions.
 - `FakeSessionGate` (identifiant fixe ou états scriptés) et `FakeConfirmationBroker`.
+- `CapturedLogs` et `set_thread_subscriber` : ce qu'un test a journalisé sur son fil, de façon fiable même quand
+  d'autres tests du même binaire journalisent en parallèle. Un test ne pose jamais lui-même un abonné `tracing` sur
+  son fil (`tracing::subscriber::set_default` est refusé par clippy).
 
 ### Contrats (dans `core`)
 
@@ -175,3 +178,7 @@ Politiques, confirmations, limite de débit (3c). Rechargement des listes (3d).
   temporisation de reconnexion. Raison : la tentative suivante suit une nouvelle connexion de l'utilisateur, qui en
   règle le rythme ; avec la temporisation, un rejeu après une reconnexion rapide (SSO déjà ouvert) répondait
   « serveur injoignable ». Prouvé par `EX-010-10`.
+- **2026-11-22** — Testkit : ajout de `CapturedLogs` et `set_thread_subscriber`. Raison : un abonné `tracing` posé
+  sur le fil d'un test perdait des lignes quand un autre test du même binaire atteignait leur point de
+  journalisation en premier (cache d'intérêt de `tracing`, commun au processus) ; `EX-010-11` échouait ainsi de
+  façon intermittente. Décision IT.1. Aucun critère touché.

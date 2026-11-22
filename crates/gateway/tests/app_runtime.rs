@@ -23,6 +23,7 @@ use rmcp::ServiceExt;
 use rmcp::model::CallToolRequestParams;
 use secrecy::SecretString;
 use serde_json::{Value, json};
+use tokio::sync::broadcast::error::{RecvError, TryRecvError};
 use zeroize::Zeroizing;
 
 const SENTINEL: &str = "SENTINELLE-secrete-7f3a91c2d4e5b6a8";
@@ -397,7 +398,9 @@ async fn a_waiting_confirmation_shows_in_the_snapshot_until_answered() {
         assert!(!running.is_finished(), "{}", running.await.unwrap());
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
-    while changes.try_recv().is_ok() {}
+    // The lists reloading in the background signal changes too, sometimes more than the channel keeps: a receiver that
+    // lagged was signalled all the same, as the application reads it.
+    while !matches!(changes.try_recv(), Err(TryRecvError::Empty | TryRecvError::Closed)) {}
     let snapshot = gateway.snapshot_json().await.unwrap();
     assert_eq!(snapshot["pendingConfirmations"], 1);
     assert_eq!(snapshot["status"], "attention");
@@ -416,10 +419,10 @@ async fn a_waiting_confirmation_shows_in_the_snapshot_until_answered() {
     let snapshot = gateway.snapshot().await;
     assert_eq!(snapshot.pending_confirmations, 0);
     assert_eq!(snapshot.status, AppStatus::Neutral);
-    tokio::time::timeout(std::time::Duration::from_secs(5), changes.recv())
+    let signalled = tokio::time::timeout(std::time::Duration::from_secs(5), changes.recv())
         .await
-        .unwrap()
         .unwrap();
+    assert!(matches!(signalled, Ok(()) | Err(RecvError::Lagged(_))), "{signalled:?}");
 
     Arc::try_unwrap(client).ok().unwrap().cancel().await.unwrap();
     assert_eq!(server.await.unwrap(), Ok(()));

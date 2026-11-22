@@ -3,3 +3,10 @@ allow-expect-in-tests = true
 allow-panic-in-tests = true
 allow-dbg-in-tests = true
 allow-print-in-tests = true
+
+# A subscriber set on a test's thread misses lines when another test of the same binary reaches their call sites
+# first (see `mcp_proxy_testkit::logs`).
+disallowed-methods = [
+    { path = "tracing::subscriber::set_default", reason = "use `mcp_proxy_testkit::set_thread_subscriber` or `CapturedLogs`" },
+    { path = "tracing_core::dispatcher::set_default", reason = "use `mcp_proxy_testkit::set_thread_subscriber` or `CapturedLogs`" },
+]

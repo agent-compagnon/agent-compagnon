@@ -2510,6 +2510,8 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-util",
+ "tracing",
+ "tracing-subscriber",
  "url",
 ]
 

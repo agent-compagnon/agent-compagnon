@@ -1,5 +1,4 @@
-//! The `mcp.call` span of each call. Alone in its test binary: the subscriber is installed for the test thread, and
-//! `tracing` caches its interest per call site across the threads of a process.
+//! The `mcp.call` span of each call.
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
@@ -11,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use common::{TOKEN, connect, exposed, params, stack};
 use mcp_proxy_core::filter::SECRET_MARKER;
-use mcp_proxy_testkit::Generation;
+use mcp_proxy_testkit::{Generation, set_thread_subscriber};
 use rmcp::ClientHandler;
 use rmcp::model::{ClientCapabilities, ClientConfig, Implementation};
 use rmcp::service::{RoleClient, RunningService};
@@ -80,7 +79,7 @@ impl<S: tracing::Subscriber + for<'a> LookupSpan<'a>> Layer<S> for Spans {
 async fn each_call_has_an_mcp_call_span_with_filtered_fields() {
     let spans = Spans::default();
     // Current thread: every task of the test runs under this subscriber.
-    let _default = tracing::subscriber::set_default(tracing_subscriber::registry().with(spans.clone()));
+    let _default = set_thread_subscriber(tracing_subscriber::registry().with(spans.clone()));
     let stack = stack(Generation::Both).await;
     let (client, _connection) = connect(&stack.gateway, Client, Generation::Legacy).await;
     call(&client, "search_logs", json!({ "q": "x" })).await;
