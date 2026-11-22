@@ -258,6 +258,9 @@ get_job_log = { category = "read" }
 retry_job = { category = "write" }
 cancel_pipeline = { category = "write" }
 delete_branch = { category = "destructive" }
+# Sans catégorie : les annotations du serveur (readOnlyHint, destructiveHint) décideront, sinon destructif (S11).
+get_merge_request = {}
+add_merge_request_note = {}
 
 [[mcp]]
 id = "k8s-admin"

@@ -106,7 +106,7 @@ pub struct RawInstance {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RawTool {
-    pub category: String,
+    pub category: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -58,7 +58,8 @@ fn is_token(value: &str) -> bool {
 enum Selector<'a> {
     Default,
     Category(Category),
-    Tool(&'a ToolName, Category),
+    /// The tool's static category, `None` when only the server annotations will decide at run time.
+    Tool(&'a ToolName, Option<Category>),
 }
 
 /// A rule flattened out of a tree, for the locked-rule coverage check.
@@ -77,7 +78,8 @@ impl FlatRule<'_> {
         let selector = match (self.selector, other.selector) {
             (Selector::Default, _) => true,
             (Selector::Category(a), Selector::Category(b)) => a == b,
-            (Selector::Category(a), Selector::Tool(_, b)) => a == b,
+            // Without a static category, whether a category rule applies is only known at run time.
+            (Selector::Category(a), Selector::Tool(_, Some(b))) => a == b,
             (Selector::Tool(a, _), Selector::Tool(b, _)) => a == b,
             _ => false,
         };
@@ -88,7 +90,7 @@ impl FlatRule<'_> {
 fn flatten<'a>(
     tree: &'a PolicyTree,
     prefix: &str,
-    categories: &BTreeMap<(McpId, ToolName), Category>,
+    categories: &BTreeMap<(McpId, ToolName), Option<Category>>,
 ) -> Vec<FlatRule<'a>> {
     fn push_set<'a>(
         out: &mut Vec<FlatRule<'a>>,
@@ -129,7 +131,7 @@ fn flatten<'a>(
             let mcp_path = format!("{env_path}.mcp.{}", key(mcp_id.as_str()));
             push_set(&mut out, &mcp.rules, Some(env_id), Some(mcp_id), &mcp_path);
             for (tool, rule) in &mcp.tools {
-                // Tool rules only exist for declared tools, whose category is known.
+                // Tool rules only exist for declared tools.
                 if let Some(category) = categories.get(&(mcp_id.clone(), tool.clone())) {
                     out.push(FlatRule {
                         env: Some(env_id),
@@ -151,7 +153,8 @@ struct PolicyContext {
     envs: BTreeSet<EnvId>,
     /// MCP → environments where it has an instance.
     instances: BTreeMap<McpId, BTreeSet<EnvId>>,
-    categories: BTreeMap<(McpId, ToolName), Category>,
+    /// Declared tools and their static category.
+    categories: BTreeMap<(McpId, ToolName), Option<Category>>,
 }
 
 #[derive(Default)]
@@ -792,7 +795,10 @@ impl Validator {
             for (name, tool) in &m.tools {
                 let tool_path = format!("{path}.tools.{}", key(name));
                 let tool_name = self.id(&tool_path, name, ToolName::new);
-                let category = self.category(&format!("{tool_path}.category"), &tool.category);
+                let category = match &tool.category {
+                    Some(value) => self.category(&format!("{tool_path}.category"), value).map(Some),
+                    None => Some(None),
+                };
                 if let (Some(tool_name), Some(category)) = (tool_name, category) {
                     tools.insert(tool_name, ToolConfig { category });
                 }
@@ -1092,7 +1098,8 @@ impl Validator {
         out
     }
 
-    /// A rule softer than a locked rule covering it can never win: it is rejected rather than silently ignored.
+    /// A rule softer than a locked rule covering it can never have its own decision applied (the floor always
+    /// raises it): it is rejected rather than left to mislead the reader.
     fn locked_coverage(&mut self, rules: &[FlatRule<'_>], locked_from: &[FlatRule<'_>]) {
         for rule in rules {
             let floor = locked_from
@@ -1105,7 +1112,8 @@ impl Validator {
                 self.err(
                     rule.path.clone(),
                     format!(
-                        "règle plus souple que la règle verrouillée {} qui la couvre : elle serait sans effet",
+                        "sa décision ne pourrait jamais s'appliquer : la règle verrouillée {} la couvre ; \
+                         cette règle doit être au moins aussi stricte que ce verrou",
                         floor.path
                     ),
                 );

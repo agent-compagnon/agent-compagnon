@@ -159,7 +159,8 @@ pub struct RateLimit {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolConfig {
-    pub category: Category,
+    /// `None`: the server annotations decide at run time, then `Destructive` (S11).
+    pub category: Option<Category>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

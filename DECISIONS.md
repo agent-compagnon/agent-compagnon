@@ -94,7 +94,7 @@ la dernière section est alimentée à chaque étape d'implémentation.
 | I1.18 | Origines autorisées (S7) : origines des URL d'instance des MCP qui utilisent la session, plus `probe_url`. Une session sans aucune origine (aucun MCP ne l'utilise) est une erreur : « calculable » est compris comme « non vide ». |
 | I1.19 | `channel` est refusé avec `allow` et `deny` (il serait sans effet). |
 | I1.20 | Une règle de politique visant un environnement inconnu, un MCP inconnu, un MCP sans instance dans cet environnement, ou un outil non déclaré dans `[mcp.tools]` de ce MCP est une erreur : une faute de frappe ne doit pas faire disparaître une protection sans bruit. |
-| I1.21 | Couverture par une règle verrouillée L d'une règle R : le nœud de L est celui de R ou un ancêtre ; `default` couvre tout sélecteur, une catégorie couvre la même catégorie et les règles d'outil des outils déclarés de cette catégorie, une règle d'outil couvre la règle du même outil dans une autre couche. R est refusée si elle est strictement plus souple que L. Les verrous de la base s'appliquent à la base et à tous les profils ; le verrou d'un profil ne s'applique qu'à ce profil (une règle de base plus souple n'est sans effet que sous ce profil). |
+| I1.21 | Couverture par une règle verrouillée L d'une règle R : le nœud de L est celui de R ou un ancêtre ; `default` couvre tout sélecteur, une catégorie couvre la même catégorie et les règles d'outil des outils déclarés de cette catégorie, une règle d'outil couvre la règle du même outil dans une autre couche. R est refusée si elle est strictement plus souple que L : sa propre décision ne pourrait jamais s'appliquer, le plancher la relevant toujours ; le message demande une règle au moins aussi stricte que le verrou cité. Les verrous de la base s'appliquent à la base et à tous les profils ; le verrou d'un profil ne s'applique qu'à ce profil (une règle de base plus souple n'est sans effet que sous ce profil). |
 | I1.22 | Le profil `strictest`, profil de repli, doit avoir `unknown_tools = "deny"`. |
 | I1.23 | Délais : `1 ≤ call_budget_secs < 60`, `confirmation_timeout_secs ≤ call_budget_secs`, et en plus `auth_timeout_secs ≤ call_budget_secs` (l'attente de connexion se fait dans le budget de l'appel). Tous les délais, intervalles, seuils et capacités valent au moins 1. |
 | I1.24 | `tool_name_max_len` entre 16 et 128 (préfixe utile + suffixe de hachage ; limite MCP). |
@@ -117,3 +117,9 @@ la dernière section est alimentée à chaque étape d'implémentation.
 | I1.31 | Tout le workspace est `publish = false` (projet interne) ; `testkit` et `xtask` le déclarent explicitement. `rust-version = "1.97.0"` au niveau du workspace. |
 | I1.32 | CI GitLab : image `rust:1.97.0`, `rustup toolchain install` lit `rust-toolchain.toml` (composants et cible Windows), cache de `CARGO_HOME` (dans le projet) et de `target/`, clé sur `Cargo.lock`. |
 | I1.33 | `rustfmt.toml` : `max_width = 120`. |
+
+**Catégorie facultative** (après relecture)
+
+| # | Décision |
+|---|---|
+| I1.34 | `category` est facultative dans `[mcp.tools]` (`ToolConfig.category: Option<Category>`). Un outil déclaré sans catégorie reste un outil connu ; sa catégorie suit S11 à l'exécution : annotations du serveur, sinon destructif. Une valeur de catégorie invalide reste une erreur. Pour la couverture des verrous (I1.21), une règle de **catégorie** verrouillée ne couvre pas la règle d'un outil sans catégorie statique (la catégorie n'est connue qu'à l'exécution) ; une règle `default` verrouillée ou une règle d'outil verrouillée la couvrent toujours. Exemple : `get_merge_request` et `add_merge_request_note` de `gitlab-ops` sont déclarés sans catégorie. |

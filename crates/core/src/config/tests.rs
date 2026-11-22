@@ -178,6 +178,10 @@ fn embedded_config_loads_and_validates() {
     let tools = config.session(&SessionId::new("sso-tools").unwrap()).unwrap();
     let origins: Vec<_> = tools.allowed_origins.iter().map(Origin::as_str).collect();
     assert_eq!(origins, ["https://jira.example.internal"]);
+
+    let gitlab = config.mcp(&McpId::new("gitlab-ops").unwrap()).unwrap();
+    let uncategorized = gitlab.tools[&ToolName::new("get_merge_request").unwrap()].category;
+    assert_eq!(uncategorized, None);
 }
 
 #[test]
@@ -641,6 +645,65 @@ fn unknown_category() {
         &edit("search = { category = \"read\" }", "search = { category = \"lookup\" }"),
         "mcp[0].tools.search.category",
         "inconnue",
+    );
+}
+
+/// Adds `inspect`, a declared tool without static category, to the `logs` MCP.
+fn with_uncategorized_tool() -> String {
+    edit(
+        "search = { category = \"read\" }",
+        "search = { category = \"read\" }\ninspect = {}",
+    )
+}
+
+#[test]
+fn tool_without_category_is_known() {
+    let config = load(&with_uncategorized_tool()).unwrap();
+    let logs = config.mcp(&McpId::new("logs").unwrap()).unwrap();
+    assert_eq!(logs.tools[&ToolName::new("inspect").unwrap()].category, None);
+    assert_eq!(
+        logs.tools[&ToolName::new("search").unwrap()].category,
+        Some(Category::Read)
+    );
+}
+
+#[test]
+fn invalid_category_is_refused_even_though_category_is_optional() {
+    let toml = edit("purge = { category = \"destructive\" }", "purge = { category = \"\" }");
+    assert_error(&toml, "mcp[0].tools.purge.category", "inconnue");
+}
+
+#[test]
+fn locked_category_does_not_cover_uncategorized_tool_rule() {
+    let toml = with_uncategorized_tool()
+        + "\n[policy.env.prod]\nwrite = { decision = \"deny\", locked = true }\n\
+           [policy.env.prod.mcp.logs.tool.inspect]\nrule = { decision = \"allow\" }";
+    if let Err(e) = load(&toml) {
+        panic!("{e}");
+    }
+}
+
+#[test]
+fn locked_default_covers_uncategorized_tool_rule() {
+    let toml = with_uncategorized_tool()
+        + "\n[policy.env.prod]\ndefault = { decision = \"deny\", locked = true }\n\
+           [policy.env.prod.mcp.logs.tool.inspect]\nrule = { decision = \"allow\" }";
+    assert_error(
+        &toml,
+        "policy.env.prod.mcp.logs.tool.inspect.rule",
+        "la règle verrouillée policy.env.prod.default la couvre",
+    );
+}
+
+#[test]
+fn locked_tool_rule_covers_uncategorized_tool_rule_in_profile() {
+    let toml = with_uncategorized_tool()
+        + "\n[policy.env.prod.mcp.logs.tool.inspect]\nrule = { decision = \"deny\", locked = true }\n\
+           [profiles.strict.policy.env.prod.mcp.logs.tool.inspect]\nrule = { decision = \"allow\" }";
+    assert_error(
+        &toml,
+        "profiles.strict.policy.env.prod.mcp.logs.tool.inspect.rule",
+        "au moins aussi stricte",
     );
 }
 
