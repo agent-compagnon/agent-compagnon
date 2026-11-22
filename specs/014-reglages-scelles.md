@@ -2,7 +2,7 @@
 id: "014"
 titre: "Réglages scellés (HMAC + DPAPI)"
 etape: "5d"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["004", "005", "011"]
 suivi: "github#15"
 ---
