@@ -171,3 +171,57 @@ impl SessionRegistry {
         true
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::session::SessionChange;
+
+    fn sid(id: &str) -> SessionId {
+        SessionId::new(id).unwrap()
+    }
+
+    fn service(env: &str, mcp: &str) -> SessionService {
+        SessionService {
+            env: EnvId::new(env).unwrap(),
+            mcp: McpId::new(mcp).unwrap(),
+        }
+    }
+
+    #[test]
+    fn sessions_know_the_services_they_unlock_and_broadcast_their_changes() {
+        let config = Config::embedded().unwrap();
+        let registry = SessionRegistry::from_config(&config);
+        let dev = registry.info(&sid("sso-dev")).unwrap();
+        assert_eq!(dev.method, AuthKind::Cookie);
+        assert_eq!(
+            dev.services,
+            [service("dev", "k8s-admin"), service("dev", "kibana-logs")]
+        );
+        let corp = registry.info(&sid("sso-corp")).unwrap();
+        assert_eq!(corp.method.label(), "jeton JWT");
+        assert!(corp.services.contains(&service("prod", "gitlab-ops")));
+        assert!(corp.services.contains(&service("int", "db-readonly")));
+        assert!(
+            corp.services
+                .iter()
+                .all(|s| ["gitlab-ops", "db-readonly"].contains(&s.mcp.as_str()))
+        );
+        assert_eq!(registry.state(&sid("sso-dev")), Some(SessionState::NeverConnected));
+        assert_eq!(registry.snapshot().len(), config.sessions.len());
+
+        let mut events = registry.subscribe();
+        assert!(registry.set(&sid("sso-dev"), SessionState::Expired, SessionChange::Rejected));
+        assert!(!registry.set(&sid("inconnue"), SessionState::Expired, SessionChange::Rejected));
+        assert_eq!(
+            events.try_recv().unwrap(),
+            SessionEvent {
+                session: sid("sso-dev"),
+                state: SessionState::Expired,
+                change: SessionChange::Rejected,
+            }
+        );
+        assert!(events.try_recv().is_err());
+        assert_eq!(registry.state(&sid("sso-dev")), Some(SessionState::Expired));
+    }
+}

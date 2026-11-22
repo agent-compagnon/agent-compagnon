@@ -16,6 +16,25 @@ jeton ou le cookie, et rien ne touche le disque.
 
 ## À faire
 
+### Contrat avec la spec 010 (`mcp_proxy_auth::ui`)
+
+- `AuthUi::login_window(LoginWindowSpec)` : la spec donne la session, le titre (« Connexion — {libellé} »),
+  `login_url`, `allowed_navigation` et, pour `jwt_header` seulement, `capture()` (motif d'URL, nom d'en-tête,
+  schéma) à passer au script injecté. Elle n'a aucun réglage de visibilité.
+- La commande de dépôt rend un `LoginEvent::HeaderCaptured { url, header, value }` : **URL de la requête, nom de
+  l'en-tête et valeur**. Le Rust de la spec 010 revérifie chaque événement (`HeaderCapture::candidate_token`, puis
+  `capture::check_jwt`) et ignore sans réponse ce qui ne convient pas ; l'appli peut appeler les mêmes fonctions
+  pour journaliser un refus tôt, mais ne doit jamais retenir une valeur qu'elles refusent. La valeur passe dans un
+  `SecretString` dès son arrivée.
+- `Navigated { url }` à chaque navigation de premier niveau acceptée ; `Closed` (ou `None`) quand l'utilisateur
+  ferme la fenêtre. Une fenêtre lâchée sans `close` doit se fermer aussi.
+- `cookies(url)` rend des `CookiePair { name, value: SecretString, expires }` (`None` pour un cookie de session).
+- `basic_prompt` : `None` si l'utilisateur annule ou ferme ; `BasicPromptSpec::error()` est le message à afficher
+  (« identifiants refusés »), `login()` l'identifiant à préremplir.
+- Échec fermé du contrôle de version du runtime : `AuthUiError::RuntimeTooOld`.
+- Une seule fenêtre ou saisie à la fois est demandée par l'authentificateur ; `notify_login_needed` est appelée
+  juste avant l'ouverture.
+
 ### Profil WebView2 partagé, sans appel COM
 
 - Plus d'environnement WebView2 créé à la main ni d'appel COM (`webview2-com`, `with_environment`,
@@ -164,3 +183,8 @@ Notifications Windows (5c).
   (constitution amendée le même jour) ; le Rust revérifie tout. Limites écrites : workers non vus, script de page
   pouvant perturber le crochet, source moins fiable qu'une lecture au niveau du navigateur. Sonde portée à 8
   points. Critère retiré : `EX-012-03` ; ajoutés : `EX-012-08` à `EX-012-11`.
+- **2026-11-22** — Contrat `AuthUi` précisé par la spec 010 (section « Contrat avec la spec 010 ») :
+  `LoginEvent::HeaderCaptured` porte aussi le nom de l'en-tête, la vérification côté Rust du motif, de l'en-tête,
+  du schéma et du JWT est faite par la spec 010 (`mcp_proxy_auth::capture`), `AuthUiError::RuntimeTooOld` sert
+  l'échec fermé du contrôle de version. Les contrôles propres à l'appli (fenêtre appelante, hôte de la page, 16 Kio)
+  restent ici. Aucun critère changé.
