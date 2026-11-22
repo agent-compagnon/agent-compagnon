@@ -2,7 +2,7 @@
 id: "017"
 titre: "ui — onglet MCP"
 etape: "6b"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["008", "016"]
 suivi: "github#18"
 ---
