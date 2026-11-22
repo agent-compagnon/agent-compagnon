@@ -109,6 +109,15 @@ la config embarquée sont fictifs) : la compiler dans l'exe (`config/default.tom
   que soit la page ; le journal contient « nouvelle fenêtre refusée » ou « téléchargement refusé » selon le cas.
   Observer aussi que la page de login du SSO fonctionne normalement (le prototype `Object` y est figé par Tauri,
   I012.17) et le noter si ce n'est pas le cas.
+- [ ] **EX-012-18** — Seulement si le SSO de recette repose sur Entra ID ou un compte Microsoft, sur un poste dont
+  la session Windows porte ce compte. D'abord la sonde avec le même argument,
+  `cargo run -p mcp-proxy --example webview_probe -- --sso-windows` : son bilan doit rester « 8/8 RÉUSSI »
+  (l'argument ne doit casser ni le mode InPrivate ni le partage du profil). Puis compiler l'appli avec
+  `os_primary_account_sso = true` dans `[webview]` de `config/default.toml`, sans la commiter : un appel d'outil
+  ouvre la fenêtre de login, et la page Microsoft reconnaît le compte de la session Windows sans saisie de
+  l'identifiant. Recompiler avec `false` : la même page demande l'identifiant. L'effet de cet argument en mode
+  InPrivate n'est pas attesté par les sources : si le compte n'est pas reconnu avec `true`, le noter ici ; le
+  réglage est alors sans effet, et il faudra décider de le retirer ou de le remplacer.
 
 ## 013 — app — notifications Windows et confirmations
 

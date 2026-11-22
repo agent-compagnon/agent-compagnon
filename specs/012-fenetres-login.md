@@ -238,6 +238,11 @@ jeton ou le cookie, et rien ne touche le disque.
 - **EX-012-17** (manuel) — Fenêtre de login : F12 et Ctrl+Maj+I n'ouvrent pas les outils de développement, le menu
   contextuel n'a pas « Inspecter » ; un lien `target=_blank` ou `window.open` n'ouvre aucune fenêtre ; un
   téléchargement est refusé ; le titre reste « Connexion — {libellé} » quelle que soit la page.
+- **EX-012-18** (manuel) — `webview.os_primary_account_sso = true` (faux par défaut), sur un poste dont la session
+  Windows porte un compte Entra ID ou Microsoft : la page de connexion Microsoft reconnaît ce compte sans saisie de
+  l'identifiant ; avec `false`, elle le demande. L'effet de l'argument
+  `msSingleSignOnOSForPrimaryAccountIsShared` en mode InPrivate n'est pas attesté par les sources : noter le
+  résultat, quel qu'il soit.
 
 ## Hors périmètre
 
@@ -270,3 +275,8 @@ Notifications Windows (5c).
   refusées. Fenêtre Basic : page `basic.html`, une fenêtre par saisie, capacité statique `basic-*`. Sonde : son
   propre dossier, attente de 35 s pour le point 3, contrôle par `--profil ephemeral_disk`. Critères ajoutés :
   `EX-012-12` à `EX-012-17` ; aucun critère existant changé.
+- **2026-11-22** — Critère `EX-012-18` (manuel) ajouté. Raison : l'effet réel de
+  `webview.os_primary_account_sso = true` n'était vérifié nulle part, seule la construction des arguments l'est
+  (`EX-012-10`). La voie documentée par WebView2 (`AllowSingleSignOnUsingOSPrimaryAccount`) n'existe qu'en `unsafe`
+  (D18) ; passer par un argument du navigateur est une hypothèse, à valider sur un poste réel. Aucun critère
+  existant changé.

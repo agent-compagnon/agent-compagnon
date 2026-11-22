@@ -36,8 +36,14 @@ on peut les recréer ailleurs à partir d'ici.
    texte n'est qu'un pointeur vers elle. Après chaque étape poussée, l'état du ticket est aligné sur la spec :
    - spec `implémentée` dont tous les critères sont prouvés par des tests : ticket **fermé** ;
    - spec `implémentée` avec des critères `(manuel)` : ticket **ouvert**, avec le nombre de vérifications qui
-     restent dans `docs/recette.md` ; c'est la personne qui passe la recette qui le ferme ;
-   - autres statuts : ticket ouvert.
+     restent dans `docs/recette.md` et l'étiquette `livré - recette Windows à faire` ; c'est la personne qui passe
+     la recette qui le ferme ;
+   - spec `en cours` : ticket ouvert, étiquette `en cours` ;
+   - autres statuts : ticket ouvert, sans étiquette.
+
+   Le ticket d'entrée (celui dont les autres sont les sous-tickets) porte un tableau d'avancement, reflet de
+   l'index ci-dessous et de `docs/recette.md`, refait à chaque alignement. Étiquettes et tableau ne servent qu'à
+   lire l'état d'un coup d'œil dans la liste des tickets : en cas d'écart, le dépôt fait foi.
 
 ## Statuts
 
@@ -62,7 +68,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [009](009-tracing.md) | 3e | Tracing — spans, tampon circulaire, journal fichier filtré, export de diagnostic | implémentée | 003, 007 | 13 |
 | [010](010-auth.md) | 4 | auth — méthodes d'authentification et authentification à la demande | implémentée | 002, 006, 007 | 13 |
 | [011](011-app-squelette.md) | 5a | app — squelette Tauri, pont stdio (named pipe), instance unique, tray, réglages | implémentée | 001 à 010 | 17 |
-| [012](012-fenetres-login.md) | 5b | app — fenêtres de login WebView2 (JWT, cookie, Basic), profil InPrivate | implémentée | 010, 011 | 16 |
+| [012](012-fenetres-login.md) | 5b | app — fenêtres de login WebView2 (JWT, cookie, Basic), profil InPrivate | implémentée | 010, 011 | 17 |
 | [013](013-notifications-confirmations.md) | 5c | app — notifications Windows et confirmations | implémentée | 007, 011, 012 | 14 |
 | [014](014-reglages-scelles.md) | 5d | Réglages scellés (HMAC + DPAPI) | implémentée | 004, 005, 011 | 8 |
 | [015](015-arret-urgence.md) | 5e | Arrêt d'urgence dans le menu de l'icône | implémentée | 007, 010, 011, 012 | 9 |
