@@ -13,7 +13,7 @@ use mcp_proxy_auth::UnavailableAuthUi;
 use mcp_proxy_core::config::{Config, EnvId, ProfileId, SessionId};
 use mcp_proxy_core::secrets::{Credential, SecretStore, platform_key_wrapper};
 use mcp_proxy_core::trace::{EntryKind, JournalFilter, SystemWallClock};
-use mcp_proxy_gateway::bridge::{PeerProof, ProtectFailure, Role, prove};
+use mcp_proxy_gateway::bridge::{PeerProof, ProtectFailure, Role, prove, request_stop};
 use mcp_proxy_gateway::notify::{
     ConfirmationId, ConfirmationPresenter, DetailView, PresentError, ToastContent, ToastState, UnavailablePresenter,
 };
@@ -278,7 +278,7 @@ async fn client_on_proven_pipe(
     let server = tokio::spawn(async move { gateway.serve_connection(Arc::new(FakeUser(1)), app_end).await });
     let proven = prove(Arc::new(FakeUser(client)), Role::Bridge, &mut bridge_end).await;
     let client = match proven {
-        Ok(()) => Ok(().serve(bridge_end).await.unwrap()),
+        Ok(_) => Ok(().serve(bridge_end).await.unwrap()),
         Err(_) => Err(()),
     };
     (client, server)
@@ -594,4 +594,72 @@ async fn an_altered_catalogue_cache_is_ignored_for_the_embedded_snapshot() {
             snapshot.alerts
         );
     }
+}
+
+// Exigence : EX-019-11
+#[tokio::test]
+async fn a_proved_control_client_stops_the_assembled_gateway() {
+    let dir = TempDir::new();
+    let gateway = Arc::new(start(&dir, SecretStore::for_platform().unwrap()).await);
+    choose_developer(&gateway, &[]).await;
+
+    // A bridge lists the tools: nothing it does asks for the exit.
+    let (client, bridge_server) = client_on_proven_pipe(Arc::clone(&gateway), 1).await;
+    let client = client.unwrap();
+    assert!(!client.list_all_tools().await.unwrap().is_empty());
+    let waiting = {
+        let gateway = Arc::clone(&gateway);
+        tokio::spawn(async move { gateway.exit_requested().await })
+    };
+    tokio::task::yield_now().await;
+    assert!(!waiting.is_finished());
+
+    let (control_end, app_end) = tokio::io::duplex(1 << 16);
+    let served = {
+        let gateway = Arc::clone(&gateway);
+        tokio::spawn(async move { gateway.serve_connection(Arc::new(FakeUser(1)), app_end).await })
+    };
+    let stop = tokio::spawn(request_stop(Arc::new(FakeUser(1)), control_end));
+    waiting.await.unwrap();
+    let events: Vec<String> = gateway
+        .journal()
+        .snapshot(&JournalFilter::default())
+        .into_iter()
+        .filter(|e| e.kind == EntryKind::Event)
+        .map(|e| e.summary)
+        .collect();
+    assert!(
+        events
+            .iter()
+            .any(|e| e == "arrêt demandé par l'installation d'une nouvelle version de MCP Proxy"),
+        "{events:?}"
+    );
+    // The connection stays open until the process ends; ending it releases the client.
+    assert!(!stop.is_finished());
+    served.abort();
+    assert_eq!(stop.await.unwrap(), Ok(()));
+
+    client.cancel().await.unwrap();
+    assert_eq!(bridge_server.await.unwrap(), Ok(()));
+}
+
+// Exigence : EX-019-12
+#[tokio::test]
+async fn the_autostart_setting_mirrors_the_run_value_without_writing_the_settings() {
+    let dir = TempDir::new();
+    let gateway = start(&dir, SecretStore::for_platform().unwrap()).await;
+    let settings_file = DataDirs::under(&dir.0).settings;
+    assert!(!gateway.settings().autostart);
+    let mut changes = gateway.changes();
+    gateway.mirror_autostart(true);
+    assert!(gateway.settings().autostart);
+    assert_eq!(changes.try_recv(), Ok(()));
+    assert!(
+        !settings_file.exists(),
+        "reading the registry at start never writes the sealed settings"
+    );
+    gateway.mirror_autostart(true);
+    assert_eq!(changes.try_recv(), Err(TryRecvError::Empty), "no change, no signal");
+    gateway.mirror_autostart(false);
+    assert!(!gateway.settings().autostart);
 }

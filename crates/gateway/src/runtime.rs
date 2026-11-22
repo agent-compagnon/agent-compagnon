@@ -30,7 +30,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{RwLock, broadcast, watch};
 use tokio::task::JoinHandle;
 
-use crate::bridge::{PeerProof, ProofError, Role, prove};
+use crate::bridge::{PeerProof, ProofError, Role, prove, serve_control};
 use crate::journal::follow_tool_changes;
 use crate::journal_view::{JournalFeed, JournalView, filtered_json};
 use crate::modules;
@@ -169,6 +169,8 @@ pub struct Gateway {
     confirmations: Arc<NotificationBroker>,
     alerts: Mutex<Vec<Alert>>,
     changes: broadcast::Sender<()>,
+    /// Set once a proved control client asked the application to stop (spec 019).
+    exit_requested: watch::Sender<bool>,
     utc_offset: i32,
     clock: Arc<dyn WallClock>,
     log_dir: PathBuf,
@@ -324,6 +326,7 @@ impl Gateway {
             confirmations,
             alerts: Mutex::new(alerts),
             changes,
+            exit_requested: watch::Sender::new(false),
             utc_offset: deps.utc_offset,
             clock: deps.clock,
             log_dir: deps.dirs.logs,
@@ -390,18 +393,46 @@ impl Gateway {
     }
 
     /// One accepted connection: the mutual proof as [`Role::Server`], then the MCP server until the client goes
-    /// away. A failed proof closes the connection without any MCP byte, and is logged without any nonce.
+    /// away. A failed proof closes the connection without any MCP byte, and is logged without any nonce. A client
+    /// proved in the control role (the installation of a new version, spec 019) can only ask the application to
+    /// stop: the connection then stays open until the process ends, which tells the client it is gone.
     pub async fn serve_connection<S>(&self, proof: Arc<dyn PeerProof>, mut stream: S) -> Result<(), ProofError>
     where
         S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     {
-        if let Err(error) = prove(proof, Role::Server, &mut stream).await {
-            tracing::warn!(%error, "connexion au canal refusée avant tout échange MCP");
-            return Err(error);
+        match prove(proof, Role::Server, &mut stream).await {
+            Ok(Role::Control) => {
+                let stop = || {
+                    self.journal.record_event(
+                        tracing::Level::INFO,
+                        "arrêt demandé par l'installation d'une nouvelle version de MCP Proxy",
+                    );
+                    self.exit_requested.send_replace(true);
+                };
+                if let Err(error) = serve_control(&mut stream, stop).await {
+                    tracing::warn!(%error, "demande de contrôle refusée");
+                    return Err(error);
+                }
+                std::future::pending::<()>().await;
+                Ok(())
+            }
+            Ok(_) => {
+                tracing::info!("client connecté au canal");
+                self.server.clone().run(stream).await;
+                Ok(())
+            }
+            Err(error) => {
+                tracing::warn!(%error, "connexion au canal refusée avant tout échange MCP");
+                Err(error)
+            }
         }
-        tracing::info!("client connecté au canal");
-        self.server.clone().run(stream).await;
-        Ok(())
+    }
+
+    /// Resolves once a proved control client asked the application to stop; the application then exits as by
+    /// « Quitter ».
+    pub async fn exit_requested(&self) {
+        let mut requested = self.exit_requested.subscribe();
+        let _ = requested.wait_for(|requested| *requested).await;
     }
 
     /// Fires whenever the snapshot may have changed: tools, sessions, instance states, settings, alerts, waiting
@@ -461,6 +492,19 @@ impl Gateway {
 
     pub fn settings(&self) -> UserSettings {
         self.settings.borrow().clone()
+    }
+
+    /// `UserSettings::autostart` follows the `Run` value of Windows, which is the reference (spec 019): changed in
+    /// memory only, so that reading the registry at start never writes the sealed settings.
+    pub fn mirror_autostart(&self, enabled: bool) {
+        let changed = self.settings.send_if_modified(|settings| {
+            let changed = settings.autostart != enabled;
+            settings.autostart = enabled;
+            changed
+        });
+        if changed {
+            let _ = self.changes.send(());
+        }
     }
 
     /// Changes the settings: applied at once (exposure, chain, list watcher), then saved. A save failure is

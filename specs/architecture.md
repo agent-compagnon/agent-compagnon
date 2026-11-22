@@ -23,11 +23,11 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 |---|---|
 | Rust | 1.97.0 épinglé, édition 2024, workspace Cargo |
 | MCP | `rmcp` 3.11 — features `server`, `client`, `transport-io`, `transport-streamable-http-client-reqwest`, `reqwest-native-tls`, `elicitation`, `request-state` ; `transport-streamable-http-server` pour les tests |
-| Appli | Tauri 2.12 (`tray-icon`, `wry`), `tauri-plugin-single-instance` 2.5, `windows` 0.62 (projection WinRT seulement), `winreg` 0.56, `rfd` 0.18 (boîtes de message) |
+| Appli | Tauri 2.12 (`tray-icon`, `wry`), `tauri-plugin-single-instance` 2.5, `windows` 0.62 (projection WinRT seulement), `winreg` 0.56, `rfd` 0.18 (boîtes de message), `mslnk` 0.1.8 (raccourci du menu Démarrer) |
 | HTTP/TLS | `reqwest` 0.13 en `native-tls` : SChannel et magasin de certificats Windows, aucune chaîne d'outils C |
 | Secrets | `secrecy` 0.10, `zeroize` 1.9, enveloppe : `chacha20poly1305` 0.11 (XChaCha20-Poly1305), `getrandom` 0.4, clé de session enveloppée par DPAPI utilisateur (WinRT `DataProtectionProvider`) |
 | Réglages scellés | `hmac` 0.13 (HMAC-SHA256 avec `sha2` 0.11), clé enveloppée par DPAPI utilisateur (spec 014) |
-| Mises à jour | `ed25519-dalek` 3, `self-replace` 1.5, `semver` |
+| Mises à jour | `ed25519-dalek` 3, `self-replace` 1.5, `semver` 1.0 |
 | Filtre de sortie | `memchr` 2.8, `regex` 1.13 (motifs génériques seulement), `serde_json` 1.0 |
 | Logs | `tracing`, `tracing-subscriber` 0.3, `tracing-appender` |
 | Front | Vue 3, Vite, TypeScript, Tailwind CSS 4, shadcn-vue (Reka UI), `@lucide/vue`, `valibot` (schémas de l'instantané), `@tauri-apps/api`, TanStack Table (`@tanstack/vue-table` 8), TanStack Virtual (`@tanstack/vue-virtual` 3), npm ; Vitest et Playwright pour les tests |
@@ -37,7 +37,8 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 ```
 Client LLM ──stdio──▶ mcp-proxy.exe stdio          (pont : aucun secret, aucune logique)
                           │ named pipe \\.\pipe\mcp-proxy.<utilisateur>   (tokio, première instance, clients
-                          │   distants rejetés ; preuve mutuelle DPAPI avant tout octet MCP)
+                          │   distants rejetés ; preuve mutuelle DPAPI avant tout octet MCP ; rôle `controle` :
+                          │   arrêt demandé par l'installation d'une nouvelle version, rien d'autre)
                           ▼
                   mcp-proxy.exe                     (instance unique, icône de notification)
                   ├─ gateway  serveur MCP par connexion · registre d'outils · chaîne de middlewares
@@ -60,7 +61,9 @@ config/                default.toml embarqué + catalog/*.json (instantanés d'o
 xtask/                 cargo xtask : ci, snapshot-catalog, keygen, sign, verify
 ```
 
-Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; données non secrètes dans
+Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` (posé par l'exe lui-même au premier
+lancement, spec 019 ; raccourci `MCP Proxy.lnk` du menu Démarrer ; démarrage automatique par la valeur `MCP Proxy`
+de `HKCU\…\CurrentVersion\Run`, `--autostart`) ; données non secrètes dans
 `%LOCALAPPDATA%\MCP Proxy\` (`logs\`, `cache\catalog\`, `webview\`, `update\`, `settings.json`, `settings.key` : clé
 du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
 
@@ -199,6 +202,14 @@ du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
   raccourci (recette `EX-013-05`, `EX-013-10`).
 - `self_replace` renomme l'exe en cours, pose le nouveau et programme la suppression de l'ancien. Le dossier de
   l'exe doit être inscriptible.
+- Installation (spec 019, compilé en cible Windows, non exécuté) : valeur `Run` par `winreg` 0.56
+  (`create_subkey_with_flags`, `set_value`, `delete_value`) ; raccourci par `mslnk` 0.1.8, lu dans ses sources :
+  format `.lnk` écrit en Rust pur (en-tête, liste d'identifiants de la cible, chemin relatif, dossier de travail),
+  sans bloc de données supplémentaires, donc **sans AUMID** ; ses `unwrap` supposent un chemin Unicode commençant
+  par une lettre de lecteur. Version d'un exe installé : aucune API sûre ne lit sa ressource de version
+  (`GetFileVersionInfo` est `unsafe`) ; chaque build porte une marque de version cherchée dans ses octets. Non
+  attesté par les sources : qu'un exe en cours (tenu par un pont) se renomme sans erreur, point de recette
+  (`EX-019-15`).
 
 **Clients LLM** (rapports d'utilisateurs, non officiels)
 - Claude Desktop coupe un appel d'outil vers 60 s, ne recharge pas fiablement la liste après `list_changed` et peut
@@ -267,3 +278,7 @@ du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
   journal pour la fenêtre vit dans `mcp_proxy_gateway::journal_view`, son contrat est figé par
   `ui/src/api/journal.example.json` ; l'export de diagnostic passe par le dialogue d'enregistrement de `rfd`, ouvert
   par l'appli, la page ne donnant jamais de chemin.
+- **2026-11-22** — Spec 019 : `mslnk` 0.1.8 ajouté à la ligne « Appli », `semver` précisé ; installation dans
+  `mcp_proxy_deploy::install` (le crate `gateway` dépend de `deploy` pour les arguments `--autostart` et
+  `--no-install`) ; rôle `controle` de la preuve mutuelle du pipe ; faits sur `winreg`, `mslnk` et la version d'un
+  exe installé.

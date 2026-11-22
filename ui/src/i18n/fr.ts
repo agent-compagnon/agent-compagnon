@@ -342,4 +342,37 @@ export const fr = {
     refuse: 'Refuser',
     approve: 'Autoriser une fois',
   },
+  install: {
+    install: {
+      title: 'Installer MCP Proxy',
+      intro: (version: string) =>
+        `MCP Proxy ${version} s'installe pour votre compte Windows, sans droits d'administrateur.`,
+      location: 'Dossier',
+      shortcut: 'Un raccourci « MCP Proxy » est ajouté au menu Démarrer. Vos réglages et vos journaux ne bougent pas.',
+      autostart: 'Démarrer MCP Proxy avec Windows',
+      autostartHint: "À l'ouverture de votre session, MCP Proxy démarre sans fenêtre, dans la zone de notification.",
+      running: 'Si MCP Proxy est déjà ouvert, il sera fermé puis relancé depuis son dossier.',
+      later: 'Pas maintenant',
+      confirm: 'Installer',
+      working: 'Installation en cours…',
+      failedTitle: "L'installation n'a pas abouti",
+    },
+    update: {
+      title: 'Mettre à jour MCP Proxy',
+      versions: (installed: string, version: string) =>
+        `La version ${installed} est installée. Cet exe est la version ${version}.`,
+      running:
+        'MCP Proxy sera fermé puis relancé dans sa nouvelle version : les sessions ouvertes devront être reconnectées.',
+      kept: 'Vos réglages, vos journaux et le démarrage avec Windows sont conservés.',
+      later: (installed: string) => `Lancer la version ${installed}`,
+      confirm: 'Mettre à jour',
+      working: 'Mise à jour en cours…',
+      failedTitle: "La mise à jour n'a pas abouti",
+    },
+    failed: {
+      fallback: "MCP Proxy peut tout de même fonctionner depuis l'emplacement de cet exe, sans être installé.",
+      quit: 'Quitter',
+      continue: 'Continuer sans installer',
+    },
+  },
 } as const

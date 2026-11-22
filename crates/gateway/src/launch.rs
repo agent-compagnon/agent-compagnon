@@ -1,13 +1,21 @@
-//! The launch modes of `mcp-proxy.exe` (spec 011).
+//! The launch modes of `mcp-proxy.exe` (specs 011 and 019).
 
 use std::ffi::OsString;
 
+use mcp_proxy_deploy::install::{AUTOSTART_ARG, NO_INSTALL_ARG};
 use thiserror::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LaunchMode {
-    /// No argument: the application (single instance, notification icon, gateway).
+    /// No argument: the application (single instance, notification icon, gateway), which offers the installation
+    /// when it does not run from it (spec 019).
     App,
+    /// `--autostart`, from the `Run` value at session opening: the application without its window, and without any
+    /// installation dialog.
+    Autostart,
+    /// `--no-install`: the application from where it is, without offering the installation (relaunch after a
+    /// declined or failed installation, launch by the bridge).
+    InPlace,
     /// `stdio`: the bridge launched by an LLM client.
     Stdio,
 }
@@ -27,7 +35,7 @@ pub enum LaunchError {
 const QUOTED_MAX: usize = 64;
 
 /// Reads the arguments that follow the program name. Exact and case-sensitive: anything else is refused rather than
-/// guessed, and the internal commands of step 7 (`--install`, `doctor`…) are not known yet.
+/// guessed, and the other internal commands of step 7 (`--uninstall`, `doctor`…) are not known yet.
 pub fn parse_launch<I>(args: I) -> Result<LaunchMode, LaunchError>
 where
     I: IntoIterator<Item = OsString>,
@@ -42,6 +50,8 @@ where
     let first = first.into_string().map_err(|_| LaunchError::NotUnicode)?;
     match first.as_str() {
         "stdio" => Ok(LaunchMode::Stdio),
+        AUTOSTART_ARG => Ok(LaunchMode::Autostart),
+        NO_INSTALL_ARG => Ok(LaunchMode::InPlace),
         other => Err(LaunchError::Unknown(other.chars().take(QUOTED_MAX).collect())),
     }
 }
@@ -67,6 +77,22 @@ mod tests {
         let long = "x".repeat(500);
         assert_eq!(parse(&[&long]), Err(LaunchError::Unknown("x".repeat(QUOTED_MAX))));
         assert!(LaunchError::TooMany.to_string().contains("mcp-proxy.exe stdio"));
+    }
+
+    // Exigence : EX-019-09
+    #[test]
+    fn internal_arguments_of_the_installation() {
+        assert_eq!(parse(&["--autostart"]), Ok(LaunchMode::Autostart));
+        assert_eq!(parse(&["--no-install"]), Ok(LaunchMode::InPlace));
+        assert_eq!(
+            parse(&["--AUTOSTART"]),
+            Err(LaunchError::Unknown("--AUTOSTART".to_owned()))
+        );
+        assert_eq!(parse(&["autostart"]), Err(LaunchError::Unknown("autostart".to_owned())));
+        assert_eq!(parse(&["--install"]), Err(LaunchError::Unknown("--install".to_owned())));
+        assert_eq!(parse(&["--autostart", "stdio"]), Err(LaunchError::TooMany));
+        assert_eq!(parse(&["stdio", "--no-install"]), Err(LaunchError::TooMany));
+        assert_eq!((AUTOSTART_ARG, NO_INSTALL_ARG), ("--autostart", "--no-install"));
     }
 
     // Exigence : EX-011-03

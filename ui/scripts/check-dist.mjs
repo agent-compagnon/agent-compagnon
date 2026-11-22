@@ -1,10 +1,17 @@
 // Exigence : EX-016-08
-// The application's build must not contain the simulated backend (spec 016): its marker, its scenarios and the
-// example snapshot are searched for in every file of `dist/`.
+// The application's build must not contain the simulated backend (spec 016) nor the simulated installation (spec
+// 019): their markers, their scenarios and the example snapshot are searched for in every file of `dist/`.
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
-const MARKERS = ['mcp-proxy-simulated-backend', 'premier-lancement', 'reglages-reinitialises', 'Claude Desktop']
+const MARKERS = [
+  'mcp-proxy-simulated-backend',
+  'premier-lancement',
+  'reglages-reinitialises',
+  'Claude Desktop',
+  'mcp-proxy-simulated-installer',
+  'mise-a-jour-echec',
+]
 
 function files(dir) {
   return readdirSync(dir).flatMap((name) => {

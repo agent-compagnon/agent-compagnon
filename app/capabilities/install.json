@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "install",
+  "description": "Installation window (spec 019): local page of the bundle, sends the user's answer (install, update, later, continue, quit). No remote URL, nothing else.",
+  "windows": ["install"],
+  "permissions": ["allow-answer-install"]
+}

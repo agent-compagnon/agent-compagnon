@@ -24,7 +24,10 @@ l'exe est `target\release\mcp-proxy.exe`. Le journal est dans `%LOCALAPPDATA%\MC
 d'un premier lancement : quitter l'appli et supprimer `%LOCALAPPDATA%\MCP Proxy\settings.json`. Depuis la spec 014,
 les réglages sont scellés : un `settings.json` écrit à la main est refusé ; depuis la spec 016, le profil se choisit
 dans la fenêtre (dialogue du premier lancement, puis sélecteur de l'en-tête). Vérifier d'abord
-que l'exe porte son icône dans l'Explorateur (ressources compilées seulement sous Windows, I011.14).
+que l'exe porte son icône dans l'Explorateur (ressources compilées seulement sous Windows, I011.14). Depuis la spec
+019, un exe lancé hors de `%LOCALAPPDATA%\Programs\MCP Proxy\` propose son installation : pour les sections 011 à
+018, l'installer d'abord (section 019) et lancer l'exe installé, ou lancer `target\release\mcp-proxy.exe
+--no-install`.
 
 - [ ] **EX-011-04** — Lancer `mcp-proxy.exe` (double clic) : aucune fenêtre de console ; l'icône apparaît dans la
   zone de notification. Clic droit, « Ouvrir » : la fenêtre « MCP Proxy » s'affiche ; clic gauche sur l'icône :
@@ -291,6 +294,61 @@ connu (le mot de passe d'une session Basic, par exemple) sert à vérifier qu'il
   la fenêtre, sur « Téléchargements », avec le nom `mcp-proxy-diagnostic-AAAAMMJJ-HHMM.zip` ; « Annuler » ne montre
   rien ; un emplacement sans droit d'écriture (`C:\Windows`) donne un bandeau rouge « Export de diagnostic
   impossible : accès refusé. » et aucun fichier.
+
+## 019 — Installation au premier lancement
+
+Préparation : un compte Windows **standard** (sans droits d'administrateur) dont le nom contient un accent (par
+exemple « José »), sans installation précédente : ni `%LOCALAPPDATA%\Programs\MCP Proxy\`, ni raccourci
+« MCP Proxy » dans le menu Démarrer, ni valeur `MCP Proxy` sous
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (`regedit`). Construire deux exe de versions différentes :
+la version du dépôt, puis la même après avoir monté `version` dans `Cargo.toml` (par exemple `0.1.1`), copiés dans
+`Téléchargements` sous `mcp-proxy-0.1.0.exe` et `mcp-proxy-0.1.1.exe`. Le journal de l'appli installée est dans
+`%LOCALAPPDATA%\MCP Proxy\logs\`.
+
+- [ ] **EX-019-04** — Double clic sur `mcp-proxy-0.1.0.exe` : la fenêtre « Installer MCP Proxy » s'affiche (texte
+  en clair et en sombre selon le réglage de Windows, rien de coupé) ; « Installer » : la fenêtre se ferme, l'icône
+  apparaît, la fenêtre principale propose le choix du profil. Le Gestionnaire des tâches (colonne « Ligne de
+  commande ») montre `…\AppData\Local\Programs\MCP Proxy\mcp-proxy.exe`, et plus aucun processus lancé depuis
+  `Téléchargements`. Le menu Démarrer contient « MCP Proxy » ; il ouvre l'appli (ou ramène sa fenêtre). Le dossier
+  d'installation ne contient que `mcp-proxy.exe` ; `%LOCALAPPDATA%\MCP Proxy\` (données) est un autre dossier.
+  Noter si les notifications portent bien le nom et l'icône de MCP Proxy (raccourci sans AUMID, I019.10).
+- [ ] **EX-019-05** — Quitter l'appli, supprimer le dossier d'installation et le raccourci, relancer
+  `mcp-proxy-0.1.0.exe`, cocher « Démarrer MCP Proxy avec Windows », « Installer » : la valeur `Run` vaut `"C:\Users\José\AppData\Local\Programs\MCP
+  Proxy\mcp-proxy.exe" --autostart`. Fermer la session, la rouvrir : l'icône apparaît, **aucune fenêtre** ne
+  s'ouvre ; dans le menu de l'icône, « Démarrer avec Windows » est coché.
+- [ ] **EX-019-06** — L'appli installée en cours, relancer `mcp-proxy-0.1.0.exe` : aucune fenêtre d'installation, la
+  fenêtre principale de l'appli installée passe au premier plan ; un seul processus `mcp-proxy.exe` (hors ponts).
+  Quitter l'appli et recommencer : l'appli installée démarre, rien n'est recopié (date de modification de l'exe
+  installé inchangée).
+- [ ] **EX-019-07** — Pendant toutes les étapes de cette section : aucune demande d'élévation (UAC), aucun écrit
+  hors de `HKCU` et du profil de l'utilisateur.
+- [ ] **EX-019-08** — Au premier double clic sur un exe téléchargé par un navigateur (marque « Mark of the Web ») :
+  noter ce qu'affiche SmartScreen (« Windows a protégé votre ordinateur », bouton « Exécuter quand même »), puis si
+  l'exe installé, relancé depuis le menu Démarrer, le montre encore. À reporter dans `028-authenticode.md`.
+- [ ] **EX-019-15** — Appli 0.1.0 installée et en cours, un client LLM connecté (pont `stdio` sur l'exe installé) avec
+  une session active. Lancer `mcp-proxy-0.1.1.exe` : la fenêtre « Mettre à jour MCP Proxy » dit « La version 0.1.0
+  est installée. Cet exe est la version 0.1.1. ». « Lancer la version 0.1.0 » : rien n'est remplacé, la fenêtre de
+  l'appli en cours passe devant. Relancer `mcp-proxy-0.1.1.exe`, « Mettre à jour » : l'icône disparaît puis revient ;
+  le journal de l'ancienne instance se termine par « arrêt demandé par l'installation d'une nouvelle version de MCP
+  Proxy » ; l'en-tête de la fenêtre affiche la version 0.1.1 ; la valeur `Run` est inchangée ; `mcp-proxy.exe.old`
+  n'existe plus, ou existe tant que le pont de l'ancienne version tourne (il disparaît à la mise à jour suivante). Le
+  client LLM retrouve ses outils après relance de son serveur MCP (la session est à rouvrir). Noter si un client qui
+  relance aussitôt son pont fait repartir l'ancienne version (I019.7).
+- [ ] **EX-019-16** — Échecs, rien ne doit rester (vérifier dossier, raccourci, valeur `Run`, fichiers `.new`) :
+  (1) sans installation, créer un **fichier** nommé `MCP Proxy` dans `%LOCALAPPDATA%\Programs\`, lancer, cocher la
+  case, « Installer » : message « Création du dossier d'installation impossible (…) », aucun reste ; supprimer le
+  fichier. (2) Installation présente, rendre `%LOCALAPPDATA%\Programs\MCP Proxy\` en lecture seule pour
+  l'utilisateur (Propriétés, Sécurité, refuser « Écriture »), lancer 0.1.1, « Mettre à jour » : message d'échec, l'exe
+  installé est toujours la 0.1.0 et se lance. (3) Dans chaque cas, « Continuer sans installer » : l'appli tourne
+  depuis `Téléchargements` (Gestionnaire des tâches), son menu a « Démarrer avec Windows » grisé ; « Quitter » ne
+  laisse aucun processus. Fermer la fenêtre pendant « Installation en cours… » est sans effet.
+- [ ] **EX-019-17** — Appli installée : dans le menu de l'icône, décocher « Démarrer avec Windows » : la valeur `Run`
+  disparaît (`regedit`, F5) ; cocher : elle revient, identique ; quitter et relancer : l'état du menu suit la valeur.
+  Modifier la valeur à la main (autre chemin) : le menu la montre décochée ; cocher la réécrit. Noter ce que montre le
+  menu après « Désactiver » dans l'onglet « Applications de démarrage » du Gestionnaire des tâches (I019.9).
+- [ ] **EX-019-18** — Sans installation, configurer un client LLM sur `…\Téléchargements\mcp-proxy-0.1.0.exe stdio`
+  et le démarrer : aucune fenêtre d'installation ; l'appli démarre depuis `Téléchargements` (sa ligne de commande se
+  termine par `--no-install`) et le client liste les outils.
 
 ## 025 — Module MCP local d'exemple (`jira-local`)
 

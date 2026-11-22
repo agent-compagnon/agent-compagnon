@@ -26,7 +26,9 @@ tauri-build = { workspace = true }
 async-trait.workspace = true
 mcp-proxy-auth = { path = "../crates/auth" }
 mcp-proxy-core = { path = "../crates/core" }
+mcp-proxy-deploy = { path = "../crates/deploy" }
 mcp-proxy-gateway = { path = "../crates/gateway" }
+mslnk.workspace = true
 rfd = { workspace = true }
 secrecy.workspace = true
 serde_json.workspace = true

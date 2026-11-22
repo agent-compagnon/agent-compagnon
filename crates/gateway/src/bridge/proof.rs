@@ -6,7 +6,9 @@
 //! Windows user can open a challenge, so a pipe or a client of another user fails here.
 //!
 //! The role in the challenge stops a reflection: a challenge sent back as is carries the receiver's own role and is
-//! refused. Frames are prefixed by their length (big-endian `u32`), 4 KiB at most; the whole exchange is bounded by
+//! refused. The application accepts two roles on the other side: the bridge, which then relays MCP, and the
+//! control client of the installation (spec 019), which may only ask the application to stop. The bridge always
+//! proves itself as the bridge, so nothing an LLM client sends can become a control request. Frames are prefixed by their length (big-endian `u32`), 4 KiB at most; the whole exchange is bounded by
 //! [`PROOF_TIMEOUT`].
 //!
 //! Known limit: nothing binds the proof to the pipe instance. A relay between a bridge and the real application
@@ -38,6 +40,8 @@ pub enum Role {
     Server,
     /// `mcp-proxy.exe stdio`, launched by the LLM client.
     Bridge,
+    /// The installation of a new version, which asks the running application to stop (spec 019).
+    Control,
 }
 
 impl Role {
@@ -45,18 +49,22 @@ impl Role {
         match self {
             Self::Server => b"serveur",
             Self::Bridge => b"pont",
+            Self::Control => b"controle",
         }
     }
 
-    fn peer(self) -> Self {
+    /// The roles this side accepts on the other side.
+    fn accepts(self, peer: Self) -> bool {
         match self {
-            Self::Server => Self::Bridge,
-            Self::Bridge => Self::Server,
+            Self::Server => matches!(peer, Self::Bridge | Self::Control),
+            Self::Bridge | Self::Control => peer == Self::Server,
         }
     }
 
     fn of_tag(tag: &[u8]) -> Option<Self> {
-        [Self::Server, Self::Bridge].into_iter().find(|r| r.tag() == tag)
+        [Self::Server, Self::Bridge, Self::Control]
+            .into_iter()
+            .find(|r| r.tag() == tag)
     }
 }
 
@@ -115,9 +123,9 @@ impl From<io::Error> for ProofError {
     }
 }
 
-/// Runs the proof as `role` on `stream`, bounded by [`PROOF_TIMEOUT`]. On error, the caller must close the stream
-/// without relaying anything.
-pub async fn prove<S>(proof: Arc<dyn PeerProof>, role: Role, stream: &mut S) -> Result<(), ProofError>
+/// Runs the proof as `role` on `stream`, bounded by [`PROOF_TIMEOUT`], and gives the role the other side proved. On
+/// error, the caller must close the stream without relaying anything.
+pub async fn prove<S>(proof: Arc<dyn PeerProof>, role: Role, stream: &mut S) -> Result<Role, ProofError>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
@@ -126,7 +134,7 @@ where
         .unwrap_or(Err(ProofError::Timeout))
 }
 
-async fn exchange<S>(proof: Arc<dyn PeerProof>, role: Role, stream: &mut S) -> Result<(), ProofError>
+async fn exchange<S>(proof: Arc<dyn PeerProof>, role: Role, stream: &mut S) -> Result<Role, ProofError>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
@@ -148,7 +156,7 @@ where
     let opened = blocking(&proof, move |p| p.unprotect(&theirs))
         .await?
         .map_err(|_| ProofError::Foreign)?;
-    let peer_nonce = peer_nonce(&opened, role)?;
+    let (peer, peer_nonce) = peer_nonce(&opened, role)?;
 
     let (sent, answer) = tokio::join!(write_frame(&mut writer, peer_nonce.as_slice()), read_frame(&mut reader));
     sent?;
@@ -156,7 +164,7 @@ where
     if !constant_time_eq(&answer, nonce.as_slice()) {
         return Err(ProofError::WrongAnswer);
     }
-    Ok(())
+    Ok(peer)
 }
 
 async fn blocking<R: Send + 'static>(
@@ -179,8 +187,8 @@ fn challenge_plaintext(role: Role, nonce: &[u8; NONCE_LEN]) -> Zeroizing<Vec<u8>
     plain
 }
 
-/// The nonce of a challenge opened by `own` role: it must carry the other role.
-fn peer_nonce(opened: &[u8], own: Role) -> Result<Zeroizing<Vec<u8>>, ProofError> {
+/// The role and the nonce of a challenge opened by `own` role: it must carry a role `own` accepts.
+fn peer_nonce(opened: &[u8], own: Role) -> Result<(Role, Zeroizing<Vec<u8>>), ProofError> {
     let rest = opened
         .strip_prefix(CONTEXT)
         .and_then(|r| r.strip_prefix(&[SEPARATOR]))
@@ -189,12 +197,12 @@ fn peer_nonce(opened: &[u8], own: Role) -> Result<Zeroizing<Vec<u8>>, ProofError
     let (tag, nonce) = (&rest[..split], &rest[split + 1..]);
     match Role::of_tag(tag) {
         Some(role) if role == own => Err(ProofError::Reflected),
-        Some(role) if role == own.peer() && nonce.len() == NONCE_LEN => Ok(Zeroizing::new(nonce.to_vec())),
+        Some(role) if own.accepts(role) && nonce.len() == NONCE_LEN => Ok((role, Zeroizing::new(nonce.to_vec()))),
         _ => Err(ProofError::Malformed),
     }
 }
 
-async fn write_frame<W: AsyncWrite + Unpin>(writer: &mut W, frame: &[u8]) -> Result<(), ProofError> {
+pub(crate) async fn write_frame<W: AsyncWrite + Unpin>(writer: &mut W, frame: &[u8]) -> Result<(), ProofError> {
     let len = u32::try_from(frame.len()).map_err(|_| ProofError::Malformed)?;
     writer.write_all(&len.to_be_bytes()).await?;
     writer.write_all(frame).await?;
@@ -203,7 +211,7 @@ async fn write_frame<W: AsyncWrite + Unpin>(writer: &mut W, frame: &[u8]) -> Res
 }
 
 /// A frame of 1 to [`MAX_FRAME`] bytes; a larger announced length is refused before anything else is read.
-async fn read_frame<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Vec<u8>, ProofError> {
+pub(crate) async fn read_frame<R: AsyncRead + Unpin>(reader: &mut R) -> Result<Vec<u8>, ProofError> {
     let mut len = [0u8; 4];
     reader.read_exact(&mut len).await?;
     let len = usize::try_from(u32::from_be_bytes(len)).map_err(|_| ProofError::Malformed)?;
@@ -231,8 +239,18 @@ mod tests {
     fn challenge_round_trip_and_roles() {
         let nonce = [7u8; NONCE_LEN];
         let plain = challenge_plaintext(Role::Bridge, &nonce);
-        assert_eq!(peer_nonce(&plain, Role::Server).unwrap().as_slice(), &nonce);
+        let (role, opened) = peer_nonce(&plain, Role::Server).unwrap();
+        assert_eq!((role, opened.as_slice()), (Role::Bridge, &nonce[..]));
         assert_eq!(peer_nonce(&plain, Role::Bridge), Err(ProofError::Reflected));
+        assert_eq!(
+            peer_nonce(&plain, Role::Control),
+            Err(ProofError::Malformed),
+            "a bridge is no server"
+        );
+        let control = challenge_plaintext(Role::Control, &nonce);
+        assert_eq!(peer_nonce(&control, Role::Server).unwrap().0, Role::Control);
+        assert_eq!(peer_nonce(&control, Role::Bridge), Err(ProofError::Malformed));
+        assert_eq!(peer_nonce(&control, Role::Control), Err(ProofError::Reflected));
         assert_eq!(peer_nonce(b"autre chose", Role::Server), Err(ProofError::Malformed));
         let short = &plain[..plain.len() - 1];
         assert_eq!(peer_nonce(short, Role::Server), Err(ProofError::Malformed));

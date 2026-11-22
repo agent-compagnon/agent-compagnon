@@ -8,6 +8,13 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+memchr.workspace = true
+semver.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+mcp-proxy-testkit = { path = "../testkit" }
 
 [lints]
 workspace = true

@@ -1,7 +1,9 @@
 //! The `stdio` bridge and its named pipe (spec 011): the pipe's name, the mutual proof of identity both ends run
-//! before any MCP byte, and the byte relay of the bridge. The application and the bridge only wire these to the
-//! Windows pipe and to DPAPI.
+//! before any MCP byte, and the byte relay of the bridge; the control channel that stops the application for an
+//! update of its installation (spec 019). The application and the bridge only wire these to the Windows pipe and
+//! to DPAPI.
 
+mod control;
 mod proof;
 mod relay;
 
@@ -11,6 +13,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 
+pub use self::control::{ControlRequest, STOP_TIMEOUT, StopError, request_stop, serve_control};
 pub use self::proof::{MAX_FRAME, NONCE_LEN, PROOF_TIMEOUT, PeerProof, ProofError, ProtectFailure, Role, prove};
 pub use self::relay::{RelayStats, relay};
 

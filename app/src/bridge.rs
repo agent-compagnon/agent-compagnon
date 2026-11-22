@@ -7,6 +7,7 @@ use std::process::{Command, ExitCode, Stdio};
 use std::sync::Arc;
 use std::time::Duration;
 
+use mcp_proxy_deploy::install::NO_INSTALL_ARG;
 use mcp_proxy_gateway::bridge::{pipe_name, prove_and_relay};
 use tokio::net::windows::named_pipe::{ClientOptions, NamedPipeClient};
 use tokio::time::Instant;
@@ -94,8 +95,9 @@ async fn connect(name: &str) -> Result<NamedPipeClient, String> {
     }
 }
 
-/// The same exe without argument, detached from the LLM client: no console, no inherited handle, and out of the
-/// client's job when the job allows it, so that closing the client does not close the application.
+/// The same exe as the application, detached from the LLM client: no console, no inherited handle, and out of the
+/// client's job when the job allows it, so that closing the client does not close the application. With
+/// `--no-install`: a launch by an LLM client never shows the installation dialog (spec 019).
 fn launch_application() -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| {
         format!(
@@ -105,6 +107,7 @@ fn launch_application() -> Result<(), String> {
     })?;
     let spawn = |flags: u32| {
         Command::new(&exe)
+            .arg(NO_INSTALL_ARG)
             .creation_flags(flags)
             .stdin(Stdio::null())
             .stdout(Stdio::null())

@@ -1,5 +1,6 @@
 //! The application: checks, then Tauri (single instance, hidden main window, notification icon, login windows),
 //! the gateway and its named pipe. Every start failure ends in a message box, a line of log and a non-zero exit.
+//! The installation (spec 019) has decided before: this process runs from where it is.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -10,6 +11,8 @@ use mcp_proxy_auth::AuthUi;
 use mcp_proxy_auth::webview::reset_profile_dir;
 use mcp_proxy_core::secrets::{SecretStore, platform_key_wrapper};
 use mcp_proxy_core::trace::SystemWallClock;
+use mcp_proxy_deploy::install::{AUTOSTART_ARG, InstallPaths, autostart_enabled, set_autostart};
+use mcp_proxy_deploy::ops::SystemOps;
 use mcp_proxy_gateway::bridge::{PeerProof, pipe_name};
 use mcp_proxy_gateway::control::GatewayControl;
 use mcp_proxy_gateway::journal_view::FeedItem;
@@ -20,7 +23,7 @@ use mcp_proxy_gateway::runtime::{
 use mcp_proxy_gateway::updates::UpdateEvent;
 use mcp_proxy_gateway::view::{Alert, AlertKind, AlertLevel, AppStatus};
 use tauri::image::Image;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tokio::sync::broadcast::error::RecvError;
@@ -39,6 +42,7 @@ const MENU_OPEN: &str = "open";
 const MENU_QUIT: &str = "quit";
 const MENU_SUSPEND: &str = "suspend";
 const MENU_DISCONNECT_ALL: &str = "disconnect-all";
+const MENU_AUTOSTART: &str = "autostart";
 const SNAPSHOT_CHANGED: &str = "snapshot-changed";
 const JOURNAL_ENTRY: &str = "journal-entry";
 const JOURNAL_RESYNC: &str = "journal-resync";
@@ -71,6 +75,24 @@ impl TrayIcons {
     }
 }
 
+/// The code generated from `tauri.conf.json` and `ui/dist`, shared with the installation window.
+pub(crate) fn context() -> tauri::Context<tauri::Wry> {
+    tauri::generate_context!()
+}
+
+/// How the application starts, as the installation decided.
+pub struct AppStart {
+    /// `--autostart`: no window at start, even at the first launch.
+    pub hidden: bool,
+    /// This exe is the installed one: the item « Démarrer avec Windows » may change the `Run` value.
+    pub installed: Option<InstalledHere>,
+}
+
+pub struct InstalledHere {
+    pub ops: Arc<dyn SystemOps>,
+    pub paths: InstallPaths,
+}
+
 /// A failure before the journal exists: line in today's log file, message box, exit.
 fn refuse_early(dirs: Option<&DataDirs>, failure: &StartupFailure) -> ExitCode {
     if let Some(dirs) = dirs {
@@ -86,7 +108,7 @@ fn refuse(failure: &StartupFailure) {
     dialog::error(failure.title(), &failure.message());
 }
 
-pub fn run() -> ExitCode {
+pub fn run(start: AppStart) -> ExitCode {
     let Some(base) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) else {
         return refuse_early(None, &StartupFailure::NoDataDir);
     };
@@ -118,8 +140,11 @@ pub fn run() -> ExitCode {
     let app = tauri::Builder::default()
         // Registered first: its setup runs inside `build`, where a second launch hands over to the first instance
         // and exits, before anything below runs.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            show_main_window(app)
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // A session opening while the application already runs shows nothing.
+            if !args.iter().any(|a| a == AUTOSTART_ARG) {
+                show_main_window(app);
+            }
         }))
         .invoke_handler(tauri::generate_handler![
             get_snapshot,
@@ -138,11 +163,11 @@ pub fn run() -> ExitCode {
             interface::get_journal,
             interface::export_diagnostic
         ])
-        .setup(|app| {
+        .setup(move |app| {
             // Tauri panics on a setup error: a failure here is explained, then the application exits.
             let gateway = app.try_state::<Arc<Gateway>>().map(|g| Arc::clone(g.inner()));
             let built = match gateway {
-                Some(gateway) => setup_ui(app, gateway).map_err(|e| e.to_string()),
+                Some(gateway) => setup_ui(app, gateway, start).map_err(|e| e.to_string()),
                 None => Err("passerelle absente".to_owned()),
             };
             if let Err(error) = built {
@@ -153,7 +178,7 @@ pub fn run() -> ExitCode {
             }
             Ok(())
         })
-        .build(tauri::generate_context!());
+        .build(context());
     let app = match app {
         Ok(app) => app,
         Err(error) => {
@@ -293,7 +318,7 @@ fn start_gateway(
 }
 
 /// Hidden main window, notification icon, and the task that keeps both in step with the gateway.
-fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
+fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>, start: AppStart) -> tauri::Result<()> {
     let window = WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::App("index.html".into()))
         .title("MCP Proxy")
         .inner_size(960.0, 680.0)
@@ -319,6 +344,23 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
         None::<&str>,
     )?;
     let disconnect_all = MenuItem::with_id(app, MENU_DISCONNECT_ALL, "Tout déconnecter", true, None::<&str>)?;
+    // The `Run` value is the reference (spec 019); outside the installation the item is disabled: a `Run` value
+    // never names a provisional location.
+    let installed = start.installed.map(Arc::new);
+    let autostart_on = installed
+        .as_ref()
+        .is_some_and(|i| autostart_enabled(i.ops.as_ref(), &i.paths));
+    if installed.is_some() {
+        gateway.mirror_autostart(autostart_on);
+    }
+    let autostart = CheckMenuItem::with_id(
+        app,
+        MENU_AUTOSTART,
+        "Démarrer avec Windows",
+        installed.is_some(),
+        autostart_on,
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, MENU_QUIT, "Quitter", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
@@ -328,10 +370,12 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
             &suspend,
             &disconnect_all,
             &PredefinedMenuItem::separator(app)?,
+            &autostart,
+            &PredefinedMenuItem::separator(app)?,
             &quit,
         ],
     )?;
-    let tray_menu = Arc::new(TrayMenu { suspend });
+    let tray_menu = Arc::new(TrayMenu { suspend, autostart });
     let menu_gateway = Arc::clone(&gateway);
     let menu_items = Arc::clone(&tray_menu);
     TrayIconBuilder::with_id(TRAY)
@@ -348,6 +392,15 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
             }
             MENU_DISCONNECT_ALL => {
                 tauri::async_runtime::spawn(disconnect_everything(Arc::clone(&menu_gateway)));
+            }
+            MENU_AUTOSTART => {
+                if let Some(installed) = installed.as_ref() {
+                    tauri::async_runtime::spawn(toggle_autostart(
+                        Arc::clone(&menu_gateway),
+                        Arc::clone(installed),
+                        Arc::clone(&menu_items),
+                    ));
+                }
             }
             _ => {}
         })
@@ -369,12 +422,51 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
     if let Some(toaster) = app.try_state::<Arc<Toaster>>().map(|t| Arc::clone(t.inner())) {
         tauri::async_runtime::spawn(follow_information(handle.clone(), Arc::clone(&gateway), toaster));
     }
+    tauri::async_runtime::spawn(follow_exit_request(handle.clone(), Arc::clone(&gateway)));
 
-    // First launch: the window asks for the profile.
-    if tauri::async_runtime::block_on(gateway.snapshot()).profile.first_launch {
+    // First launch: the window asks for the profile, unless the session opening started the application.
+    if !start.hidden && tauri::async_runtime::block_on(gateway.snapshot()).profile.first_launch {
         show_main_window(&handle);
     }
     Ok(())
+}
+
+/// The installation of a new version asked, through the authenticated control channel, that the application stop
+/// (spec 019): it exits as by « Quitter ».
+async fn follow_exit_request(app: AppHandle, gateway: Arc<Gateway>) {
+    gateway.exit_requested().await;
+    tracing::info!("arrêt demandé par l'installation d'une nouvelle version");
+    app.exit(0);
+}
+
+/// « Démarrer avec Windows »: the `Run` value first (what Windows obeys, read again at the click), then the
+/// settings, which mirror it. The item then shows the value as it is, whatever happened.
+async fn toggle_autostart(gateway: Arc<Gateway>, installed: Arc<InstalledHere>, menu: Arc<TrayMenu>) {
+    let ops = Arc::clone(&installed.ops);
+    let paths = installed.paths.clone();
+    let changed = tauri::async_runtime::spawn_blocking(move || {
+        let wanted = !autostart_enabled(ops.as_ref(), &paths);
+        set_autostart(ops.as_ref(), &paths, true, wanted)
+    })
+    .await
+    .unwrap_or(Err(mcp_proxy_deploy::install::AutostartError::Path));
+    let state = match changed {
+        Ok(state) => state,
+        Err(error) => {
+            tracing::warn!(%error, "démarrage avec Windows non modifié");
+            let message = format!("Démarrage avec Windows non modifié : {error}.");
+            let _ = tauri::async_runtime::spawn_blocking(move || dialog::error("MCP Proxy", &message)).await;
+            let ops = Arc::clone(&installed.ops);
+            let paths = installed.paths.clone();
+            tauri::async_runtime::spawn_blocking(move || autostart_enabled(ops.as_ref(), &paths))
+                .await
+                .unwrap_or(false)
+        }
+    };
+    if gateway.change_settings(|s| s.autostart = state).await.is_err() {
+        tracing::warn!("démarrage avec Windows : réglages non enregistrés, la valeur du registre fait foi");
+    }
+    let _ = menu.autostart.set_checked(state);
 }
 
 fn show_main_window(app: &AppHandle) {
@@ -385,10 +477,12 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
-/// The item of the icon menu that follows the settings.
+/// The items of the icon menu that follow the settings.
 struct TrayMenu {
     /// « Suspendre la passerelle » or « Reprendre ».
     suspend: MenuItem<tauri::Wry>,
+    /// « Démarrer avec Windows », checked as the `Run` value says.
+    autostart: CheckMenuItem<tauri::Wry>,
 }
 
 fn suspend_label(suspended: bool) -> &'static str {

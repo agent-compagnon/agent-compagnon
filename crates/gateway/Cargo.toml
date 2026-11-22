@@ -17,6 +17,7 @@ futures.workspace = true
 getrandom.workspace = true
 mcp-proxy-auth = { path = "../auth" }
 mcp-proxy-core = { path = "../core" }
+mcp-proxy-deploy = { path = "../deploy" }
 mcp-proxy-module-jira-local = { path = "../modules/jira-local" }
 reqwest.workspace = true
 rmcp = { workspace = true, features = [
