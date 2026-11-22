@@ -1,8 +1,8 @@
 //! `HttpUpstream`: a lazily connected MCP client over Streamable HTTP, compatible with both protocol generations.
 
 use std::fmt;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::sync::{Arc, Mutex as StdMutex, PoisonError};
+use std::time::Duration;
 
 use async_trait::async_trait;
 use futures::StreamExt;
@@ -16,8 +16,9 @@ use rmcp::model::{
 use rmcp::service::{NotificationContext, Peer, PeerRequestOptions, RoleClient, RunningService, ServiceError};
 use rmcp::transport::StreamableHttpClientTransport;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
-use rmcp::{ClientHandler, ClientLifecycleMode, ClientServiceExt};
+use rmcp::{ClientCacheConfig, ClientHandler, ClientLifecycleMode, ClientServiceExt};
 use tokio::sync::{Mutex, broadcast};
+use tokio::time::Instant;
 use url::Url;
 
 use super::http_client::{InjectingHttpClient, InjectionLog};
@@ -112,6 +113,12 @@ pub struct HttpUpstream {
     gate: Arc<dyn SessionGate>,
     handler: UpstreamHandler,
     connection: Mutex<Connection>,
+    /// The peer of the current connection, readable without waiting for a connection attempt.
+    current: StdMutex<Option<Peer<RoleClient>>>,
+    /// Fires after each successful connection.
+    connections: broadcast::Sender<()>,
+    /// `ttl_ms` of the last complete list, if the server gave one.
+    list_ttl: StdMutex<Option<Duration>>,
     /// Shared by every transport of this upstream, so that a rejection is seen whichever connection hit it.
     log: Arc<InjectionLog>,
 }
@@ -128,6 +135,7 @@ impl fmt::Debug for HttpUpstream {
 impl HttpUpstream {
     pub fn new(config: HttpUpstreamConfig, gate: Arc<dyn SessionGate>) -> Self {
         let (changes, _) = broadcast::channel(16);
+        let (connections, _) = broadcast::channel(16);
         Self {
             config,
             gate,
@@ -136,6 +144,9 @@ impl HttpUpstream {
                 changes,
             },
             connection: Mutex::new(Connection::default()),
+            current: StdMutex::new(None),
+            connections,
+            list_ttl: StdMutex::new(None),
             log: Arc::default(),
         }
     }
@@ -153,6 +164,7 @@ impl HttpUpstream {
                 return Ok(running.peer().clone());
             }
             connection.running = None;
+            *lock(&self.current) = None;
         }
         if let Some(retry_at) = connection.retry_at {
             let now = Instant::now();
@@ -165,10 +177,14 @@ impl HttpUpstream {
         match self.connect().await {
             Ok(running) => {
                 let peer = running.peer().clone();
+                // Every list must come from the server: a cached or stale list would hide a change or a failure.
+                peer.set_response_cache_config(ClientCacheConfig::disabled()).await;
                 connection.running = Some(running);
                 connection.failures = 0;
                 connection.retry_at = None;
+                *lock(&self.current) = Some(peer.clone());
                 self.watch_list_changes(&peer);
+                let _ = self.connections.send(());
                 Ok(peer)
             }
             Err(error) => {
@@ -191,6 +207,7 @@ impl HttpUpstream {
             InjectingHttpClient::new(Arc::clone(&self.gate), self.config.session.clone(), self.config.timeout)
                 .map_err(|_| UpstreamError::Connect("client HTTP : initialisation impossible".to_owned()))?;
         client.share_log(Arc::clone(&self.log));
+        client.report_initializations(self.connections.clone());
         let transport = StreamableHttpClientTransport::with_client(
             client,
             StreamableHttpClientTransportConfig::with_uri(self.config.url.as_str()),
@@ -212,7 +229,8 @@ impl HttpUpstream {
     }
 
     /// On a 2026-07-28 connection, list changes come through `subscriptions/listen`; on a legacy one, through
-    /// `UpstreamHandler::on_tool_list_changed`.
+    /// `UpstreamHandler::on_tool_list_changed`. The subscription is kept open while the connection lives: when it
+    /// ends, it is opened again after a delay, and a change is reported since one may have been missed meanwhile.
     fn watch_list_changes(&self, peer: &Peer<RoleClient>) {
         let modern = peer
             .peer_info()
@@ -222,15 +240,23 @@ impl HttpUpstream {
         }
         let peer = peer.clone();
         let changes = self.handler.changes.clone();
+        let retry = self.config.initial_backoff;
         tokio::spawn(async move {
             let filter = SubscriptionFilter::builder().tools_list_changed().build();
-            let Ok(mut subscription) = peer.listen(filter).await else {
-                return;
-            };
-            while let Ok(Some(notification)) = subscription.next().await {
-                if matches!(notification, ServerNotification::ToolListChangedNotification(_)) {
-                    let _ = changes.send(());
+            let mut first = true;
+            while !peer.is_transport_closed() {
+                if let Ok(mut subscription) = peer.listen(filter.clone()).await {
+                    if !first {
+                        let _ = changes.send(());
+                    }
+                    first = false;
+                    while let Ok(Some(notification)) = subscription.next().await {
+                        if matches!(notification, ServerNotification::ToolListChangedNotification(_)) {
+                            let _ = changes.send(());
+                        }
+                    }
                 }
+                tokio::time::sleep(retry).await;
             }
         });
     }
@@ -260,6 +286,7 @@ impl HttpUpstream {
         });
         if closed {
             self.connection.lock().await.running = None;
+            *lock(&self.current) = None;
         }
         mapped
     }
@@ -284,12 +311,13 @@ impl Upstream for HttpUpstream {
         self.require_session()?;
         let before = self.log.rejections();
         let peer = self.peer().await?;
-        let tools = match tokio::time::timeout(self.config.timeout, peer.list_all_tools()).await {
-            Ok(Ok(tools)) => tools,
+        let list = match tokio::time::timeout(self.config.timeout, peer.list_all_tools_with_cache_hint()).await {
+            Ok(Ok(list)) => list,
             Ok(Err(error)) => return Err(self.service_error(before, error).await),
             Err(_) => return Err(UpstreamError::Timeout(self.config.timeout)),
         };
-        tools
+        *lock(&self.list_ttl) = list.ttl_ms.map(Duration::from_millis);
+        list.items
             .iter()
             .map(|tool| {
                 definition_from_tool(tool)
@@ -347,4 +375,22 @@ impl Upstream for HttpUpstream {
     fn changes(&self) -> broadcast::Receiver<()> {
         self.handler.changes.subscribe()
     }
+
+    fn connections(&self) -> broadcast::Receiver<()> {
+        self.connections.subscribe()
+    }
+
+    fn is_connected(&self) -> bool {
+        lock(&self.current)
+            .as_ref()
+            .is_some_and(|peer| !peer.is_transport_closed())
+    }
+
+    fn list_ttl(&self) -> Option<Duration> {
+        *lock(&self.list_ttl)
+    }
+}
+
+fn lock<T>(mutex: &StdMutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }

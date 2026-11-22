@@ -91,7 +91,8 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
   ses versions, et le client échoue (« no compatible protocol version ») au lieu de se replier.
 - Le client attache un `progressToken` à chaque requête (`Peer::send_request_with_option`) ; il n'est connu qu'une
   fois la requête mise en file. `Peer::list_tools` met les listes en cache selon `ttl_ms`, cache invalidé par
-  `list_changed`.
+  `list_changed`, et sert par défaut une liste périmée si la requête échoue : la passerelle désactive ce cache
+  (spec 008).
 - Client HTTP streamable : pas de crochet d'en-têtes dynamiques. Il faut un type qui implémente le trait
   `StreamableHttpClient` en enveloppant `reqwest::Client` (comme `AuthClient<C>` du crate). Les limites passent par
   `post_message_with_response_limits` et les deux `*_with_max_sse_event_size` (il n'existe pas de
@@ -184,4 +185,11 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
   `open_json_with` (données associées, durée de vie) ; `Peer::create_elicitation_with_timeout` en ancien protocole.
   Un 401 sur une session ancien protocole peut aussi refermer la connexion : le rejeu peut alors être refusé dès la
   reconnexion, avant son `tools/call`.
-
+- **2026-11-22** — Faits sur rmcp 3.11 constatés dans les sources pour la spec 008 : le cache de réponses du client
+  (`ClientCacheConfig`) est actif par défaut et sert une liste périmée en cas d'erreur (`serve_stale_on_error`) ; il
+  se désactive par `Peer::set_response_cache_config(ClientCacheConfig::disabled())`. Un serveur 2026-07-28 qui ne
+  donne pas `ttl_ms` envoie `ttl_ms = 0` (`fill_missing_cache_hints`). Les notifications d'un abonnement
+  `subscriptions/listen` ne passent pas par le `ClientHandler` ; la fin d'un abonnement est donnée par
+  `Subscription::end` (`Abrupt` : à rouvrir). Le transport HTTP client réinitialise en silence une session expirée
+  (404, `reinit_on_expired_session`, actif par défaut). Côté serveur, une session ancien protocole expire après 300 s
+  d'inactivité (`SessionConfig::DEFAULT_KEEP_ALIVE`).

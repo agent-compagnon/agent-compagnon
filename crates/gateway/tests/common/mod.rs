@@ -11,11 +11,12 @@ use mcp_proxy_core::config::{Category, Config, EnvId, McpId, ProfileId, SessionI
 use mcp_proxy_core::filter::OutputFilter;
 use mcp_proxy_core::session::SessionGate;
 use mcp_proxy_core::settings::UserSettings;
-use mcp_proxy_gateway::registry::{EmbeddedCatalog, InstanceId, NoCatalogCache, Registry};
+use mcp_proxy_gateway::registry::{CatalogCache, EmbeddedCatalog, InstanceId, NoCatalogCache, Registry};
 use mcp_proxy_gateway::server::{CallChain, CallChainDeps, CallPipeline, GatewayServer, OutputGate};
+use mcp_proxy_gateway::updates::{ListWatcher, ListWatcherDeps, UpdateTracker, WatchTiming};
 use mcp_proxy_gateway::upstream::{HttpUpstream, HttpUpstreamConfig, Upstream, Upstreams, refresh};
 use mcp_proxy_testkit::{
-    FakeConfirmationBroker, FakeSessionGate, Generation, MemoryTraceSink, MockMcpServer, catalog_tools,
+    FakeConfirmationBroker, FakeSessionGate, Generation, MemoryTraceSink, MockMcpBuilder, MockMcpServer, catalog_tools,
 };
 use rmcp::model::{CallToolRequestParams, CallToolResult, ProtocolVersion};
 use rmcp::service::{RoleClient, RunningService};
@@ -31,6 +32,7 @@ pub const TOKEN: &str = "jeton-amont-7f3a9c";
 pub const TEST_TOOLS: [&str; 4] = ["echo_headers", "slow", "fail", "http_fail"];
 
 pub struct Stack {
+    pub generation: Generation,
     pub server: MockMcpServer,
     /// The server calls go to, with `upstream_outside_origins`.
     pub elsewhere: Option<MockMcpServer>,
@@ -52,6 +54,53 @@ impl Stack {
     pub fn upstream_calls(&self) -> usize {
         self.server.requests().iter().filter(|r| r.tool.is_some()).count()
     }
+
+    /// Stops the fake server and starts another one at the same address, with `tools` (and the test tools).
+    pub async fn restart_server(&mut self, tools: Vec<rmcp::model::Tool>) {
+        let addr = self.server.addr();
+        self.server.shutdown();
+        let mut last = None;
+        for _ in 0..50 {
+            let builder = MockMcpServer::builder()
+                .generation(self.generation)
+                .tools(tools.clone())
+                .with_test_tools()
+                .require_header(
+                    HeaderName::from_static("authorization"),
+                    HeaderValue::from_str(&format!("Bearer {TOKEN}")).unwrap(),
+                )
+                .bind(addr);
+            match builder.start().await {
+                Ok(server) => {
+                    self.server = server;
+                    return;
+                }
+                // The previous server may still hold the port for a moment.
+                Err(error) => last = Some(error),
+            }
+            std::thread::sleep(Duration::from_millis(20));
+            tokio::task::yield_now().await;
+        }
+        panic!("restart on {addr}: {last:?}");
+    }
+
+    /// Follows the tool list of `dev/kibana-logs`.
+    pub fn watch(&self, timing: WatchTiming) -> ListWatcher {
+        let mut upstreams = Upstreams::default();
+        let as_dyn: Arc<dyn Upstream> = self.upstream.clone();
+        upstreams.insert(as_dyn);
+        let gate: Arc<dyn SessionGate> = self.gate.clone();
+        ListWatcher::spawn(ListWatcherDeps {
+            config: Arc::clone(&self.config),
+            registry: Arc::clone(&self.registry),
+            upstreams,
+            gate,
+            settings: self.settings.subscribe(),
+            output: self.output.clone(),
+            tracker: UpdateTracker::new(&self.config),
+            timing,
+        })
+    }
 }
 
 pub fn instance(env: &str) -> InstanceId {
@@ -69,6 +118,7 @@ pub fn exposed(tool: &str) -> String {
 
 type ConfigEdit = Box<dyn FnOnce(&mut Config)>;
 type SettingsEdit = Box<dyn FnOnce(&mut UserSettings)>;
+type ServerEdit = Box<dyn Fn(MockMcpBuilder) -> MockMcpBuilder>;
 
 pub struct StackBuilder {
     generation: Generation,
@@ -77,6 +127,10 @@ pub struct StackBuilder {
     settings: Vec<SettingsEdit>,
     /// The upstream talks to this server instead of the one the session's origin points to.
     elsewhere: bool,
+    server: Option<ServerEdit>,
+    cache: Option<Box<dyn CatalogCache>>,
+    /// The registry is filled from the server before the stack is returned.
+    initial_refresh: bool,
 }
 
 pub fn builder(generation: Generation) -> StackBuilder {
@@ -86,6 +140,9 @@ pub fn builder(generation: Generation) -> StackBuilder {
         config: Vec::new(),
         settings: Vec::new(),
         elsewhere: false,
+        server: None,
+        cache: None,
+        initial_refresh: true,
     }
 }
 
@@ -100,18 +157,20 @@ pub async fn stack_with(generation: Generation, pipeline: Option<Arc<dyn CallPip
     builder.build().await
 }
 
-async fn kibana(generation: Generation) -> MockMcpServer {
-    MockMcpServer::builder()
+async fn kibana(generation: Generation, edit: Option<&ServerEdit>) -> MockMcpServer {
+    let builder = MockMcpServer::builder()
         .generation(generation)
         .tools(catalog_tools("kibana-logs").unwrap())
         .with_test_tools()
         .require_header(
             HeaderName::from_static("authorization"),
             HeaderValue::from_str(&format!("Bearer {TOKEN}")).unwrap(),
-        )
-        .start()
-        .await
-        .unwrap()
+        );
+    let builder = match edit {
+        Some(edit) => edit(builder),
+        None => builder,
+    };
+    builder.start().await.unwrap()
 }
 
 impl StackBuilder {
@@ -131,8 +190,24 @@ impl StackBuilder {
         self
     }
 
+    pub fn server(mut self, edit: impl Fn(MockMcpBuilder) -> MockMcpBuilder + 'static) -> Self {
+        self.server = Some(Box::new(edit));
+        self
+    }
+
+    pub fn cache(mut self, cache: impl CatalogCache + 'static) -> Self {
+        self.cache = Some(Box::new(cache));
+        self
+    }
+
+    /// The registry keeps its embedded snapshot and the upstream is not connected.
+    pub fn without_initial_refresh(mut self) -> Self {
+        self.initial_refresh = false;
+        self
+    }
+
     pub async fn build(self) -> Stack {
-        let server = kibana(self.generation).await;
+        let server = kibana(self.generation, self.server.as_ref()).await;
         let gate = Arc::new(FakeSessionGate::with_bearer(&session(), TOKEN, &[&server.url()]).unwrap());
         let mut config = Config::embedded().unwrap();
         let kibana_config = config.mcp.iter_mut().find(|m| m.id.as_str() == "kibana-logs").unwrap();
@@ -155,7 +230,7 @@ impl StackBuilder {
         let mut registry = Registry::new(
             Arc::clone(&config),
             &embedded,
-            Box::new(NoCatalogCache),
+            self.cache.unwrap_or_else(|| Box::new(NoCatalogCache)),
             Arc::clone(&filter),
         )
         .unwrap();
@@ -169,7 +244,7 @@ impl StackBuilder {
         let registry = Arc::new(RwLock::new(registry));
 
         let target_server = if self.elsewhere {
-            Some(kibana(self.generation).await)
+            Some(kibana(self.generation, self.server.as_ref()).await)
         } else {
             None
         };
@@ -189,7 +264,7 @@ impl StackBuilder {
                 Arc::clone(&shared_gate),
             );
             refresh(&registry, &lister).await.unwrap();
-        } else {
+        } else if self.initial_refresh {
             refresh(&registry, upstream.as_ref()).await.unwrap();
         }
         let mut upstreams = Upstreams::default();
@@ -228,6 +303,7 @@ impl StackBuilder {
             Duration::from_secs(config.gateway.list_ttl_secs),
         );
         Stack {
+            generation: self.generation,
             server,
             elsewhere: target_server,
             gate,

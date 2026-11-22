@@ -52,7 +52,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [005](005-registre-catalogue.md) | 3a | gateway — registre d'outils, préfixage, exposition, catalogue embarqué + cache | implémentée | 001, 004 | 8 |
 | [006](006-transports-testkit.md) | 3b | gateway — transports MCP (côté clients, côté serveurs) et testkit | implémentée | 002, 003, 005 | 13 |
 | [007](007-middlewares.md) | 3c | gateway — chaîne de middlewares | implémentée | 003, 004, 006 | 13 |
-| [008](008-mises-a-jour-serveurs.md) | 3d | gateway — mises à jour des serveurs MCP | en cours | 005, 006, 007 | 10 |
+| [008](008-mises-a-jour-serveurs.md) | 3d | gateway — mises à jour des serveurs MCP | en cours | 005, 006, 007 | 14 |
 | [009](009-tracing.md) | 3e | Tracing — spans, tampon circulaire, journal fichier filtré, export de diagnostic | prévue | 003, 007 | 8 |
 | [010](010-auth.md) | 4 | auth — méthodes d'authentification et authentification à la demande | prévue | 002, 006, 007 | 11 |
 | [011](011-app-squelette.md) | 5a | app — squelette Tauri, pont stdio (named pipe), instance unique, tray, réglages | prévue | 001 à 010 | 11 |

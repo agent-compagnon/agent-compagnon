@@ -6,7 +6,8 @@
 //! Profile `developpeur`, its default environments exposed. Each remote MCP is served by one fake server (on
 //! `127.0.0.1`) for all its environments, with the tools of its snapshot; every session holds a demonstration token,
 //! allowed only towards the fake servers of the MCPs that use it. Every call goes through the whole call chain; a
-//! confirmation outside the chat is always refused (no notification here). Stdout carries MCP: diagnostics go to
+//! confirmation outside the chat is always refused (no notification here). Tool lists are followed by the
+//! `ListWatcher` (spec 008). Stdout carries MCP: diagnostics go to
 //! stderr.
 
 #![allow(clippy::print_stderr)]
@@ -23,6 +24,7 @@ use mcp_proxy_core::settings::UserSettings;
 use mcp_proxy_core::trace::NoTrace;
 use mcp_proxy_gateway::registry::{EmbeddedCatalog, InstanceId, NoCatalogCache, Registry};
 use mcp_proxy_gateway::server::{CallChain, CallChainDeps, GatewayServer, OutputGate};
+use mcp_proxy_gateway::updates::{ListWatcher, ListWatcherDeps, UpdateTracker, WatchTiming};
 use mcp_proxy_gateway::upstream::{HttpUpstream, HttpUpstreamConfig, Upstream, Upstreams, refresh};
 use mcp_proxy_testkit::{FakeConfirmationBroker, MockMcpServer, catalog_tools};
 use secrecy::SecretString;
@@ -99,6 +101,17 @@ async fn main() -> Result<(), Error> {
 
     let output = OutputGate::new(filter);
     let (_settings_sender, settings) = watch::channel(settings);
+    // Tool lists follow the servers: notifications, subscriptions, periodic reloads, reconnections.
+    let _watcher = ListWatcher::spawn(ListWatcherDeps {
+        config: Arc::clone(&config),
+        registry: Arc::clone(&registry),
+        upstreams: upstreams.clone(),
+        gate: Arc::clone(&gate),
+        settings: settings.clone(),
+        output: output.clone(),
+        tracker: UpdateTracker::new(&config),
+        timing: WatchTiming::from_config(&config),
+    });
     let pipeline = Arc::new(CallChain::new(CallChainDeps {
         config: Arc::clone(&config),
         registry: Arc::clone(&registry),

@@ -76,6 +76,22 @@ pub trait Upstream: Send + Sync {
 
     /// Fires when the server says its list of tools changed.
     fn changes(&self) -> broadcast::Receiver<()>;
+
+    /// Fires after each connection and reconnection: the list may have changed meanwhile. Closed at once for an
+    /// upstream without connections.
+    fn connections(&self) -> broadcast::Receiver<()> {
+        broadcast::channel(1).1
+    }
+
+    /// A connection is open now. Asking never opens one.
+    fn is_connected(&self) -> bool {
+        false
+    }
+
+    /// How long the server said its last complete list stays valid (`ttl_ms`), if it said so.
+    fn list_ttl(&self) -> Option<Duration> {
+        None
+    }
 }
 
 /// The upstream of each instance that has one.

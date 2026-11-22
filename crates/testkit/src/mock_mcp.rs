@@ -2,6 +2,7 @@
 
 use std::borrow::Cow;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
@@ -59,9 +60,12 @@ struct Shared {
     tools: Mutex<Vec<Tool>>,
     test_tools: bool,
     page_size: Option<usize>,
+    list_ttl: Option<Duration>,
     required_header: Option<(HeaderName, HeaderValue)>,
     www_authenticate: bool,
     redirect_to: Option<String>,
+    /// Every request to `/mcp` gets a 503 while set.
+    unavailable: AtomicBool,
     journal: Mutex<Vec<RecordedRequest>>,
     /// Peers of legacy sessions, notified by `notifications/tools/list_changed`.
     peers: Mutex<Vec<Peer<RoleServer>>>,
@@ -88,12 +92,20 @@ pub struct MockMcpBuilder {
     tools: Vec<Tool>,
     test_tools: bool,
     page_size: Option<usize>,
+    list_ttl: Option<Duration>,
     required_header: Option<(HeaderName, HeaderValue)>,
     www_authenticate: bool,
     redirect_to: Option<String>,
+    addr: Option<SocketAddr>,
 }
 
 impl MockMcpBuilder {
+    /// Listens on `addr` instead of a port chosen by the system: a server restarted where the previous one was.
+    pub fn bind(mut self, addr: SocketAddr) -> Self {
+        self.addr = Some(addr);
+        self
+    }
+
     pub fn generation(mut self, generation: Generation) -> Self {
         self.generation = generation;
         self
@@ -116,9 +128,21 @@ impl MockMcpBuilder {
         self
     }
 
+    /// `tools/list` answers carry this `ttlMs`.
+    pub fn list_ttl(mut self, ttl: Duration) -> Self {
+        self.list_ttl = Some(ttl);
+        self
+    }
+
     /// Every request to `/mcp` without exactly this header gets a 401.
     pub fn require_header(mut self, name: HeaderName, value: HeaderValue) -> Self {
         self.required_header = Some((name, value));
+        self
+    }
+
+    /// Every request is accepted, whatever its headers (undoes `require_header`).
+    pub fn anonymous(mut self) -> Self {
+        self.required_header = None;
         self
     }
 
@@ -141,9 +165,11 @@ impl MockMcpBuilder {
             tools: Mutex::new(self.tools),
             test_tools: self.test_tools,
             page_size: self.page_size,
+            list_ttl: self.list_ttl,
             required_header: self.required_header,
             www_authenticate: self.www_authenticate,
             redirect_to: self.redirect_to,
+            unavailable: AtomicBool::new(false),
             journal: Mutex::new(Vec::new()),
             peers: Mutex::new(Vec::new()),
             changes,
@@ -161,7 +187,10 @@ impl MockMcpBuilder {
             .route("/redirect", any(redirect))
             .layer(middleware::from_fn_with_state(Arc::clone(&shared), gatekeeper))
             .with_state(Arc::clone(&shared));
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let listener = match self.addr {
+            Some(addr) => tokio::net::TcpListener::bind(addr).await?,
+            None => tokio::net::TcpListener::bind("127.0.0.1:0").await?,
+        };
         let addr = listener.local_addr()?;
         let shutdown = ct.clone();
         tokio::spawn(async move {
@@ -187,9 +216,11 @@ impl MockMcpServer {
             tools: Vec::new(),
             test_tools: false,
             page_size: None,
+            list_ttl: None,
             required_header: None,
             www_authenticate: true,
             redirect_to: None,
+            addr: None,
         }
     }
 
@@ -229,6 +260,16 @@ impl MockMcpServer {
             let _ = peer.notify_tool_list_changed().await;
         }
         let _ = self.shared.changes.send(());
+    }
+
+    /// While set, every request to `/mcp` gets a `503 Service Unavailable` (still recorded).
+    pub fn set_unavailable(&self, unavailable: bool) {
+        self.shared.unavailable.store(unavailable, Ordering::SeqCst);
+    }
+
+    /// `tools/list` requests received so far.
+    pub fn list_requests(&self) -> usize {
+        self.mcp_methods().iter().filter(|m| *m == "tools/list").count()
     }
 
     pub fn shutdown(&self) {
@@ -285,6 +326,9 @@ async fn gatekeeper(State(shared): State<Arc<Shared>>, request: Request, next: N
     });
 
     if parts.uri.path().starts_with("/mcp") {
+        if shared.unavailable.load(Ordering::SeqCst) {
+            return plain(StatusCode::SERVICE_UNAVAILABLE, "service indisponible".to_owned());
+        }
         // An old server does not know `server/discover`: its version check would otherwise answer first, with the
         // list of supported versions, which a server predating 2026-07-28 cannot do.
         if shared.generation == Generation::Legacy && mcp_method.as_deref() == Some("server/discover") {
@@ -406,8 +450,12 @@ impl ServerHandler for MockHandler {
         _: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
         let tools = self.0.all_tools();
+        let ttl = |result: ListToolsResult| match self.0.list_ttl {
+            Some(ttl) => result.with_ttl_ms(u64::try_from(ttl.as_millis()).unwrap_or(u64::MAX)),
+            None => result,
+        };
         let Some(size) = self.0.page_size else {
-            return Ok(ListToolsResult::with_all_items(tools));
+            return Ok(ttl(ListToolsResult::with_all_items(tools)));
         };
         let start = match request.and_then(|r| r.cursor) {
             Some(cursor) => cursor
@@ -419,7 +467,7 @@ impl ServerHandler for MockHandler {
         let page = tools.get(start..end).map(<[Tool]>::to_vec).unwrap_or_default();
         let mut result = ListToolsResult::with_all_items(page);
         result.next_cursor = (end < tools.len()).then(|| end.to_string());
-        Ok(result)
+        Ok(ttl(result))
     }
 
     async fn call_tool(

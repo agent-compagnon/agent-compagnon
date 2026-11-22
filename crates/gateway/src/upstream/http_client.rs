@@ -12,11 +12,12 @@ use mcp_proxy_core::config::SessionId;
 use mcp_proxy_core::session::{SessionError, SessionGate};
 use reqwest::header::{AUTHORIZATION, COOKIE, HeaderMap, HeaderName, HeaderValue};
 use reqwest::{StatusCode, redirect};
-use rmcp::model::ClientJsonRpcMessage;
+use rmcp::model::{ClientJsonRpcMessage, ClientRequest, JsonRpcMessage};
 use rmcp::transport::streamable_http_client::{
     SseError, StreamableHttpClient, StreamableHttpError, StreamableHttpPostResponse, StreamableHttpResponseLimits,
 };
 use sse_stream::Sse;
+use tokio::sync::broadcast;
 use url::Url;
 
 type HttpError = StreamableHttpError<reqwest::Error>;
@@ -57,6 +58,9 @@ pub struct InjectingHttpClient {
     gate: Arc<dyn SessionGate>,
     session: Option<SessionId>,
     log: Arc<InjectionLog>,
+    /// Told of every accepted `initialize`, including the transparent re-initialization of an expired session: the
+    /// server may have been restarted with other tools.
+    initialized: Option<broadcast::Sender<()>>,
 }
 
 impl fmt::Debug for InjectingHttpClient {
@@ -107,11 +111,16 @@ impl InjectingHttpClient {
             gate,
             session,
             log: Arc::default(),
+            initialized: None,
         })
     }
 
     pub(super) fn share_log(&mut self, log: Arc<InjectionLog>) {
         self.log = log;
+    }
+
+    pub(super) fn report_initializations(&mut self, sender: broadcast::Sender<()>) {
+        self.initialized = Some(sender);
     }
 
     /// The headers to send to `uri`: the transport's, without any authentication header, plus the session's
@@ -218,10 +227,21 @@ impl StreamableHttpClient for InjectingHttpClient {
         limits: StreamableHttpResponseLimits,
     ) -> Result<StreamableHttpPostResponse, HttpError> {
         let (client, headers) = self.prepare(&uri, custom_headers)?;
+        let initialize = matches!(
+            &message,
+            JsonRpcMessage::Request(request) if matches!(request.request, ClientRequest::InitializeRequest(_))
+        );
         let result = client
             .post_message_with_response_limits(uri, message, session_id, None, headers, limits)
             .await;
-        self.checked(result)
+        let result = self.checked(result);
+        if initialize
+            && result.is_ok()
+            && let Some(sender) = &self.initialized
+        {
+            let _ = sender.send(());
+        }
+        result
     }
 
     async fn delete_session(
