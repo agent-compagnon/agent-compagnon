@@ -2,7 +2,7 @@
 id: "007"
 titre: "gateway — chaîne de middlewares"
 etape: "3c"
-statut: "prévue"
+statut: "en cours"
 depend_de: ["003", "004", "006"]
 suivi: "github#8"
 ---
