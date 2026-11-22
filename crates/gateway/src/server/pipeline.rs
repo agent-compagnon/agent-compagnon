@@ -11,8 +11,9 @@ use super::output::Filtered;
 use super::{ClientIdentity, ConnectionId};
 use crate::upstream::ProgressSink;
 
-/// One `tools/call` as received from the client.
-#[derive(Debug, Clone)]
+/// One `tools/call` as received from the client. `Debug` leaves out the arguments and what the client brought back:
+/// they are not filtered.
+#[derive(Clone)]
 pub struct CallRequest {
     pub exposed_name: String,
     pub arguments: Option<JsonObject>,
@@ -29,6 +30,15 @@ pub struct CallRequest {
     pub progress: Option<ProgressSink>,
     /// Cancelled when the client cancels the request or goes away.
     pub cancel: CancellationToken,
+}
+
+impl std::fmt::Debug for CallRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CallRequest")
+            .field("connection", &self.connection)
+            .field("progress", &self.progress.is_some())
+            .finish_non_exhaustive()
+    }
 }
 
 impl CallRequest {
@@ -52,4 +62,26 @@ impl CallRequest {
 pub trait CallPipeline: Send + Sync {
     /// Always answers: a refusal or an error is a filtered tool result with `is_error = true`.
     async fn call(&self, request: CallRequest) -> Filtered;
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn debug_shows_neither_arguments_nor_state() {
+        let mut request = CallRequest::new(
+            "dev_kibana_search_logs",
+            json!({ "query": "argument-secret" }).as_object().cloned(),
+            ClientIdentity::default(),
+        );
+        request.request_state = Some("etat-secret".to_owned());
+        let text = format!("{request:?}");
+        assert!(
+            !text.contains("argument-secret") && !text.contains("etat-secret"),
+            "{text}"
+        );
+    }
 }

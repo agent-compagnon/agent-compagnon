@@ -84,8 +84,8 @@ impl ResolvedTool {
     }
 }
 
-/// One call on its way through the chain.
-#[derive(Debug)]
+/// One call on its way through the chain. `Debug` leaves out the arguments and what the client brought back: they
+/// are not filtered yet.
 pub struct CallContext {
     pub call_id: u64,
     pub started_at: SystemTime,
@@ -109,6 +109,17 @@ pub struct CallContext {
     pub explanation: Option<String>,
     /// Set by the upstream call.
     pub result: Option<CallToolResult>,
+}
+
+impl std::fmt::Debug for CallContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CallContext")
+            .field("call_id", &self.call_id)
+            .field("connection", &self.connection)
+            .field("tool", &self.tool)
+            .field("decision", &self.policy.as_ref().map(|p| p.decision))
+            .finish_non_exhaustive()
+    }
 }
 
 impl CallContext {
@@ -142,11 +153,19 @@ impl CallContext {
 }
 
 /// Why a call stops before the upstream answer. `message` is French, follows `MCP Proxy : `, and goes through the
-/// output filter like everything else.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// output filter like everything else; `Debug` leaves it out for that reason.
+#[derive(Clone, PartialEq, Eq)]
 pub struct Refusal {
     pub status: CallStatus,
     pub message: String,
+}
+
+impl std::fmt::Debug for Refusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Refusal")
+            .field("status", &self.status)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Refusal {
