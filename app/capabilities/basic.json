@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "basic",
+  "description": "Basic input windows (spec 012): local page of the bundle, sends its answer. No remote URL, nothing else.",
+  "windows": ["basic-*"],
+  "permissions": ["allow-submit-basic-credentials"]
+}

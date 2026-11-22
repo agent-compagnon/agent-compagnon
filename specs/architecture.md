@@ -135,7 +135,31 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
   par `additional_browser_args` (spec 012).
 - Le partage des cookies InPrivate entre fenêtres d'un même environnement n'est pas attesté par les sources : c'est
   le premier point à valider en recette (étape 5b), avec repli `ephemeral_disk`.
-- Une page distante n'a accès à aucune commande tant qu'aucune capacité `remote` n'est déclarée.
+- Une page distante n'a accès à aucune commande tant qu'aucune capacité `remote` ne la couvre : pour une origine
+  distante, Tauri vérifie l'ACL de toute commande, sauf sa commande interne de lecture des canaux
+  (`FETCH_CHANNEL_DATA_COMMAND`), exemptée ; l'appli n'utilise aucun `Channel`, elle n'a donc rien à lire.
+- **Vérifié dans les sources** (spec 012, compilé en cible Windows, non exécuté) :
+  - `Manager::add_capability(CapabilityBuilder)` (feature `dynamic-acl`, active par défaut) **ajoute** une capacité
+    à l'exécution ; aucune API ne la retire. La résolution se termine par un `unwrap` : une permission inconnue ou
+    un motif `remote` invalide fait paniquer Tauri, d'où le contrôle préalable par `RemoteUrlPattern::from_str`.
+  - Motifs `remote` (`urlpattern`) : chemin, requête et fragment sont des jokers ; `https://hôte` ne couvre que le
+    port par défaut, `https://hôte:*` tous les ports (vérifié par un essai d'`urlpattern` 0.6). Le motif est
+    comparé à l'en-tête `Origin` de la requête IPC (protocole `ipc://`) ou à l'URL de la page (repli
+    `postMessage`).
+  - L'IPC (`window.__TAURI_INTERNALS__`, `invoke` non modifiable, clé d'invocation) n'est injectée que dans le
+    cadre principal ; `initialization_script_for_all_frames` s'exécute dans tous les cadres, après les scripts de
+    Tauri dans le cadre principal. `freezePrototype` est injecté dans le cadre principal de toute WebView, pages
+    distantes comprises.
+  - Une commande `async` qui ne rend rien répond toujours `null` à la page.
+  - wry : `on_navigation` est branché sur `NavigationStarting`, navigation de premier niveau seulement (pas de
+    `FrameNavigationStarting`) ; une demande de nouvelle fenêtre refusée par `on_new_window` est marquée traitée
+    sans fenêtre ; `on_download` qui rend `false` annule le téléchargement ; les outils de développement sont
+    actifs par défaut en compilation de débogage (`devtools(false)` explicite) ; `incognito` passe par
+    `ICoreWebView2ControllerOptions::SetIsInPrivateModeEnabled`. Tauri garde un contexte par `data_directory`,
+    wry crée un environnement par WebView avec `additional_browser_args` (par défaut
+    `--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection`).
+  - `cookies_for_url` envoie un message à la boucle d'événements et attend sa réponse : appelé dans
+    `spawn_blocking`, jamais depuis le fil principal. `cookies()` et `delete_cookie` de même.
 
 **API sûres vérifiées** (compilation en cible Windows sous `#![forbid(unsafe_code)]` et clippy `-D warnings`, le
 2026-11-22 ; rien n'a été exécuté, le comportement réel se valide en recette)
@@ -202,3 +226,8 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
   le crate `gateway` dépend du crate `auth`. Ajout de `tauri-plugin-single-instance` et de `rfd` (boîtes de message
   sans appel Win32 direct). Fait constaté : le contrôle Windows depuis Linux ne compile pas les ressources de l'exe
   (icône, manifeste), ce qui ne se vérifie que par une compilation sous Windows.
+- **2026-11-22** — Spec 012 : faits sur Tauri 2.12.7 et wry 0.57.3 constatés dans les sources (capacités ajoutées à
+  l'exécution sans retrait possible et panique sur une résolution invalide, motifs `remote` et ports, IPC dans le
+  cadre principal seulement, `freezePrototype` dans les pages distantes, commande interne des canaux exemptée de
+  l'ACL, `on_navigation` limité au premier niveau, appels de cookies bloquants). Ce qui décide des fenêtres de
+  login vit dans `mcp_proxy_auth::webview` ; `app/` devient bibliothèque `mcp_proxy` et binaire, pour la sonde.

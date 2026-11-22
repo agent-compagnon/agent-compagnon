@@ -4,6 +4,7 @@
 //!   spec 012 and faked by the testkit;
 //! - [`method`]: `jwt_header`, `cookie` and `basic`, behind the extensible [`AuthMethod`] trait;
 //! - [`capture`]: checks of every value a login window hands over;
+//! - [`webview`]: what the WebView2 login windows of the application decide (spec 012), tested here;
 //! - [`OnDemandAuthenticator`]: the `SessionGate` that logs in when a call needs it, always visibly.
 
 mod authenticator;
@@ -12,6 +13,7 @@ mod clock;
 pub mod method;
 pub mod probe;
 pub mod ui;
+pub mod webview;
 
 pub use authenticator::{AuthenticatorDeps, OnDemandAuthenticator};
 pub use clock::TokioWallClock;

@@ -37,7 +37,7 @@ que l'exe porte son icône dans l'Explorateur (ressources compilées seulement s
   `"hardening":{},"autostart":false,"beta_channel":false,"gateway_suspended":false}` (sur une ligne). Le client liste les outils du
   catalogue des environnements DEV, INT et REC (par exemple `rec_jira_search_issues`). Appeler un outil qui demande
   une connexion : le client affiche « connexion à « … » impossible pour le moment, appel refusé. » (fenêtres de
-  login à la spec 012).
+  login à la spec 012 ; depuis, la fenêtre de connexion s'ouvre : voir la section 012).
 - [ ] **EX-011-07** — Quitter l'appli (« Quitter »). Relancer le client MCP : `mcp-proxy.exe stdio` démarre
   l'appli (l'icône réapparaît en moins de 15 s) et les outils sont listés. Fermer le client : l'appli reste lancée
   (si elle se ferme avec le client, le noter : le job du client interdit la sortie du job, I011.10).
@@ -63,6 +63,48 @@ que l'exe porte son icône dans l'Explorateur (ressources compilées seulement s
 - [ ] **EX-011-18** — Un client MCP connecté, « Quitter » : l'appli s'arrête, le client voit le serveur fermé
   (le pont se termine). Le journal du jour contient « démarrage de MCP Proxy », « client connecté au canal » et
   « arrêt de MCP Proxy », et aucune valeur de jeton, cookie ou mot de passe.
+
+## 012 — app — fenêtres de login WebView2 (JWT, cookie, Basic), profil InPrivate
+
+Préparation : comme pour la 011 (`cd ui && npm ci && npm run build`, puis compiler). Version du runtime :
+`reg query "HKCU\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" /v pv` (ou
+la même clé sous `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients`). Le dossier du profil est
+`%LOCALAPPDATA%\MCP Proxy\webview\` ; celui de la sonde, `%LOCALAPPDATA%\MCP Proxy\webview-probe\`. Pour les
+critères 04 à 07, 16 et 17, il faut une config dont les sessions pointent vers un vrai SSO de recette (les hôtes de
+la config embarquée sont fictifs) : la compiler dans l'exe (`config/default.toml`), sans la commiter.
+
+- [ ] **EX-012-11** — `cargo run -p mcp-proxy --example webview_probe` (ne pas toucher les fenêtres, environ
+  1 min 30) : 8 lignes « RÉUSSI » et « Bilan : 8/8 RÉUSSI ». Noter le résultat des points 3 (« InPrivate effectif »)
+  et 4 (« SSO partagé »), non attestés par les sources : s'ils échouent, le signaler et passer la config d'exemple
+  en `profile = "ephemeral_disk"`. Contrôle du détecteur :
+  `cargo run -p mcp-proxy --example webview_probe -- --profil ephemeral_disk` doit donner le point 3 en ÉCHEC avec
+  « cookie FAKE_SSO_SESSION trouvé … : détecteur vérifié » (si le cookie n'est pas trouvé, relancer avec
+  `--attente-cookies 90` et le noter). Relancer aussi avec `--sso-windows` : mêmes résultats en `in_memory`.
+- [ ] **EX-012-04** — Appli lancée, client LLM configuré (EX-011-06), session jamais connectée : appeler un outil de
+  la session. Une fenêtre « Connexion — {libellé} » s'ouvre au premier plan sur la page de login ; se connecter :
+  la fenêtre se ferme seule, l'appel aboutit, et la carte de la session (ou l'infobulle) passe à « active jusqu'à
+  HH:MM ». Le journal du jour ne contient ni le jeton ni la valeur du cookie (chercher un fragment de la valeur
+  copiée depuis les outils du SSO, pas depuis la fenêtre de l'appli).
+- [ ] **EX-012-05** — Même appel, session expirée ou déconnectée : fermer la fenêtre de connexion par la croix sans
+  se connecter. Le client LLM affiche « connexion à la session « … » annulée par l'utilisateur » ; l'icône quitte
+  l'état « attention ».
+- [ ] **EX-012-06** — Deux sessions d'un même fournisseur (par exemple `sso-corp` puis une session `cookie` sur le
+  même SSO) : se connecter à la première, puis appeler un outil de la seconde sans quitter l'appli. La seconde
+  fenêtre aboutit sans ressaisie (SSO déjà ouvert), ou se ferme seule. Quitter puis relancer l'appli : la
+  connexion est redemandée (rien n'a survécu sur le disque).
+- [ ] **EX-012-07** — Session active : « Déconnecter » (spec 016 ; en attendant, attendre l'expiration ou relancer
+  l'appli), puis « Se connecter » ou un appel : les identifiants sont redemandés par la page de login.
+- [ ] **EX-012-16** — Session `basic` (`sso-tools` avec une `probe_url` réelle) : un appel ouvre la petite fenêtre
+  « Connexion — SSO Outils » au premier plan, champs vides. Un mauvais mot de passe : la fenêtre se rouvre avec
+  « identifiants refusés », l'identifiant prérempli, le mot de passe vide. « Annuler » : le LLM reçoit
+  « connexion … annulée par l'utilisateur » ; la croix : idem. Un bon mot de passe : l'appel aboutit. Le journal
+  ne contient pas le mot de passe.
+- [ ] **EX-012-17** — Dans une fenêtre de login ouverte : F12, Ctrl+Maj+I et Ctrl+Maj+J n'ouvrent rien ; le clic
+  droit n'offre pas « Inspecter » ; un lien `target=_blank` de la page du SSO, s'il y en a, n'ouvre aucune
+  fenêtre ; un téléchargement proposé par la page ne démarre pas ; le titre reste « Connexion — {libellé} » quelle
+  que soit la page ; le journal contient « nouvelle fenêtre refusée » ou « téléchargement refusé » selon le cas.
+  Observer aussi que la page de login du SSO fonctionne normalement (le prototype `Object` y est figé par Tauri,
+  I012.17) et le noter si ce n'est pas le cas.
 
 ## 025 — Module MCP local d'exemple (`jira-local`)
 

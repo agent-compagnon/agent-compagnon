@@ -40,7 +40,10 @@ jeton ou le cookie, et rien ne touche le disque.
 - Plus d'environnement WebView2 créé à la main ni d'appel COM (`webview2-com`, `with_environment`,
   `with_webview`) : ils n'existent qu'en `unsafe` (D18).
 - Chaque fenêtre de login et la fenêtre gardienne utilisent le même `data_directory(..)` :
-  `%LOCALAPPDATA%\MCP Proxy\webview\`, vidé au démarrage et à la fermeture.
+  `%LOCALAPPDATA%\MCP Proxy\webview\`, vidé au démarrage (avant toute WebView) et à la fermeture (au mieux :
+  WebView2 peut encore tenir des fichiers, le dossier est de nouveau vidé au démarrage suivant). Si le vidage du
+  démarrage échoue, aucune fenêtre de login ne s'ouvre jusqu'au prochain démarrage (échec fermé) et une alerte de
+  niveau erreur l'explique. Un lien symbolique à cet endroit est supprimé, jamais suivi.
 - Arguments du navigateur : ceux de wry par défaut (`--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection`).
   Si `webview.os_primary_account_sso` est vrai (faux par défaut), `additional_browser_args` reçoit ces arguments
   plus `--enable-features=msSingleSignOnOSForPrimaryAccountIsShared`. Toutes les fenêtres reçoivent exactement les
@@ -51,23 +54,36 @@ jeton ou le cookie, et rien ne touche le disque.
 
 - `profile = "in_memory"` (défaut) : toutes les fenêtres en `incognito(true)`. Une **WebView gardienne** cachée,
   sur `about:blank`, est créée à la première connexion et vit jusqu'à la fermeture de l'appli ou « Tout
-  déconnecter ». Elle ne navigue jamais et ne fait aucune connexion : elle maintient seulement le profil.
+  déconnecter ». Elle ne navigue jamais (toute navigation refusée) et ne fait aucune connexion : elle maintient
+  seulement le profil, et sert à lire et supprimer les cookies du profil (`clear_site_data`). Elle existe aussi en
+  `ephemeral_disk`, pour ce second usage.
 - Contrôle « InPrivate effectif » : wry ignore `incognito` en silence sur un runtime trop ancien. Avant toute
   fenêtre de login, la version du runtime lue par `tauri::webview_version()` doit être **≥ 101.0.1210.39** ;
   sinon, ou si elle est illisible : **échec fermé** avec un message clair (« runtime WebView2 trop ancien pour une
   connexion sans trace »), jamais de repli implicite sur un profil disque. La comparaison de versions est une
-  fonction pure, dans un crate. Le comportement réel (aucun cookie persistant) se valide en recette.
+  fonction pure, dans un crate (`mcp_proxy_auth::webview::check_runtime_version` : quatre nombres, suivis
+  éventuellement du nom d'un canal, `121.0.2277.4 beta`). Le contrôle n'a lieu qu'en `in_memory`, seul profil qui
+  dépend d'InPrivate. Le message s'affiche une fois par lancement (boîte de message) et chaque refus est journalisé.
+  Le comportement réel (aucun cookie persistant) se valide en recette.
 - `profile = "ephemeral_disk"` : profil normal dans le dossier vidé. Uniquement si la config le demande.
 
 ### Fenêtre de login
 
 - Toujours visible, titrée « Connexion — SSO PROD », au premier plan quand c'est permis.
-- `on_navigation` : seuls les hôtes de `allowed_navigation` sont autorisés. Toute autre navigation est bloquée et
-  journalisée.
+- `on_navigation` : seuls les hôtes de `allowed_navigation` sont autorisés, à l'identique (ni sous-domaine, ni hôte
+  voisin), en `https` sur tout port, en `http` seulement vers `localhost` et `127.0.0.1` (règle des URL de la config,
+  I1.14), sans identifiants dans l'URL ; tout autre schéma (`about:`, `data:`, `javascript:`, `file:`…) est refusé.
+  Toute autre navigation est bloquée et journalisée avec son schéma, son hôte et son port seulement (jamais le
+  chemin ni la requête). `on_navigation` ne voit que la navigation **de premier niveau** : les cadres (iframes) d'une
+  page autorisée ne sont pas filtrés (voir les limites).
 - Nouvelles fenêtres et téléchargements refusés. Outils de développement désactivés. Un seul script
-  d'initialisation, celui de la capture du JWT (méthode `jwt_header` seulement). Une seule commande accessible, le
-  dépôt d'en-tête (ci-dessous) ; aucune autre capacité IPC.
-- Fermeture par l'utilisateur → `LoginEvent::Closed`.
+  d'initialisation à nous, celui de la capture du JWT (méthode `jwt_header` seulement) ; Tauri injecte les siens
+  (IPC, et `Object.freeze(Object.prototype)` puisque `freezePrototype` est actif pour toute l'appli). Une seule
+  commande accessible, le dépôt d'en-tête (ci-dessous) ; aucune autre capacité IPC.
+- `LoginEvent::Navigated` est émis à la fin du chargement de chaque page de premier niveau d'un hôte autorisé
+  (`PageLoadEvent::Finished`), pour que les cookies posés par sa réponse soient lisibles.
+- Fermeture par l'utilisateur → `LoginEvent::Closed`. Une fenêtre fermée par l'authentificateur, ou lâchée, est
+  détruite sans événement.
 
 ### Capture du JWT : script injecté et commande de dépôt
 
@@ -77,24 +93,46 @@ jeton ou le cookie, et rien ne touche le disque.
   enveloppe `fetch` et `XMLHttpRequest` (`open`, `setRequestHeader`, `send`) **sans jamais modifier la requête ni la
   réponse**. Pour une requête dont l'URL correspond à `capture_url_pattern`, l'en-tête à `capture_header` et le
   schéma à `capture_scheme` (le motif lui est passé à l'injection, sous forme de données JSON), il appelle la
-  commande de dépôt par l'IPC de Tauri avec la seule valeur candidate, puis l'oublie. Il ne journalise rien, ne
-  garde le jeton dans aucune variable globale, n'attend aucune réponse et avale toute erreur du dépôt.
+  commande de dépôt par l'IPC de Tauri avec la seule valeur candidate et l'URL de la requête
+  (`{ url, value }`), puis l'oublie. Il ne journalise rien, ne garde le jeton dans aucune variable globale, n'attend
+  aucune réponse et avale toute erreur du dépôt. Les en-têtes de `fetch` sont lus sous forme d'objet, de tableau de
+  paires ou de `Headers`, ou sur la `Request` ; tout autre itérable est laissé de côté (le lire pourrait le consommer
+  et changer la requête). Les valeurs de la config sont insérées dans le script sous forme de données
+  (`mcp_proxy_auth::webview::js_data` : JSON dont tout caractère hors ASCII imprimable, et `<`, `>`, `&`, `'`,
+  `` ` ``, est écrit en `\uXXXX`).
+- L'IPC de Tauri (`__TAURI_INTERNALS__`) n'est injectée que dans le cadre principal : le script d'un cadre de même
+  origine que la page dépose par la fenêtre principale, celui d'un cadre d'une autre origine ne peut pas déposer.
 - Le script a des **tests automatiques** (Vitest, fausses `fetch` et `XMLHttpRequest`), lancés par
   `cargo xtask ci` avec ceux de `ui/`. Sa source vit dans un crate et est incluse par `include_str!`.
 - **Commande de dépôt** (`deposit_login_header`) : la seule exception à INV-8.
-  - Capacité créée à l'exécution, à l'ouverture de chaque fenêtre de login, limitée à l'étiquette de cette fenêtre
-    et aux hôtes de `allowed_navigation` (`remote`) ; retirée à sa fermeture.
+  - Capacité créée à l'exécution (`Manager::add_capability`), à l'ouverture de chaque fenêtre `jwt_header`,
+    limitée à l'étiquette de cette fenêtre, sans contexte local, et aux hôtes de `allowed_navigation` (`remote` :
+    `https://{hôte}:*`, plus `http://{hôte}:*` pour `localhost` et `127.0.0.1`), avec la seule permission
+    `allow-deposit-login-header`. Un hôte qui n'est pas un simple nom d'hôte, ou un motif que Tauri refuserait,
+    empêche l'ouverture de la fenêtre. Tauri ne permet pas de retirer une capacité : elle est **rendue
+    inopérante** à la fermeture, l'étiquette (`login-N`) n'étant jamais réutilisée et la fenêtre étant retirée des
+    fenêtres de login en cours. Une fenêtre `cookie` n'a ni script ni capacité.
   - Accepte une seule valeur candidate (chaîne, 16 Kio au plus) et l'URL de la requête ; ne renvoie **rien**, ni
-    succès ni erreur, quel que soit le résultat.
+    succès ni erreur, quel que soit le résultat (la page reçoit toujours la même réponse vide de Tauri). Des
+    arguments absents ou d'un autre type ne provoquent pas d'erreur non plus : le dépôt est ignoré. Le nom de
+    l'en-tête de l'événement est celui de la config.
   - Le Rust revérifie tout : fenêtre appelante ↔ session de login en cours, hôte de la page appelante dans
     `allowed_navigation`, motif d'URL, schéma, structure du JWT, `exp`, `aud`, `iss` (spec 010). La valeur passe
-    aussitôt dans un `SecretString` ; un dépôt refusé est journalisé sans la valeur. Seul le premier jeton valide
-    devient un `LoginEvent::HeaderCaptured` ; les suivants sont ignorés.
+    aussitôt dans un `SecretString` ; un dépôt refusé est journalisé sans la valeur ni l'URL, avec la session et la
+    raison. Seul le premier jeton valide devient un `LoginEvent::HeaderCaptured` ; les suivants sont ignorés. Pour
+    cela, `HeaderCapture::expectations()` donne à l'appli l'audience et l'émetteur attendus, et les vérifications
+    sont celles de la spec 010 (`mcp_proxy_auth::webview::LoginWindows::deposit`), refaites ensuite par la méthode.
 - **Limites, à connaître** :
   - les requêtes émises par un worker (service worker, worker dédié ou partagé) ne sont pas vues par le script ;
   - un script de la page peut perturber le crochet (remplacer `fetch` avant ou après lui, appeler la commande avec
     une valeur de son choix) : la page est sur un hôte autorisé, mais rien ne garantit son comportement ;
-  - un cadre dont l'origine n'est pas couverte par la capacité ne peut pas déposer ;
+  - un cadre dont l'origine n'est pas celle de la page ne peut pas déposer (l'IPC de Tauri n'existe que dans le
+    cadre principal) ;
+  - les cadres d'une page autorisée ne sont pas filtrés par `on_navigation` (wry ne branche que la navigation de
+    premier niveau) : une page autorisée peut afficher un cadre d'un autre hôte. Ce cadre ne peut ni déposer ni
+    appeler une commande, et ne lit pas les cookies HttpOnly de la session ;
+  - la page voit l'IPC de Tauri : elle peut appeler la commande de dépôt avec une valeur de son choix, et apprendre
+    qu'une autre commande lui est refusée (le refus de Tauri), jamais la raison d'un dépôt ignoré ;
   - c'est une source moins fiable qu'une lecture des en-têtes au niveau du navigateur. Les vérifications côté Rust
     empêchent qu'une valeur mal formée, expirée ou destinée à une autre audience soit retenue ; elles ne prouvent
     pas que le jeton a été émis par le fournisseur (la signature n'est pas vérifiée, spec 010).
@@ -102,24 +140,35 @@ jeton ou le cookie, et rien ne touche le disque.
 ### Cookies
 
 - `cookies_for_url`, **appelé depuis une tâche asynchrone** : depuis une commande synchrone ou un gestionnaire
-  d'événement, il bloque sous Windows.
-- Renvoie aussi les cookies HttpOnly et Secure. Valeurs dans des `SecretString`.
-- `clear_site_data(hosts)` : suppression des cookies de ces hôtes. Effacement complet par
-  `clear_all_browsing_data` pour « Tout déconnecter » (5e).
+  d'événement, il bloque sous Windows. Il est appelé dans `spawn_blocking` (il attend la boucle d'événements).
+- Renvoie aussi les cookies HttpOnly et Secure. Valeurs dans des `SecretString`, expiration en `SystemTime`.
+- `clear_site_data(hosts)` : suppression, par la gardienne (`cookies()` puis `delete_cookie`), des cookies du profil
+  qui seraient envoyés à l'un de ces hôtes (correspondance de domaine de la RFC 6265 : un cookie d'un domaine
+  parent est donc supprimé aussi). Sans gardienne (aucune connexion depuis le démarrage), il n'y a rien à
+  supprimer. Effacement complet par `clear_all_browsing_data` pour « Tout déconnecter » (5e).
 
 ### Fenêtre Basic
 
-- Petite fenêtre locale de l'appli (page du bundle, aucun contenu distant) : login, mot de passe, « Se connecter »,
-  « Annuler ».
-- Commande `submit_basic_credentials`, autorisée pour cette seule fenêtre. Le mot de passe devient un
-  `SecretString` dès son arrivée côté Rust ; le formulaire est vidé aussitôt.
+- Petite fenêtre locale de l'appli (page du bundle, `ui/basic.html`, aucun contenu distant ; navigation limitée
+  aux pages de l'appli) : login, mot de passe, « Se connecter », « Annuler ». Une fenêtre par saisie (`basic-N`),
+  fermée dès la réponse ; fermer la fenêtre vaut « Annuler ». Ce qu'elle affiche (titre, identifiant prérempli,
+  message, essai) lui est donné avant son chargement, sous forme de données (`window.__MCP_PROXY_BASIC__`, figé) ;
+  jamais le mot de passe.
+- Commande `submit_basic_credentials` (`{ answer: { login, password } }`, ou `{ answer: null }` pour « Annuler »),
+  autorisée pour ces seules fenêtres (capacité statique `basic`, fenêtres `basic-*`, contexte local). Seule la
+  première réponse de la fenêtre de la saisie en cours compte ; une réponse mal formée est ignorée. Le mot de passe
+  devient un `SecretString` dès son arrivée côté Rust ; le formulaire est vidé avant l'envoi. La commande ne renvoie
+  rien.
 - Le message « identifiants refusés » s'affiche dans cette fenêtre.
 
 ### Testkit et sonde
 
 - `FakeSso` dans le testkit : serveur HTTP local avec une page de login qui pose un cookie HttpOnly, et une page
-  dont le script appelle une API avec `Authorization: Bearer <jwt>`.
-- `app/examples/webview_probe.rs` : ouvre une fenêtre de login sur `FakeSso` et affiche RÉUSSI ou ÉCHEC pour :
+  dont le script appelle une API avec `Authorization: Bearer <jwt>` (par `fetch` ou par `XMLHttpRequest`), plus les
+  pages hostiles de la sonde (autres commandes, dépôts forgés, sortie de la liste) et `/whoami`.
+- `app/examples/webview_probe.rs` : ouvre les vraies fenêtres de l'appli (`mcp_proxy::login::WebviewAuthUi`, d'où
+  la bibliothèque `mcp_proxy` du paquet `app/`) sur `FakeSso`, dans son propre dossier
+  (`%LOCALAPPDATA%\MCP Proxy\webview-probe\`), et affiche une ligne RÉUSSI ou ÉCHEC, avec la raison, pour :
   1. en-tête `Authorization` capturé par le script injecté et déposé (par `fetch` et par `XMLHttpRequest`) ;
   2. cookie HttpOnly lu ;
   3. mode InPrivate effectif : version du runtime acceptée, et aucun cookie de la session dans le dossier de
@@ -133,7 +182,9 @@ jeton ou le cookie, et rien ne touche le disque.
 
   Cette sonde est le moyen de valider sous Windows ce qui ne peut pas l'être sous Linux. **Les points 3 et 4 ne
   sont pas attestés par les sources** : s'ils échouent, le signaler et basculer la config d'exemple sur
-  `ephemeral_disk`.
+  `ephemeral_disk`. Le point 3 attend 35 s fenêtre ouverte (`--attente-cookies`), WebView2 écrivant ses cookies
+  en différé ; il cherche le nom du cookie, en clair dans la base de cookies (les valeurs y sont chiffrées).
+  `--profil ephemeral_disk` sert de contrôle : le point 3 doit alors être en ÉCHEC, cookie trouvé.
 
 ## Tests (sous Linux)
 
@@ -152,6 +203,19 @@ jeton ou le cookie, et rien ne touche le disque.
 - **EX-012-10** — Contrôle de version du runtime (≥ 101.0.1210.39 accepté, plus ancien, mal formé ou absent →
   échec fermé) et arguments du navigateur (arguments de wry, plus la fonction SSO seulement si
   `os_primary_account_sso` est vrai).
+- **EX-012-12** — Fenêtre Basic : le formulaire est vidé avant l'envoi, la commande reçoit l'identifiant et le mot de
+  passe, « Annuler » n'envoie qu'une annulation, une seule réponse par fenêtre, le message de refus et
+  l'identifiant précédent sont affichés (Vitest) ; côté Rust, seule la première réponse de la fenêtre de la saisie
+  en cours est retenue, une réponse mal formée est ignorée, le mot de passe est un `SecretString`, et la fenêtre ne
+  navigue que vers les pages de l'appli.
+- **EX-012-13** — Capacité du dépôt : motifs `remote` des seuls hôtes de `allowed_navigation` (`https` sur tout
+  port, `http` seulement pour `localhost` et `127.0.0.1`) ; un hôte qui n'est pas un simple nom d'hôte n'en donne
+  aucune.
+- **EX-012-14** — Dossier du profil vidé et recréé (contenu supprimé, fichier remplacé, lien symbolique supprimé sans
+  être suivi).
+- **EX-012-15** — Configuration des scripts : les valeurs de la config et de la saisie Basic sont écrites sous forme
+  de données (ASCII imprimable sans `<`, `>`, `&`, `'`, `` ` ``, relues à l'identique), quelles qu'elles soient ;
+  le script de capture porte sa configuration une seule fois.
 
 ## Vérification
 
@@ -168,6 +232,12 @@ jeton ou le cookie, et rien ne touche le disque.
 - **EX-012-07** (manuel) — « Déconnecter » puis « Se connecter » redemande les identifiants.
 - **EX-012-11** (manuel) — `cargo run -p mcp-proxy --example webview_probe` : les 8 points sont RÉUSSI ; noter en
   particulier « InPrivate effectif » (point 3) et « SSO partagé » (point 4), non attestés par les sources.
+- **EX-012-16** (manuel) — Fenêtre Basic : elle s'ouvre au premier plan, titrée « Connexion — {libellé} » ; un
+  mauvais mot de passe la rouvre avec « identifiants refusés » et l'identifiant prérempli ; « Annuler » ou la croix
+  rend une erreur claire au LLM ; le journal ne contient pas le mot de passe.
+- **EX-012-17** (manuel) — Fenêtre de login : F12 et Ctrl+Maj+I n'ouvrent pas les outils de développement, le menu
+  contextuel n'a pas « Inspecter » ; un lien `target=_blank` ou `window.open` n'ouvre aucune fenêtre ; un
+  téléchargement est refusé ; le titre reste « Connexion — {libellé} » quelle que soit la page.
 
 ## Hors périmètre
 
@@ -188,3 +258,15 @@ Notifications Windows (5c).
   du schéma et du JWT est faite par la spec 010 (`mcp_proxy_auth::capture`), `AuthUiError::RuntimeTooOld` sert
   l'échec fermé du contrôle de version. Les contrôles propres à l'appli (fenêtre appelante, hôte de la page, 16 Kio)
   restent ici. Aucun critère changé.
+- **2026-11-22** — Implémentation, d'après les sources de Tauri 2.12.7 et wry 0.57.3. Capacité du dépôt : Tauri
+  n'a pas d'API pour retirer une capacité (`RuntimeAuthority::add_capability` ajoute seulement) ; elle est rendue
+  inopérante à la fermeture (étiquette jamais réutilisée, fenêtre retirée des fenêtres en cours), créée pour les
+  seules fenêtres `jwt_header`, motifs `https://{hôte}:*` (et `http://` pour la boucle locale), sans contexte local.
+  L'IPC de Tauri n'existe que dans le cadre principal : un cadre de même origine dépose par la fenêtre principale,
+  un cadre d'une autre origine ne peut pas déposer. `on_navigation` ne voit que la navigation de premier niveau :
+  limite ajoutée pour les cadres. Navigation : hôte exact, `https` sur tout port, `http` vers la boucle locale
+  seulement. `Navigated` à la fin du chargement. Contrôle de version en `in_memory` seulement ; gardienne aussi en
+  `ephemeral_disk` (elle sert à `clear_site_data`) ; échec du vidage du dossier au démarrage → fenêtres de login
+  refusées. Fenêtre Basic : page `basic.html`, une fenêtre par saisie, capacité statique `basic-*`. Sonde : son
+  propre dossier, attente de 35 s pour le point 3, contrôle par `--profil ephemeral_disk`. Critères ajoutés :
+  `EX-012-12` à `EX-012-17` ; aucun critère existant changé.

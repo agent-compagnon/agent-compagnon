@@ -16,7 +16,6 @@ pub struct JwtHeaderMethod {
     label: String,
     login_url: Url,
     capture: HeaderCapture,
-    expect: JwtExpectations,
     allowed_navigation: Vec<String>,
     max_ttl_hours: u32,
 }
@@ -45,10 +44,10 @@ impl JwtHeaderMethod {
                 url_pattern: capture_url_pattern.clone(),
                 header: capture_header.clone(),
                 scheme: capture_scheme.clone(),
-            },
-            expect: JwtExpectations {
-                audience: expected_audience.clone(),
-                issuer: expected_issuer.clone(),
+                expect: JwtExpectations {
+                    audience: expected_audience.clone(),
+                    issuer: expected_issuer.clone(),
+                },
             },
             allowed_navigation: allowed_navigation.clone(),
             max_ttl_hours: *max_ttl_hours,
@@ -90,7 +89,7 @@ impl AuthMethod for JwtHeaderMethod {
             let checked = self
                 .capture
                 .candidate_token(&url, &header, value.expose_secret())
-                .and_then(|token| Ok((token, check_jwt(token, now, &self.expect)?)));
+                .and_then(|token| Ok((token, check_jwt(token, now, self.capture.expectations())?)));
             match checked {
                 Ok((token, claims)) => {
                     let token = SecretString::from(token.to_owned());

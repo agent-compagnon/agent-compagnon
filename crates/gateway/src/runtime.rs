@@ -50,18 +50,21 @@ pub struct DataDirs {
     pub logs: PathBuf,
     pub catalog_cache: PathBuf,
     pub settings: PathBuf,
+    /// Shared profile of the login windows (spec 012), emptied at start and at exit.
+    pub webview: PathBuf,
 }
 
 impl DataDirs {
     pub const FOLDER: &'static str = "MCP Proxy";
 
-    /// `<base>\MCP Proxy\` with `logs\`, `cache\catalog\` and `settings.json`.
+    /// `<base>\MCP Proxy\` with `logs\`, `cache\catalog\`, `webview\` and `settings.json`.
     pub fn under(base: &Path) -> Self {
         let root = base.join(Self::FOLDER);
         Self {
             logs: root.join("logs"),
             catalog_cache: root.join("cache").join("catalog"),
             settings: root.join("settings.json"),
+            webview: root.join("webview"),
             root,
         }
     }
@@ -81,7 +84,7 @@ pub struct RuntimeDeps {
     pub dirs: DataDirs,
     /// From `SecretStore::for_platform`: if it failed, there is no gateway.
     pub store: SecretStore,
-    /// Login windows (spec 012); `UnavailableAuthUi` until then.
+    /// Login windows: the WebView2 windows of the application (spec 012), `UnavailableAuthUi` in tests.
     pub auth_ui: Arc<dyn AuthUi>,
     /// Confirmations outside the chat (spec 013); `UnavailableConfirmation` until then.
     pub broker: Arc<dyn ConfirmationBroker>,
@@ -557,5 +560,6 @@ mod tests {
             Path::new("base").join("MCP Proxy").join("cache").join("catalog")
         );
         assert_eq!(dirs.settings, Path::new("base").join("MCP Proxy").join("settings.json"));
+        assert_eq!(dirs.webview, Path::new("base").join("MCP Proxy").join("webview"));
     }
 }

@@ -23,6 +23,7 @@ url.workspace = true
 [dev-dependencies]
 axum.workspace = true
 mcp-proxy-testkit = { path = "../testkit" }
+proptest.workspace = true
 tokio = { workspace = true, features = ["macros", "net", "rt", "rt-multi-thread", "sync", "test-util", "time"] }
 tracing-subscriber.workspace = true
 

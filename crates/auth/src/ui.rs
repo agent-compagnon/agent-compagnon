@@ -12,6 +12,8 @@ use secrecy::SecretString;
 use thiserror::Error;
 use url::Url;
 
+use crate::capture::JwtExpectations;
+
 /// What the header capture of a `jwt_header` window looks for. The script injected in the page (spec 012) only
 /// deposits candidates that match; every candidate is checked again on the Rust side
 /// (`HeaderCapture::candidate_token`).
@@ -20,6 +22,7 @@ pub struct HeaderCapture {
     pub(crate) url_pattern: UrlPattern,
     pub(crate) header: String,
     pub(crate) scheme: String,
+    pub(crate) expect: JwtExpectations,
 }
 
 impl HeaderCapture {
@@ -35,6 +38,12 @@ impl HeaderCapture {
     /// Scheme before the token (`Bearer`); compared without regard to case.
     pub fn scheme(&self) -> &str {
         &self.scheme
+    }
+
+    /// Audience and issuer the token must carry, so that the application can keep only the first valid token of a
+    /// window (spec 012) with the same checks as the method.
+    pub fn expectations(&self) -> &JwtExpectations {
+        &self.expect
     }
 }
 
@@ -226,9 +235,9 @@ pub trait LoginWindow: Send {
     async fn close(self: Box<Self>);
 }
 
-/// The interface until the login windows exist (spec 012): every login fails closed with
+/// An interface that can show nothing (tests, or an assembly without windows): every login fails closed with
 /// [`AuthUiError::Unavailable`], which the authenticator reports to the call as « connexion impossible ». Nothing
-/// is shown and nothing is attempted.
+/// is shown and nothing is attempted. The application uses its WebView2 windows instead (spec 012).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UnavailableAuthUi;
 

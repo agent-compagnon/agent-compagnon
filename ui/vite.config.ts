@@ -11,6 +11,19 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'es2022',
     assetsInlineLimit: 0,
+    // The main window, and the Basic input window of spec 012 (local page, no remote content).
+    rolldownOptions: {
+      input: {
+        main: 'index.html',
+        basic: 'basic.html',
+      },
+    },
+  },
+  // The capture script of the login windows lives in the `auth` crate (spec 012); its tests here read it raw.
+  server: {
+    fs: {
+      allow: ['.', '../crates/auth/src/webview'],
+    },
   },
   test: {
     environment: 'jsdom',

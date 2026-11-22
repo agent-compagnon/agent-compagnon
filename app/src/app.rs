@@ -1,12 +1,13 @@
-//! The application: checks, then Tauri (single instance, hidden main window, notification icon), the gateway and
-//! its named pipe. Every start failure ends in a message box, a line of log and a non-zero exit.
+//! The application: checks, then Tauri (single instance, hidden main window, notification icon, login windows),
+//! the gateway and its named pipe. Every start failure ends in a message box, a line of log and a non-zero exit.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use mcp_proxy_auth::UnavailableAuthUi;
+use mcp_proxy_auth::AuthUi;
+use mcp_proxy_auth::webview::reset_profile_dir;
 use mcp_proxy_core::confirm::UnavailableConfirmation;
 use mcp_proxy_core::secrets::SecretStore;
 use mcp_proxy_core::trace::SystemWallClock;
@@ -23,6 +24,7 @@ use tokio::sync::broadcast::error::RecvError;
 
 use crate::dialog;
 use crate::dpapi::DpapiProof;
+use crate::login::{self, WebviewAuthUi};
 use crate::{pipe, wer};
 
 const MAIN_WINDOW: &str = "main";
@@ -87,6 +89,9 @@ pub fn run() -> ExitCode {
     if let Err(failure) = check_webview(tauri::webview_version().map_err(|e| e.to_string())) {
         return refuse_early(Some(&dirs), &failure);
     }
+    // Before any webview uses it; a failure keeps the login windows closed (fail closed), reported once the
+    // journal exists.
+    let profile_reset = reset_profile_dir(&dirs.webview).map_err(|e| e.kind().to_string());
 
     let runtime = match tokio::runtime::Builder::new_multi_thread().enable_all().build() {
         Ok(runtime) => runtime,
@@ -102,7 +107,11 @@ pub fn run() -> ExitCode {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main_window(app)
         }))
-        .invoke_handler(tauri::generate_handler![get_snapshot])
+        .invoke_handler(tauri::generate_handler![
+            get_snapshot,
+            login::deposit_login_header,
+            login::submit_basic_credentials
+        ])
         .setup(|app| {
             // Tauri panics on a setup error: a failure here is explained, then the application exits.
             let gateway = app.try_state::<Arc<Gateway>>().map(|g| Arc::clone(g.inner()));
@@ -126,17 +135,39 @@ pub fn run() -> ExitCode {
         }
     };
 
-    // First instance: the gateway, then its pipe.
-    let gateway = match start_gateway(config, dirs) {
+    // First instance: the login windows, the gateway, then its pipe.
+    let webview_dir = dirs.webview.clone();
+    let auth_ui = WebviewAuthUi::new(
+        app.handle(),
+        &config.webview,
+        webview_dir.clone(),
+        profile_reset.clone(),
+    );
+    let gateway = match start_gateway(config, dirs, Arc::new(auth_ui)) {
         Ok(gateway) => gateway,
         Err(code) => return code,
     };
+    if let Err(reason) = profile_reset {
+        tracing::error!(%reason, "dossier du profil des fenêtres de connexion non vidé");
+        gateway.add_alert(Alert {
+            level: AlertLevel::Error,
+            kind: AlertKind::StartupHardening,
+            message: format!(
+                "Le dossier des fenêtres de connexion n'a pas pu être vidé ({reason}) : aucune connexion par fenêtre \
+                 n'est possible jusqu'au prochain démarrage de MCP Proxy."
+            ),
+        });
+    }
     app.manage(gateway);
 
-    let code = app.run_return(|app, event| match event {
+    let code = app.run_return(move |app, event| match event {
         // Closing the window hides it; only « Quitter » (explicit code) stops the application.
         RunEvent::ExitRequested { api, code: None, .. } => api.prevent_exit(),
         RunEvent::Exit => {
+            // Best effort: WebView2 may still hold files; the folder is emptied again at the next start.
+            if let Err(error) = reset_profile_dir(&webview_dir) {
+                tracing::info!(kind = %error.kind(), "dossier du profil des fenêtres de connexion non vidé à l'arrêt");
+            }
             if let Some(gateway) = app.try_state::<Arc<Gateway>>() {
                 tracing::info!("arrêt de MCP Proxy");
                 let _ = gateway.journal().flush();
@@ -149,7 +180,11 @@ pub fn run() -> ExitCode {
 }
 
 /// Store, gateway, exclusion from error reports, pipe. Every failure is explained before the exit code is returned.
-fn start_gateway(config: Arc<mcp_proxy_core::config::Config>, dirs: DataDirs) -> Result<Arc<Gateway>, ExitCode> {
+fn start_gateway(
+    config: Arc<mcp_proxy_core::config::Config>,
+    dirs: DataDirs,
+    auth_ui: Arc<dyn AuthUi>,
+) -> Result<Arc<Gateway>, ExitCode> {
     let store = match SecretStore::for_platform() {
         Ok(store) => store,
         Err(error) => {
@@ -162,7 +197,7 @@ fn start_gateway(config: Arc<mcp_proxy_core::config::Config>, dirs: DataDirs) ->
         config,
         dirs,
         store,
-        auth_ui: Arc::new(UnavailableAuthUi),
+        auth_ui,
         broker: Arc::new(UnavailableConfirmation),
         clock: Arc::new(SystemWallClock),
         logging: Logging::Global,

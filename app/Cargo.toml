@@ -7,25 +7,39 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[lib]
+name = "mcp_proxy"
+path = "src/lib.rs"
+
 [[bin]]
 name = "mcp-proxy"
 path = "src/main.rs"
+
+[[example]]
+name = "webview_probe"
+path = "examples/webview_probe.rs"
 
 [build-dependencies]
 tauri-build = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
+async-trait.workspace = true
 mcp-proxy-auth = { path = "../crates/auth" }
 mcp-proxy-core = { path = "../crates/core" }
 mcp-proxy-gateway = { path = "../crates/gateway" }
 rfd = { workspace = true }
+secrecy.workspace = true
 serde_json.workspace = true
 tauri = { workspace = true, features = ["tray-icon", "image-png"] }
 tauri-plugin-single-instance.workspace = true
 tokio = { workspace = true, features = ["io-std", "net", "rt-multi-thread", "sync", "time"] }
 tracing.workspace = true
+url.workspace = true
 winreg.workspace = true
 zeroize.workspace = true
+
+[target.'cfg(windows)'.dev-dependencies]
+mcp-proxy-testkit = { path = "../crates/testkit" }
 
 [lints]
 workspace = true
