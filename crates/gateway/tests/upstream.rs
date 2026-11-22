@@ -196,7 +196,7 @@ async fn listing_without_session_is_refused_unless_allowed() {
         .await
         .unwrap();
     let gate = gate_for(&[&server.url()]);
-    gate.mark_rejected(&sid());
+    gate.store().wipe(&sid());
     let mut config = HttpUpstreamConfig::new(
         instance(),
         Url::parse(&server.url()).unwrap(),

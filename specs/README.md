@@ -54,7 +54,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [007](007-middlewares.md) | 3c | gateway — chaîne de middlewares | implémentée | 003, 004, 006 | 13 |
 | [008](008-mises-a-jour-serveurs.md) | 3d | gateway — mises à jour des serveurs MCP | implémentée | 005, 006, 007 | 14 |
 | [009](009-tracing.md) | 3e | Tracing — spans, tampon circulaire, journal fichier filtré, export de diagnostic | implémentée | 003, 007 | 13 |
-| [010](010-auth.md) | 4 | auth — méthodes d'authentification et authentification à la demande | en cours | 002, 006, 007 | 11 |
+| [010](010-auth.md) | 4 | auth — méthodes d'authentification et authentification à la demande | en cours | 002, 006, 007 | 12 |
 | [011](011-app-squelette.md) | 5a | app — squelette Tauri, pont stdio (named pipe), instance unique, tray, réglages | prévue | 001 à 010 | 11 |
 | [012](012-fenetres-login.md) | 5b | app — fenêtres de login WebView2 (JWT, cookie, Basic), profil InPrivate | prévue | 010, 011 | 10 |
 | [013](013-notifications-confirmations.md) | 5c | app — notifications Windows et confirmations | prévue | 007, 011, 012 | 11 |

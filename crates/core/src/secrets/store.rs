@@ -29,7 +29,13 @@ enum OpenedCredential {
 struct Entry {
     credential: SealedCredential,
     variants: Vec<SealedSecret>,
+    version: SecretVersion,
 }
+
+/// Identifies one secret put in a store: every `put` gets a new one, never reused by the same store. Lets a caller
+/// that used a secret act on that secret only, and not on one that replaced it meanwhile.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SecretVersion(u64);
 
 /// Variants of a secret that was wiped or replaced, still masked until `until`.
 struct Retired {
@@ -42,11 +48,14 @@ struct Retired {
 struct State {
     entries: HashMap<SessionId, Entry>,
     retired: Vec<Retired>,
+    last_version: u64,
 }
 
 impl State {
     fn retire(&mut self, session: SessionId, entry: Entry, until: Instant) {
-        let Entry { credential, variants } = entry;
+        let Entry {
+            credential, variants, ..
+        } = entry;
         drop(credential);
         if !variants.is_empty() {
             self.retired.push(Retired {
@@ -221,26 +230,37 @@ impl SecretStore {
     }
 
     /// Replaces the secret of `session`, sealed together with its filter variants; the variants of the previous
-    /// secret are retired. On error, the previous secret of the session is left untouched.
-    pub fn put(&self, session: &SessionId, credential: Credential) -> Result<(), SecretError> {
+    /// secret are retired. On error, the previous secret of the session is left untouched. Returns the version of
+    /// the new secret.
+    pub fn put(&self, session: &SessionId, credential: Credential) -> Result<SecretVersion, SecretError> {
         credential.validate()?;
         let key = self.open_key()?;
         let variant_aad = associated_data(session, SLOT_VARIANT);
-        let entry = Entry {
-            credential: SealedCredential::seal(&credential, session, &key)?,
-            variants: derive_variants(&credential)
-                .iter()
-                .map(|v| SealedSecret::seal(&key, &variant_aad, v))
-                .collect::<Result<_, _>>()?,
-        };
+        let credential_sealed = SealedCredential::seal(&credential, session, &key)?;
+        let variants = derive_variants(&credential)
+            .iter()
+            .map(|v| SealedSecret::seal(&key, &variant_aad, v))
+            .collect::<Result<_, _>>()?;
         drop(key);
         drop(credential);
         let until = self.retired_until();
         let mut state = self.write();
+        state.last_version = state.last_version.saturating_add(1);
+        let version = SecretVersion(state.last_version);
+        let entry = Entry {
+            credential: credential_sealed,
+            variants,
+            version,
+        };
         if let Some(previous) = state.entries.insert(session.clone(), entry) {
             state.retire(session.clone(), previous, until);
         }
-        Ok(())
+        Ok(version)
+    }
+
+    /// The version of the active secret of `session`, if it has one.
+    pub fn version(&self, session: &SessionId) -> Option<SecretVersion> {
+        self.read().entries.get(session).map(|e| e.version)
     }
 
     /// Calls `f` with the decrypted credential of `session`. The session key is unwrapped once and wiped before `f`
@@ -250,20 +270,29 @@ impl SecretStore {
         session: &SessionId,
         f: impl FnOnce(ExposedCredential<'_>) -> R,
     ) -> Result<R, SecretError> {
+        self.with_exposed_versioned(session, f).map(|(r, _)| r)
+    }
+
+    /// Like `with_exposed`, and also gives the version of the secret that was exposed.
+    pub fn with_exposed_versioned<R>(
+        &self,
+        session: &SessionId,
+        f: impl FnOnce(ExposedCredential<'_>) -> R,
+    ) -> Result<(R, SecretVersion), SecretError> {
         if !self.has(session) {
             return Err(SecretError::NoSecret(session.clone()));
         }
         let key = self.open_key()?;
-        let opened = {
+        let (opened, version) = {
             let state = self.read();
             let entry = state
                 .entries
                 .get(session)
                 .ok_or_else(|| SecretError::NoSecret(session.clone()))?;
-            entry.credential.open(session, &key)?
+            (entry.credential.open(session, &key)?, entry.version)
         };
         drop(key);
-        opened.expose(f)
+        Ok((opened.expose(f)?, version))
     }
 
     /// Calls `f` with the filter variants of every active secret and of every retired one still in its grace period,
@@ -301,6 +330,23 @@ impl SecretStore {
     pub fn wipe(&self, session: &SessionId) -> bool {
         let until = self.retired_until();
         let mut state = self.write();
+        match state.entries.remove(session) {
+            Some(entry) => {
+                state.retire(session.clone(), entry, until);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Erases the secret of `session` only if it is still the one of `version`: a secret put since is kept.
+    /// Returns whether it was erased.
+    pub fn wipe_version(&self, session: &SessionId, version: SecretVersion) -> bool {
+        let until = self.retired_until();
+        let mut state = self.write();
+        if state.entries.get(session).is_none_or(|e| e.version != version) {
+            return false;
+        }
         match state.entries.remove(session) {
             Some(entry) => {
                 state.retire(session.clone(), entry, until);

@@ -1,8 +1,16 @@
-//! Contract between the gateway and session management (spec 006; the on-demand implementation is spec 010).
+//! Contract between the gateway and session management (spec 006), and the sessions themselves (spec 010): their
+//! state, the services they cover and the broadcast of their changes. The on-demand implementation of the gate is
+//! `mcp_proxy_auth::OnDemandAuthenticator`.
 //!
 //! The gateway never holds a credential: it asks a [`SessionGate`] to make a session usable, then to add the
 //! authentication headers to each request right before it is sent, after the destination has been checked against
 //! the session's origins.
+
+mod registry;
+mod state;
+
+pub use registry::{AuthKind, SessionEvent, SessionInfo, SessionRegistry, SessionService};
+pub use state::{EXPIRY_MARGIN, SessionChange, SessionState};
 
 use std::fmt;
 use std::sync::Arc;
@@ -15,7 +23,7 @@ use url::Url;
 
 use crate::config::{EnvId, McpId, SessionId, ToolName};
 use crate::secrets::http::auth_header;
-use crate::secrets::{OriginGuard, SecretError, SecretStore};
+use crate::secrets::{OriginGuard, SecretError, SecretStore, SecretVersion};
 
 /// Why a session is needed, shown to the user when a connection is requested.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,6 +46,10 @@ pub enum SessionError {
     /// No connection can be started (no interface, or the gate cannot log in).
     #[error("connexion à la session « {0} » impossible pour le moment")]
     Unavailable(SessionId),
+    /// The login ended without a usable credential: identifiers refused three times, probe unreachable, window
+    /// error. The detail is in the log, never here.
+    #[error("connexion à la session « {0} » échouée")]
+    LoginFailed(SessionId),
     /// The credential could not be injected: unknown session, no secret, destination outside the session's origins.
     #[error("{0}")]
     Injection(#[from] SecretError),
@@ -52,11 +64,12 @@ pub trait SessionGate: Send + Sync {
     fn is_active(&self, session: &SessionId) -> bool;
 
     /// Adds the authentication headers for `url`, after checking that its origin is one of the session's. On error,
-    /// `headers` holds no authentication header.
-    fn inject(&self, session: &SessionId, url: &Url, headers: &mut HeaderMap) -> Result<(), SessionError>;
+    /// `headers` holds no authentication header. Returns the version of the secret injected.
+    fn inject(&self, session: &SessionId, url: &Url, headers: &mut HeaderMap) -> Result<SecretVersion, SessionError>;
 
-    /// The server refused the credential: the session becomes expired.
-    fn mark_rejected(&self, session: &SessionId);
+    /// The server refused the secret of `version`: if it is still the session's secret, it is wiped and the
+    /// session becomes expired. A secret put since (a login completed by a concurrent call) is kept.
+    fn mark_rejected(&self, session: &SessionId, version: SecretVersion);
 }
 
 /// A gate over the secret store, without any way to log in: a session is usable while its secret is in the store.
@@ -100,17 +113,30 @@ impl SessionGate for StoreSessionGate {
         self.store.has(session)
     }
 
-    fn inject(&self, session: &SessionId, url: &Url, headers: &mut HeaderMap) -> Result<(), SessionError> {
-        clear_auth(headers);
-        self.guard.authorize(session, url)?;
-        let (name, value) = self.store.with_exposed(session, auth_header)??;
-        headers.insert(name, value);
-        Ok(())
+    fn inject(&self, session: &SessionId, url: &Url, headers: &mut HeaderMap) -> Result<SecretVersion, SessionError> {
+        inject_from_store(&self.store, &self.guard, session, url, headers)
     }
 
-    fn mark_rejected(&self, session: &SessionId) {
-        self.store.wipe(session);
+    fn mark_rejected(&self, session: &SessionId, version: SecretVersion) {
+        self.store.wipe_version(session, version);
     }
+}
+
+/// Removes any authentication header, checks the destination against the session's origins, then adds the header
+/// built from the session's secret. On error, `headers` holds no authentication header.
+pub fn inject_from_store(
+    store: &SecretStore,
+    guard: &OriginGuard,
+    session: &SessionId,
+    url: &Url,
+    headers: &mut HeaderMap,
+) -> Result<SecretVersion, SessionError> {
+    clear_auth(headers);
+    guard.authorize(session, url)?;
+    let (header, version) = store.with_exposed_versioned(session, auth_header)?;
+    let (name, value) = header?;
+    headers.insert(name, value);
+    Ok(version)
 }
 
 #[cfg(test)]
@@ -161,7 +187,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(COOKIE, HeaderValue::from_static("planted=1"));
         let url = Url::parse("https://api.example.internal/mcp").unwrap();
-        gate.inject(&session, &url, &mut headers).unwrap();
+        let version = gate.inject(&session, &url, &mut headers).unwrap();
         assert_eq!(headers.get(AUTHORIZATION).unwrap(), "Bearer tok-123");
         assert!(headers.get(AUTHORIZATION).unwrap().is_sensitive());
         assert!(headers.get(COOKIE).is_none());
@@ -177,7 +203,18 @@ mod tests {
         assert!(headers.is_empty());
         assert!(!error.to_string().contains("tok-123"));
 
-        gate.mark_rejected(&session);
+        // A secret put since the rejected one is kept.
+        let renewed = store
+            .put(
+                &session,
+                Credential::Bearer {
+                    token: SecretString::from("tok-456"),
+                },
+            )
+            .unwrap();
+        gate.mark_rejected(&session, version);
+        assert!(gate.is_active(&session));
+        gate.mark_rejected(&session, renewed);
         assert!(!gate.is_active(&session));
     }
 }

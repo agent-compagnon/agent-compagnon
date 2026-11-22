@@ -8,7 +8,7 @@ use std::time::Instant;
 use async_trait::async_trait;
 use http::HeaderMap;
 use mcp_proxy_core::config::{Origin, SessionId};
-use mcp_proxy_core::secrets::{Credential, OriginGuard, SecretError, SecretStore};
+use mcp_proxy_core::secrets::{Credential, OriginGuard, SecretError, SecretStore, SecretVersion};
 use mcp_proxy_core::session::{AccessReason, SessionError, SessionGate, StoreSessionGate};
 use secrecy::SecretString;
 use url::Url;
@@ -140,16 +140,16 @@ impl SessionGate for FakeSessionGate {
         self.inner.is_active(session)
     }
 
-    fn inject(&self, session: &SessionId, url: &Url, headers: &mut HeaderMap) -> Result<(), SessionError> {
+    fn inject(&self, session: &SessionId, url: &Url, headers: &mut HeaderMap) -> Result<SecretVersion, SessionError> {
         self.injections.fetch_add(1, Ordering::SeqCst);
         self.inner.inject(session, url, headers)
     }
 
-    fn mark_rejected(&self, session: &SessionId) {
+    fn mark_rejected(&self, session: &SessionId, version: SecretVersion) {
         self.rejected
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push(session.clone());
-        self.inner.mark_rejected(session);
+        self.inner.mark_rejected(session, version);
     }
 }

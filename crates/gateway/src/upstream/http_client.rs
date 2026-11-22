@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use futures::stream::BoxStream;
 use mcp_proxy_core::config::SessionId;
+use mcp_proxy_core::secrets::SecretVersion;
 use mcp_proxy_core::session::{SessionError, SessionGate};
 use reqwest::header::{AUTHORIZATION, COOKIE, HeaderMap, HeaderName, HeaderValue};
 use reqwest::{StatusCode, redirect};
@@ -124,12 +125,9 @@ impl InjectingHttpClient {
     }
 
     /// The headers to send to `uri`: the transport's, without any authentication header, plus the session's
-    /// credential when the session is active. An error means nothing must be sent.
-    fn prepare(
-        &self,
-        uri: &str,
-        custom: HashMap<HeaderName, HeaderValue>,
-    ) -> Result<(&reqwest::Client, HashMap<HeaderName, HeaderValue>), HttpError> {
+    /// credential when the session is active, with the version of the secret injected. An error means nothing must
+    /// be sent.
+    fn prepare(&self, uri: &str, custom: HashMap<HeaderName, HeaderValue>) -> Result<Prepared<'_>, HttpError> {
         let url = Url::parse(uri).map_err(|_| refused_error())?;
         let client = if is_loopback(&url) {
             &self.loopback
@@ -140,28 +138,33 @@ impl InjectingHttpClient {
         headers.remove(&AUTHORIZATION);
         headers.remove(&COOKIE);
         let Some(session) = self.session.as_ref().filter(|s| self.gate.is_active(s)) else {
-            return Ok((client, headers));
+            return Ok((client, headers, None));
         };
         let mut injected = HeaderMap::new();
-        if let Err(error) = self.gate.inject(session, &url, &mut injected) {
-            *self.log.refused.lock().unwrap_or_else(PoisonError::into_inner) = Some(error);
-            return Err(refused_error());
-        }
+        let version = match self.gate.inject(session, &url, &mut injected) {
+            Ok(version) => version,
+            Err(error) => {
+                *self.log.refused.lock().unwrap_or_else(PoisonError::into_inner) = Some(error);
+                return Err(refused_error());
+            }
+        };
         for (name, value) in &injected {
             headers.insert(name.clone(), value.clone());
         }
-        Ok((client, headers))
+        Ok((client, headers, Some(version)))
     }
 
-    /// Marks the session rejected on a 401 or 403, and drops the body the SDK may have kept.
-    fn checked<T>(&self, result: Result<T, HttpError>) -> Result<T, HttpError> {
+    /// Marks the secret that was sent rejected on a 401 or 403, and drops the body the SDK may have kept. A request
+    /// sent without a secret marks nothing: there is no secret of its own to wipe, and a secret put meanwhile must be
+    /// kept.
+    fn checked<T>(&self, result: Result<T, HttpError>, sent: Option<SecretVersion>) -> Result<T, HttpError> {
         match result {
             Err(error) => match rejected_status(&error) {
                 Some(status) => {
-                    self.log.rejections.fetch_add(1, Ordering::SeqCst);
-                    if let Some(session) = &self.session {
-                        self.gate.mark_rejected(session);
+                    if let (Some(session), Some(version)) = (&self.session, sent) {
+                        self.gate.mark_rejected(session, version);
                     }
+                    self.log.rejections.fetch_add(1, Ordering::SeqCst);
                     Err(StreamableHttpError::UnexpectedServerResponse(
                         format!("HTTP {status} : identifiant refusé").into(),
                     ))
@@ -172,6 +175,13 @@ impl InjectingHttpClient {
         }
     }
 }
+
+/// Client to use, headers to send, version of the secret among them.
+type Prepared<'a> = (
+    &'a reqwest::Client,
+    HashMap<HeaderName, HeaderValue>,
+    Option<SecretVersion>,
+);
 
 fn refused_error() -> HttpError {
     StreamableHttpError::Io(io::Error::new(
@@ -226,7 +236,7 @@ impl StreamableHttpClient for InjectingHttpClient {
         custom_headers: HashMap<HeaderName, HeaderValue>,
         limits: StreamableHttpResponseLimits,
     ) -> Result<StreamableHttpPostResponse, HttpError> {
-        let (client, headers) = self.prepare(&uri, custom_headers)?;
+        let (client, headers, sent) = self.prepare(&uri, custom_headers)?;
         let initialize = matches!(
             &message,
             JsonRpcMessage::Request(request) if matches!(request.request, ClientRequest::InitializeRequest(_))
@@ -234,7 +244,7 @@ impl StreamableHttpClient for InjectingHttpClient {
         let result = client
             .post_message_with_response_limits(uri, message, session_id, None, headers, limits)
             .await;
-        let result = self.checked(result);
+        let result = self.checked(result, sent);
         if initialize
             && result.is_ok()
             && let Some(sender) = &self.initialized
@@ -251,9 +261,9 @@ impl StreamableHttpClient for InjectingHttpClient {
         _auth_header: Option<String>,
         custom_headers: HashMap<HeaderName, HeaderValue>,
     ) -> Result<(), HttpError> {
-        let (client, headers) = self.prepare(&uri, custom_headers)?;
+        let (client, headers, sent) = self.prepare(&uri, custom_headers)?;
         let result = client.delete_session(uri, session_id, None, headers).await;
-        self.checked(result)
+        self.checked(result, sent)
     }
 
     async fn get_stream(
@@ -264,9 +274,9 @@ impl StreamableHttpClient for InjectingHttpClient {
         _auth_header: Option<String>,
         custom_headers: HashMap<HeaderName, HeaderValue>,
     ) -> Result<BoxStream<'static, Result<Sse, SseError>>, HttpError> {
-        let (client, headers) = self.prepare(&uri, custom_headers)?;
+        let (client, headers, sent) = self.prepare(&uri, custom_headers)?;
         let result = client.get_stream(uri, session_id, last_event_id, None, headers).await;
-        self.checked(result)
+        self.checked(result, sent)
     }
 
     async fn get_stream_with_max_sse_event_size(
@@ -278,10 +288,10 @@ impl StreamableHttpClient for InjectingHttpClient {
         custom_headers: HashMap<HeaderName, HeaderValue>,
         max_sse_event_size: usize,
     ) -> Result<BoxStream<'static, Result<Sse, SseError>>, HttpError> {
-        let (client, headers) = self.prepare(&uri, custom_headers)?;
+        let (client, headers, sent) = self.prepare(&uri, custom_headers)?;
         let result = client
             .get_stream_with_max_sse_event_size(uri, session_id, last_event_id, None, headers, max_sse_event_size)
             .await;
-        self.checked(result)
+        self.checked(result, sent)
     }
 }

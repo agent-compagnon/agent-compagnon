@@ -217,6 +217,9 @@ async fn ensure_session(shared: &Shared, context: &CallContext, session: &Sessio
         Ok(Err(SessionError::Cancelled(_))) => {
             format!("connexion à « {label} » annulée par l'utilisateur, appel refusé.")
         }
+        Ok(Err(SessionError::LoginFailed(_))) => format!(
+            "connexion à « {label} » échouée, appel refusé. Relancez la connexion depuis MCP Proxy, puis réessayez."
+        ),
         Ok(Err(SessionError::Unavailable(_))) => {
             format!("connexion à « {label} » impossible pour le moment, appel refusé.")
         }

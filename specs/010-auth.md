@@ -80,7 +80,10 @@ visible** : `LoginWindowSpec` ne permet pas d'en créer une cachée.
 - Une seule fenêtre de login visible à la fois ; les autres sessions demandées font la queue.
 - Fenêtre fermée ou saisie annulée : `SessionError::Cancelled`, retour à l'état précédent, appels en attente
   libérés avec une erreur claire.
-- `mark_rejected` : `Active` → `Expired`, secret effacé.
+- `mark_rejected(session, version)` : `Active` → `Expired`, secret effacé, **seulement si le secret refusé est encore
+  celui de la session**. `inject` rend la version du secret injecté (`SecretVersion`, nouvelle à chaque `put` du
+  store) et l'amont la rend avec le refus : un secret renouvelé entre-temps par un appel concurrent est gardé. Une
+  requête partie sans secret ne marque rien.
 - `connect(session)` et `disconnect(session)` pour les boutons de l'interface. `disconnect` efface le secret et
   appelle `clear_site_data` sur les domaines de la session.
 - Ni tentative silencieuse, ni renouvellement proactif.
@@ -101,6 +104,7 @@ Avec `FakeAuthUi` :
 - **EX-010-10** — intégration avec la passerelle : premier appel retenu puis rejoué après connexion ; 401 → reconnexion → rejeu
   unique ;
 - **EX-010-11** — aucun secret dans `Debug`, les erreurs ni les événements.
+- **EX-010-12** — un refus portant sur un secret déjà remplacé n'efface pas le secret plus récent.
 
 ## Vérification
 
@@ -109,3 +113,10 @@ Avec `FakeAuthUi` :
 ## Hors périmètre
 
 Fenêtres WebView2 réelles (5b). Notifications réelles (5c).
+
+## Amendements
+
+- **2026-11-22** — Contrat `SessionGate` (spec 006) précisé pour `mark_rejected` : `inject` rend la version du
+  secret injecté et `mark_rejected` la reçoit, pour ne jamais effacer un secret renouvelé par un appel concurrent
+  (I007.7). Variante `SessionError::LoginFailed` ajoutée (connexion terminée sans identifiant utilisable). Critère
+  ajouté : `EX-010-12`.

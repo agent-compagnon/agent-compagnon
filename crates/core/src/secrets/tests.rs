@@ -465,6 +465,34 @@ fn wipe_empties_only_that_session() {
     assert_eq!(store.with_exposed(&b, |_| ()), Err(SecretError::NoSecret(b.clone())));
 }
 
+// Exigence : EX-010-12
+#[test]
+fn wiping_a_version_keeps_a_newer_secret() {
+    let store = store();
+    let (a, b) = (sid("sso-corp"), sid("sso-prod"));
+    let first = store.put(&a, bearer("token-1")).unwrap();
+    let other = store.put(&b, bearer("token-b")).unwrap();
+    assert_ne!(first, other);
+    assert_eq!(store.version(&a), Some(first));
+    let (token, seen) = store
+        .with_exposed_versioned(&a, |c| match c {
+            ExposedCredential::Bearer { token } => token.to_owned(),
+            _ => String::new(),
+        })
+        .unwrap();
+    assert_eq!((token.as_str(), seen), ("token-1", first));
+
+    let second = store.put(&a, bearer("token-2")).unwrap();
+    assert!(second > first);
+    assert!(!store.wipe_version(&a, first), "a replaced secret is not wiped again");
+    assert_eq!(token_of(&store, &a).unwrap(), "token-2");
+    assert!(!store.wipe_version(&a, other), "a version of another session");
+    assert!(store.wipe_version(&a, second));
+    assert!(!store.has(&a));
+    assert!(!store.wipe_version(&a, second));
+    assert!(store.has(&b));
+}
+
 // Exigence : EX-002-03
 #[test]
 fn with_exposed_on_empty_session_fails_without_detail() {

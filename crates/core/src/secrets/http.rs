@@ -93,6 +93,22 @@ pub(crate) fn auth_header(credential: ExposedCredential<'_>) -> Result<(HeaderNa
     Ok((name, value))
 }
 
+/// `Authorization: Basic …` for a login and password not stored yet, such as candidate identifiers being checked
+/// against a probe URL. Same encoding as the injection, value marked sensitive.
+pub fn basic_authorization(login: &str, password: &secrecy::SecretString) -> Result<HeaderValue, SecretError> {
+    use secrecy::ExposeSecret as _;
+    let credential = super::credential::Credential::Basic {
+        login: login.to_owned(),
+        password: password.clone(),
+    };
+    credential.validate()?;
+    auth_header(ExposedCredential::Basic {
+        login,
+        password: password.expose_secret(),
+    })
+    .map(|(_, value)| value)
+}
+
 fn transport_error(error: &reqwest::Error) -> SecretError {
     if error.is_timeout() {
         SecretError::Timeout

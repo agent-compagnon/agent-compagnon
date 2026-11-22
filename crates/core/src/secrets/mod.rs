@@ -25,11 +25,11 @@ mod tests;
 pub use clock::{Clock, SystemClock};
 pub use credential::{Credential, ExposedCookie, ExposedCredential, MAX_SECRET_LEN};
 pub use error::{ProtectionFailure, SecretError};
-pub use http::AuthenticatedHttpClient;
+pub use http::{AuthenticatedHttpClient, basic_authorization};
 pub use key::SESSION_KEY_LEN;
 pub use origin::OriginGuard;
 pub use sealed::SealedSecret;
-pub use store::{DEFAULT_VARIANT_GRACE, SecretStore};
+pub use store::{DEFAULT_VARIANT_GRACE, SecretStore, SecretVersion};
 #[cfg(windows)]
 pub use wrapper::DpapiKeyWrapper;
 #[cfg(not(windows))]

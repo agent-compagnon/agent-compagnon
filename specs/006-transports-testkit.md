@@ -36,15 +36,15 @@ pub trait SessionGate: Send + Sync {
     async fn ensure(&self, session: &SessionId, deadline: Instant, reason: &AccessReason) -> Result<(), SessionError>;
     /// La session est utilisable tout de suite, sans rien déclencher.
     fn is_active(&self, session: &SessionId) -> bool;
-    /// Ajoute les en-têtes d'authentification, après contrôle de l'origine.
-    fn inject(&self, session: &SessionId, url: &Url, headers: &mut HeaderMap) -> Result<(), SessionError>;
-    /// Le serveur a refusé l'identifiant : la session passe à « expirée ».
-    fn mark_rejected(&self, session: &SessionId);
+    /// Ajoute les en-têtes d'authentification, après contrôle de l'origine ; rend la version du secret injecté.
+    fn inject(&self, session: &SessionId, url: &Url, headers: &mut HeaderMap) -> Result<SecretVersion, SessionError>;
+    /// Le serveur a refusé le secret de cette version : s'il est encore celui de la session, elle passe à « expirée ».
+    fn mark_rejected(&self, session: &SessionId, version: SecretVersion);
 }
 ```
 
 - `mcp_proxy_core::session` : `SessionGate`, `SessionError` (`LoginPending`, `Cancelled`, `Unavailable`,
-  `Injection`), `AccessReason`, et `StoreSessionGate`, porte minimale adossée au `SecretStore` et à l'`OriginGuard`
+  `LoginFailed`, `Injection`), `AccessReason`, et `StoreSessionGate`, porte minimale adossée au `SecretStore` et à l'`OriginGuard`
   (session utilisable tant que son secret est dans le store, aucune connexion possible), qui sert aux tests et aux
   outils de développement en attendant l'`OnDemandAuthenticator` de la spec 010.
 - `mcp_proxy_core::confirm` : `ConfirmationBroker`, `ConfirmationRequest`, `ConfirmationOutcome`, contrat de la
@@ -60,7 +60,8 @@ pub trait SessionGate: Send + Sync {
   - À chaque requête, il appelle `SessionGate::inject` **au moment de l'envoi**. Aucun en-tête d'authentification
     n'est stocké dans la configuration du transport.
   - Aucune redirection suivie. TLS natif.
-  - 401 ou 403 → `UpstreamError::AuthRejected` et `mark_rejected`, qu'il y ait ou non un `WWW-Authenticate`.
+  - 401 ou 403 → `UpstreamError::AuthRejected` et `mark_rejected` avec la version du secret envoyé (rien à marquer
+    si la requête est partie sans secret), qu'il y ait ou non un `WWW-Authenticate`.
   - Les limites de taille de réponse sont conservées : `post_message_with_response_limits` et les deux méthodes
     `*_with_max_sse_event_size` sont redéfinies et délèguent à l'implémentation de rmcp pour `reqwest::Client`, qui
     les applique (il n'existe pas de `get_stream_with_response_limits`).
@@ -165,3 +166,7 @@ Politiques, confirmations, limite de débit (3c). Rechargement des listes (3d).
   filtre de sortie le masque ainsi dans tout message ; le format des autres méthodes d'authentification n'est pas
   nécessaire pour des instantanés. Matrice des générations : les quatre cases sont testées de bout en bout
   (`EX-006-01`).
+- **2026-11-22** — Spec 010 : `inject` rend la version du secret injecté (`SecretVersion`) et `mark_rejected` la
+  reçoit, pour qu'un refus n'efface pas un secret renouvelé entre-temps par un appel concurrent ; variante
+  `SessionError::LoginFailed`. Raison : contrat I007.7, la chaîne ne rappelle pas `mark_rejected` et l'amont ne doit
+  pas effacer un secret plus récent que celui qu'il a envoyé.
