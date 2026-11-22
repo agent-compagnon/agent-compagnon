@@ -3,7 +3,9 @@
 
 #![allow(dead_code, clippy::unwrap_used, clippy::panic)]
 
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use http::{HeaderName, HeaderValue};
@@ -11,6 +13,10 @@ use mcp_proxy_core::config::{Category, Config, EnvId, McpId, ProfileId, SessionI
 use mcp_proxy_core::filter::OutputFilter;
 use mcp_proxy_core::session::SessionGate;
 use mcp_proxy_core::settings::UserSettings;
+use mcp_proxy_core::trace::{
+    FileLog, Journal, JournalConfig, LogFileOptions, LogGuard, SystemWallClock, TraceSink, open_log,
+};
+use mcp_proxy_gateway::journal::follow_tool_changes;
 use mcp_proxy_gateway::registry::{CatalogCache, EmbeddedCatalog, InstanceId, NoCatalogCache, Registry};
 use mcp_proxy_gateway::server::{CallChain, CallChainDeps, CallPipeline, GatewayServer, OutputGate};
 use mcp_proxy_gateway::updates::{ListWatcher, ListWatcherDeps, UpdateTracker, WatchTiming};
@@ -38,7 +44,11 @@ pub struct Stack {
     pub elsewhere: Option<MockMcpServer>,
     pub gate: Arc<FakeSessionGate>,
     pub broker: Arc<FakeConfirmationBroker>,
+    /// Copy of every record the chain gives to the journal.
     pub trace: Arc<MemoryTraceSink>,
+    /// The real sink of the chain, with its log file.
+    pub journal: Journal,
+    pub logs: Logs,
     pub settings: watch::Sender<UserSettings>,
     pub config: Arc<Config>,
     pub registry: Arc<RwLock<Registry>>,
@@ -100,6 +110,53 @@ impl Stack {
             tracker: UpdateTracker::new(&self.config),
             timing,
         })
+    }
+}
+
+/// The log directory of a stack, under the system temporary directory, removed with the stack.
+pub struct Logs {
+    pub dir: PathBuf,
+    pub log: FileLog,
+    guard: Option<LogGuard>,
+}
+
+impl Logs {
+    fn open(config: &Config, filter: &Arc<OutputFilter>) -> Self {
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "mcp-proxy-stack-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (log, guard) = open_log(
+            LogFileOptions::new(&dir, &config.trace),
+            Arc::new(SystemWallClock),
+            Arc::clone(filter),
+        )
+        .unwrap();
+        Self {
+            dir,
+            log,
+            guard: Some(guard),
+        }
+    }
+
+    /// Everything written so far.
+    pub fn text(&self) -> String {
+        self.log.flush().unwrap();
+        let mut text = String::new();
+        for file in mcp_proxy_core::trace::log_files(&self.dir).unwrap() {
+            text.push_str(&std::fs::read_to_string(file).unwrap());
+        }
+        text
+    }
+}
+
+impl Drop for Logs {
+    fn drop(&mut self) {
+        drop(self.guard.take());
+        let _ = std::fs::remove_dir_all(&self.dir);
     }
 }
 
@@ -273,7 +330,16 @@ impl StackBuilder {
 
         let output = OutputGate::new(filter);
         let broker = Arc::new(FakeConfirmationBroker::default());
-        let trace = Arc::new(MemoryTraceSink::default());
+        let logs = Logs::open(&config, output.filter());
+        let journal = Journal::new(
+            JournalConfig::from_config(&config),
+            Arc::clone(output.filter()),
+            Arc::new(SystemWallClock),
+            Some(logs.log.clone()),
+        );
+        follow_tool_changes(registry.read().await.subscribe(), journal.clone());
+        let sink: Arc<dyn TraceSink> = Arc::new(journal.clone());
+        let trace = Arc::new(MemoryTraceSink::forwarding_to(sink));
         let (settings_sender, settings_receiver) = watch::channel(settings);
         let chain = match self.pipeline {
             Some(_) => None,
@@ -309,6 +375,8 @@ impl StackBuilder {
             gate,
             broker,
             trace,
+            journal,
+            logs,
             settings: settings_sender,
             config,
             registry,

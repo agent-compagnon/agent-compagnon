@@ -30,13 +30,15 @@ use mcp_proxy_core::filter::SECRET_MARKER;
 use mcp_proxy_core::policy::{Resolution, ToolAnnotations};
 use mcp_proxy_core::session::SessionGate;
 use mcp_proxy_core::settings::UserSettings;
-use mcp_proxy_core::trace::{CallRecord, CallStatus, PolicyRecord, TraceSink};
+use mcp_proxy_core::trace::{CallRecord, CallStatus, PolicyRecord, TraceSink, decision_key};
 use rmcp::model::{CallToolResult, InputRequiredResult, InputResponses, JsonObject};
 use rmcp::service::{Peer, RoleServer};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::sync::{RwLock, watch};
 use tokio_util::sync::CancellationToken;
+use tracing::Instrument;
+use tracing::field::Empty;
 
 use self::rate::RateLimiter;
 use self::ticket::Tickets;
@@ -337,11 +339,28 @@ impl CallChain {
         (filtered, refusal.status)
     }
 
+    /// Span `mcp.call` of spec 009: what is known at the start, filtered; the rest is recorded at the end.
+    fn span(&self, context: &CallContext) -> tracing::Span {
+        let marker = || SECRET_MARKER.to_owned();
+        tracing::info_span!(
+            "mcp.call",
+            call_id = context.call_id,
+            client = %self.output.text(&context.client.name).unwrap_or_else(marker),
+            tool = %self.output.text(&context.exposed_name).unwrap_or_else(marker),
+            env = Empty,
+            mcp = Empty,
+            session = Empty,
+            policy = Empty,
+            status = Empty,
+            duration_ms = Empty,
+        )
+    }
+
     /// Trace: every call, refusals included, with filtered content only.
-    fn record(&self, context: &CallContext, filtered: &Filtered, status: CallStatus) {
+    fn record(&self, context: &CallContext, filtered: &Filtered, status: CallStatus) -> CallRecord {
         let marker = || SECRET_MARKER.to_owned();
         let arguments = Value::Object(context.args.clone().unwrap_or_default());
-        let record = CallRecord {
+        CallRecord {
             id: context.call_id,
             started_at: context.started_at,
             duration: context.started.elapsed(),
@@ -362,9 +381,29 @@ impl CallChain {
             request: self.output.value(&arguments).unwrap_or_else(|| Value::String(marker())),
             response: filtered.to_value(),
             filter_report: filtered.report().clone(),
-        };
-        self.trace.record(record);
+        }
     }
+}
+
+/// Fields of the `mcp.call` span known once the call ended. Identifiers come from the configuration.
+fn record_span(span: &tracing::Span, record: &CallRecord) {
+    if let Some(env) = &record.env {
+        span.record("env", env.as_str());
+    }
+    if let Some(mcp) = &record.mcp {
+        span.record("mcp", mcp.as_str());
+    }
+    if let Some(session) = &record.session {
+        span.record("session", session.as_str());
+    }
+    if let Some(policy) = &record.policy {
+        span.record("policy", decision_key(policy.decision));
+    }
+    span.record("status", record.status.key());
+    span.record(
+        "duration_ms",
+        u64::try_from(record.duration.as_millis()).unwrap_or(u64::MAX),
+    );
 }
 
 #[async_trait]
@@ -372,15 +411,20 @@ impl CallPipeline for CallChain {
     async fn call(&self, request: CallRequest) -> Filtered {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let mut context = CallContext::new(id, request, self.budget);
-        let mut outcome = Ok(());
-        for stage in &self.stages {
-            outcome = stage.handle(&mut context).await;
-            if outcome.is_err() {
-                break;
+        let span = self.span(&context);
+        let outcome = async {
+            for stage in &self.stages {
+                stage.handle(&mut context).await?;
             }
+            Ok(())
         }
+        .instrument(span.clone())
+        .await;
         let (filtered, status) = self.answer(&mut context, outcome);
-        self.record(&context, &filtered, status);
+        let _entered = span.enter();
+        let record = self.record(&context, &filtered, status);
+        record_span(&span, &record);
+        self.trace.record(record);
         filtered
     }
 }

@@ -80,6 +80,11 @@ impl UserSettings {
         self.exposed_environments = profile.default_environments.iter().cloned().collect();
     }
 
+    /// The JSON of the settings file (nothing in it is secret), for the diagnostic archive.
+    pub fn to_json(&self) -> Result<Vec<u8>, SettingsError> {
+        store::render(self)
+    }
+
     /// Policy engine for the active profile and this hardening tree.
     pub fn engine<'a>(&'a self, config: &'a Config) -> Option<PolicyEngine<'a>> {
         Some(PolicyEngine::new(config, self.active_profile(config)?, &self.hardening))

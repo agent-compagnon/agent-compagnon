@@ -7,8 +7,9 @@
 //! `127.0.0.1`) for all its environments, with the tools of its snapshot; every session holds a demonstration token,
 //! allowed only towards the fake servers of the MCPs that use it. Every call goes through the whole call chain; a
 //! confirmation outside the chat is always refused (no notification here). Tool lists are followed by the
-//! `ListWatcher` (spec 008). Stdout carries MCP: diagnostics go to
-//! stderr.
+//! `ListWatcher` (spec 008). Every call goes to the journal of spec 009, whose log file, with every `tracing` event,
+//! is written in `MCP_PROXY_LOG_DIR` (default: `mcp-proxy-gateway-stdio-logs` in the temporary directory). Stdout
+//! carries MCP: diagnostics go to stderr.
 
 #![allow(clippy::print_stderr)]
 
@@ -21,7 +22,10 @@ use mcp_proxy_core::filter::OutputFilter;
 use mcp_proxy_core::secrets::{Credential, OriginGuard, SecretStore};
 use mcp_proxy_core::session::{SessionGate, StoreSessionGate};
 use mcp_proxy_core::settings::UserSettings;
-use mcp_proxy_core::trace::NoTrace;
+use mcp_proxy_core::trace::{
+    Journal, JournalConfig, LogFileOptions, SystemWallClock, install_global, install_panic_hook, open_log,
+};
+use mcp_proxy_gateway::journal::follow_tool_changes;
 use mcp_proxy_gateway::registry::{EmbeddedCatalog, InstanceId, NoCatalogCache, Registry};
 use mcp_proxy_gateway::server::{CallChain, CallChainDeps, GatewayServer, OutputGate};
 use mcp_proxy_gateway::updates::{ListWatcher, ListWatcherDeps, UpdateTracker, WatchTiming};
@@ -74,6 +78,24 @@ async fn main() -> Result<(), Error> {
     let gate: Arc<dyn SessionGate> = Arc::new(StoreSessionGate::new(Arc::clone(&store), guard));
     let filter = Arc::new(OutputFilter::new(Arc::clone(&store), &config.filter)?);
 
+    let log_dir = std::env::var_os("MCP_PROXY_LOG_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir().join("mcp-proxy-gateway-stdio-logs"));
+    let (log, _log_guard) = open_log(
+        LogFileOptions::new(&log_dir, &config.trace),
+        Arc::new(SystemWallClock),
+        Arc::clone(&filter),
+    )?;
+    install_global(log.clone())?;
+    let journal = Journal::new(
+        JournalConfig::from_config(&config),
+        Arc::clone(&filter),
+        Arc::new(SystemWallClock),
+        Some(log),
+    );
+    install_panic_hook(journal.clone());
+    eprintln!("journal : {}", log_dir.display());
+
     let embedded = EmbeddedCatalog::builtin(&config)?;
     let mut registry = Registry::new(
         Arc::clone(&config),
@@ -86,6 +108,7 @@ async fn main() -> Result<(), Error> {
         settings.choose_profile(profile);
     }
     registry.apply_settings(&settings);
+    let _tool_changes = follow_tool_changes(registry.subscribe(), journal.clone());
     let registry = Arc::new(RwLock::new(registry));
 
     let mut upstreams = Upstreams::default();
@@ -120,7 +143,7 @@ async fn main() -> Result<(), Error> {
         gate,
         broker: Arc::new(FakeConfirmationBroker::default()),
         output: output.clone(),
-        trace: Arc::new(NoTrace),
+        trace: Arc::new(journal),
     })?);
     let gateway = GatewayServer::new(
         registry,

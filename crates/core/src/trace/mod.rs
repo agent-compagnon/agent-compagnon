@@ -3,13 +3,51 @@
 //!
 //! Every text and value of a record has been through the output filter before the record is built: a sink never
 //! sees raw content, even in memory.
+//!
+//! Spec 009 adds the sink of the application, [`Journal`]: circular buffer, subscriptions for the interface and
+//! log file ([`open_log`]), with the `tracing` subscriber that writes every other event to the same file
+//! ([`install_global`]) and the panic hook ([`install_panic_hook`]).
+
+mod clock;
+mod journal;
+mod logfile;
+mod panic;
+mod ring;
+mod subscriber;
+pub(crate) mod time;
+
+#[cfg(test)]
+mod tests;
 
 use std::time::{Duration, SystemTime};
 
 use serde_json::Value;
 
-use crate::config::{Decision, EnvId, McpId, SessionId};
+use crate::config::{Channel, Decision, EnvId, McpId, SessionId};
 use crate::filter::FilterReport;
+
+pub use self::clock::{ManualWallClock, SystemWallClock, WallClock};
+pub use self::journal::{
+    CallDetails, EntryKind, Journal, JournalConfig, JournalEntry, JournalFilter, MAX_FILE_CONTENT_BYTES, RingUsage,
+    StatusFilter, keeps_content, normalize,
+};
+pub use self::logfile::{
+    ClockTime, DEFAULT_MAX_FILE_BYTES, DEFAULT_QUEUE_LINES, FILE_FULL_NOTICE, FileLog, LOG_FILE_PREFIX,
+    LOG_FILE_SUFFIX, LineSender, LogFileOptions, LogGuard, RawLog, log_file_name, log_files, open_log,
+};
+pub use self::panic::install_panic_hook;
+pub use self::subscriber::{LoggingError, default_targets, file_subscriber, install_global};
+pub use self::time::rfc3339;
+
+/// Key of a policy decision in the log file and the `mcp.call` span.
+pub fn decision_key(decision: Decision) -> &'static str {
+    match decision {
+        Decision::Allow => "allow",
+        Decision::Confirm(Channel::Elicitation) => "confirm_elicitation",
+        Decision::Confirm(Channel::Notification) => "confirm_notification",
+        Decision::Deny => "deny",
+    }
+}
 
 /// How a call ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
