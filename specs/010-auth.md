@@ -2,7 +2,7 @@
 id: "010"
 titre: "auth — méthodes d'authentification et authentification à la demande"
 etape: "4"
-statut: "prévue"
+statut: "en cours"
 depend_de: ["002", "006", "007"]
 suivi: "github#11"
 ---
