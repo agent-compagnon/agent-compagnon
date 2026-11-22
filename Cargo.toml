@@ -6,6 +6,7 @@ members = [
     "crates/gateway",
     "crates/deploy",
     "crates/testkit",
+    "crates/ci-check",
     "crates/modules/jira-local",
     "xtask",
     "app",
@@ -17,6 +18,7 @@ default-members = [
     "crates/gateway",
     "crates/deploy",
     "crates/testkit",
+    "crates/ci-check",
     "crates/modules/jira-local",
     "xtask",
 ]
@@ -66,6 +68,7 @@ tracing-subscriber = { version = "0.3.23", default-features = false, features = 
 url = "2.5.9"
 windows = "0.62.2"
 winreg = "0.56.0"
+yaml-rust2 = { version = "0.13.0", default-features = false }
 zeroize = "1.9.2"
 zip = { version = "9.8.1", default-features = false, features = ["deflate-flate2"] }
 

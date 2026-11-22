@@ -1,12 +1,63 @@
-# Checks only (spec 001, ui/ added by spec 011). Windows build and release jobs arrive with step 7c.
-# Both jobs need Node: `ui/` is linted, tested and built, and `ui/dist` must exist before the Windows clippy run
-# (`tauri::generate_context!` reads it).
+# Pipeline of MCP Proxy: checks (spec 001) and release (spec 021). docs/release.md explains how to set it up, how to
+# publish and what to do when a job fails; `cargo xtask check-ci` checks this file without GitLab.
+#
+# Merge requests and branches run `lint` and `test` only. A protected tag vX.Y.Z (or vX.Y.Z-rc.N, beta channel)
+# also runs: build -> authenticode (reserved, disabled) -> sign -> publish, which uploads
+# mcp-proxy/X.Y.Z/mcp-proxy.exe and mcp-proxy.exe.sig to the Artifactory repository.
+#
+# This file holds no secret, only variable names. ED25519_PRIVATE_KEY and JF_ACCESS_TOKEN are CI/CD variables of the
+# project, protected, masked and scoped to the `release` environment: only `sign` and `publish` receive them. Never
+# turn on CI_DEBUG_TRACE in this project, and never add `set -x`: both would print them.
+
+variables:
+  # --- To adapt to your runners (docs/release.md, « Runners ») --------------------------------------------------
+  # Which Windows build a release tag runs:
+  #   "windows-runner": a Windows runner (shell executor, PowerShell) with the MSVC Build Tools, rustup and Node 22;
+  #                     it also runs the tests under Windows (`test:windows`).
+  #   "linux-xwin":     a Linux Docker runner and the image XWIN_IMAGE, cross-compiling with cargo-xwin;
+  #                     no test under Windows.
+  WINDOWS_BUILD_MODE: "windows-runner"
+  # Runner tag of the Windows runner (windows-runner mode, and the reserved `authenticode` job).
+  WINDOWS_RUNNER_TAG: "windows"
+  # Image of the Linux jobs: lint, test, sign.
+  RUST_IMAGE: "rust:1.97.0"
+  # Image of the linux-xwin build: rustup, clang, lld, llvm, cargo-xwin, curl and xz, ideally with the MSVC CRT and
+  # the Windows SDK already downloaded (example Dockerfile in docs/release.md). Placeholder: replace it.
+  XWIN_IMAGE: "registry.example.internal/mcp-proxy/xwin:1.97.0"
+  # Image of `publish`: the JFrog CLI (`jf`), curl, cmp and a POSIX shell. Pin a tested tag or an internal mirror.
+  JFROG_CLI_IMAGE: "releases-docker.jfrog.io/jfrog/jfrog-cli-v2-jf:latest"
+  # --- Release ---------------------------------------------------------------------------------------------------
+  # "true" for a critical release (the clients restart by themselves). Set it for one pipeline only, when pushing the
+  # tag: git push origin vX.Y.Z -o ci.variable="RELEASE_CRITICAL=true". Never as a project variable.
+  RELEASE_CRITICAL: "false"
+  # --- Toolchain -------------------------------------------------------------------------------------------------
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo-home"
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  NODE_VERSION: "22.23.5"
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+
 stages:
   - lint
   - test
+  - build
+  - authenticode
+  - sign
+  - publish
 
+# Merge request pipelines for merge requests, branch pipelines otherwise (never both for the same push), tag pipelines.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+# Linux jobs. Both checks need Node: `ui/` is linted, tested and built, and `ui/dist` must exist before the Windows
+# clippy run (`tauri::generate_context!` reads it).
 default:
-  image: rust:1.97.0
+  image: $RUST_IMAGE
   before_script:
     # Installs the toolchain, components and Windows target pinned by rust-toolchain.toml.
     - rustup toolchain install
@@ -26,13 +77,6 @@ default:
       - .npm/
       - target/
 
-variables:
-  CARGO_HOME: "$CI_PROJECT_DIR/.cargo-home"
-  CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: "0"
-  NODE_VERSION: "22.23.5"
-  npm_config_cache: "$CI_PROJECT_DIR/.npm"
-
 lint:
   stage: lint
   script:
@@ -42,3 +86,156 @@ test:
   stage: test
   script:
     - cargo xtask ci test
+
+# --- Release jobs ------------------------------------------------------------------------------------------------
+# Protected tags only. Release jobs never use the cache: a merge request pipeline must not be able to feed the build
+# of a release.
+.release:
+  rules:
+    - if: $CI_COMMIT_TAG && $CI_COMMIT_REF_PROTECTED == "true"
+  cache: []
+
+# Windows runner, PowerShell. Every native command is followed by `if (-not $?) { exit 1 }`, so that a failure stops
+# the job whatever the runner does after each line. The runner's `image` is ignored by the shell executor.
+.windows:
+  tags:
+    - $WINDOWS_RUNNER_TAG
+  cache: []
+  before_script:
+    - rustup toolchain install; if (-not $?) { exit 1 }
+    - cargo --version; if (-not $?) { exit 1 }
+    - node --version; if (-not $?) { exit 1 }
+    - npm.cmd --version; if (-not $?) { exit 1 }
+
+test:windows:
+  stage: test
+  extends: .windows
+  rules:
+    - if: $CI_COMMIT_TAG && $CI_COMMIT_REF_PROTECTED == "true" && $WINDOWS_BUILD_MODE == "windows-runner"
+  script:
+    - Push-Location ui
+    - npm.cmd ci --no-audit --no-fund; if (-not $?) { exit 1 }
+    - npm.cmd run build; if (-not $?) { exit 1 }
+    - Pop-Location
+    - cargo test --workspace; if (-not $?) { exit 1 }
+
+build:windows:
+  stage: build
+  extends: .windows
+  rules:
+    - if: $CI_COMMIT_TAG && $CI_COMMIT_REF_PROTECTED == "true" && $WINDOWS_BUILD_MODE == "windows-runner"
+  variables:
+    # The build fails without a current release key, or with the development key (spec 020).
+    MCP_PROXY_RELEASE: "1"
+  script:
+    - cargo xtask check-tag $env:CI_COMMIT_TAG; if (-not $?) { exit 1 }
+    - Push-Location ui
+    - npm.cmd ci --no-audit --no-fund; if (-not $?) { exit 1 }
+    - npm.cmd run build; if (-not $?) { exit 1 }
+    - Pop-Location
+    - cargo build --release -p mcp-proxy --target x86_64-pc-windows-msvc; if (-not $?) { exit 1 }
+    - New-Item -ItemType Directory -Force -Path dist | Out-Null; if (-not $?) { exit 1 }
+    - Copy-Item -Path target\x86_64-pc-windows-msvc\release\mcp-proxy.exe -Destination dist\mcp-proxy.exe; if (-not $?) { exit 1 }
+  artifacts:
+    paths:
+      - dist/mcp-proxy.exe
+    expire_in: 7 days
+
+build:linux-xwin:
+  stage: build
+  extends: .release
+  image: $XWIN_IMAGE
+  rules:
+    - if: $CI_COMMIT_TAG && $CI_COMMIT_REF_PROTECTED == "true" && $WINDOWS_BUILD_MODE == "linux-xwin"
+  variables:
+    # The build fails without a current release key, or with the development key (spec 020).
+    MCP_PROXY_RELEASE: "1"
+  script:
+    - cargo xtask check-tag "$CI_COMMIT_TAG"
+    - (cd ui && npm ci --no-audit --no-fund && npm run build)
+    - cargo xwin build --release -p mcp-proxy --target x86_64-pc-windows-msvc
+    - mkdir -p dist
+    - cp target/x86_64-pc-windows-msvc/release/mcp-proxy.exe dist/mcp-proxy.exe
+  artifacts:
+    paths:
+      - dist/mcp-proxy.exe
+    expire_in: 7 days
+
+# Reserved for Authenticode (specs/028-authenticode.md), disabled: a job whose name starts with a dot never runs.
+# It sits between build and sign because Authenticode changes the exe: `sign` must hash the exe Windows will check.
+# To turn it on:
+#   1. rename `.authenticode` to `authenticode`, adapt the signtool command (certificate, timestamp server) and
+#      document its variables in docs/release.md (`cargo xtask check-ci` refuses an undocumented one);
+#   2. add `dependencies: [authenticode]` to `sign`, so that `sign` takes this job's exe, not the unsigned one of build;
+#   3. on a linux-xwin pipeline, this job still needs a Windows runner (signtool), or another signing tool.
+.authenticode:
+  stage: authenticode
+  extends: .windows
+  rules:
+    - if: $CI_COMMIT_TAG && $CI_COMMIT_REF_PROTECTED == "true"
+  script:
+    - signtool sign /fd SHA256 /tr $env:AUTHENTICODE_TIMESTAMP_URL /td SHA256 dist\mcp-proxy.exe; if (-not $?) { exit 1 }
+    - signtool verify /pa dist\mcp-proxy.exe; if (-not $?) { exit 1 }
+  artifacts:
+    paths:
+      - dist/mcp-proxy.exe
+    expire_in: 7 days
+
+# check-release, sign, then verify, on the exe of the previous stages. ED25519_PRIVATE_KEY is read by `cargo xtask
+# sign` from the environment, by name: it never appears on a command line nor in the log.
+sign:
+  stage: sign
+  extends: .release
+  environment:
+    name: release
+    action: prepare
+  variables:
+    MCP_PROXY_RELEASE: "1"
+  before_script:
+    - rustup toolchain install
+    - cargo --version
+  script:
+    - cargo xtask check-release --exe dist/mcp-proxy.exe
+    - cargo xtask sign --exe dist/mcp-proxy.exe --version "$CI_COMMIT_TAG" --critical "$RELEASE_CRITICAL" --key-env ED25519_PRIVATE_KEY
+    - cargo xtask verify --exe dist/mcp-proxy.exe
+  artifacts:
+    paths:
+      - dist/mcp-proxy.exe
+      - dist/mcp-proxy.exe.sig
+    expire_in: 30 days
+
+# Uploads the exe then its .sig, the files `sign` verified. The repository is a release one, nothing is overwritten:
+# the job fails before any upload if the folder of the version exists, and the token has no overwrite permission.
+# If the .sig upload fails after the exe went up, the updater ignores the incomplete folder (no .sig, nothing
+# installed): docs/release.md says how to finish it by hand. JF_URL and JF_ACCESS_TOKEN configure the JFrog CLI.
+publish:
+  stage: publish
+  extends: .release
+  image:
+    name: $JFROG_CLI_IMAGE
+    entrypoint: [""]
+  environment:
+    name: release
+  resource_group: release
+  dependencies:
+    - sign
+  variables:
+    JFROG_CLI_REPORT_USAGE: "false"
+  before_script:
+    - jf --version
+    - curl --version
+  script:
+    - VERSION="${CI_COMMIT_TAG#v}"
+    # Same anonymous request as the updater: 404 means the version is free, anything else stops here.
+    - HTTP_STATUS=$(curl -sS -o /dev/null -w '%{http_code}' "$JF_URL/artifactory/api/storage/$ARTIFACTORY_REPO/mcp-proxy/$VERSION")
+    - test "$HTTP_STATUS" = "404" || { echo "mcp-proxy/$VERSION existe déjà ou Artifactory ne répond pas (HTTP $HTTP_STATUS), rien n'est envoyé"; exit 1; }
+    - cd dist
+    - jf rt upload mcp-proxy.exe "$ARTIFACTORY_REPO/mcp-proxy/$VERSION/mcp-proxy.exe"
+    - jf rt upload mcp-proxy.exe.sig "$ARTIFACTORY_REPO/mcp-proxy/$VERSION/mcp-proxy.exe.sig"
+    - cd ..
+    # What the clients will download, anonymously: both files, identical to the signed ones.
+    - curl -fsS -o /tmp/published.exe "$JF_URL/artifactory/$ARTIFACTORY_REPO/mcp-proxy/$VERSION/mcp-proxy.exe"
+    - curl -fsS -o /tmp/published.exe.sig "$JF_URL/artifactory/$ARTIFACTORY_REPO/mcp-proxy/$VERSION/mcp-proxy.exe.sig"
+    - cmp dist/mcp-proxy.exe /tmp/published.exe
+    - cmp dist/mcp-proxy.exe.sig /tmp/published.exe.sig
+    - echo "publié dans $ARTIFACTORY_REPO/mcp-proxy/$VERSION/ (mcp-proxy.exe, mcp-proxy.exe.sig)"

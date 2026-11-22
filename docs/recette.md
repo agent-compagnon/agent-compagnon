@@ -420,6 +420,67 @@ numéro plus élevé que la précédente : l'updater n'essaie que la plus haute.
   a disparu. Noter si un `.old` encore tenu fait échouer la mise à jour suivante (« ancienne version encore utilisée
   par un client LLM »).
 
+## 021 — Pipeline GitLab de release
+
+Recette **GitLab**, pas Windows : le pipeline n'a jamais tourné avant elle (aucun GitLab ni runner dans
+l'environnement de développement ; seul `cargo xtask check-ci` y est exécuté). À dérouler au premier tag, dans
+l'ordre ci-dessous, en gardant les journaux des jobs.
+
+Préparation :
+
+1. Dérouler « Préparer une fois » de `docs/release.md` : clé de release dans `crates/deploy/keys/current.pub`
+   (fusionnée), tags `v*` protégés, variables `ED25519_PRIVATE_KEY`, `JF_ACCESS_TOKEN`, `JF_URL`,
+   `ARTIFACTORY_REPO` (protégées, portée `release`), runner et `WINDOWS_BUILD_MODE`, dépôt Artifactory, section
+   `[update]` de `config/default.toml`. Pour une première fois, un projet GitLab de test (copie du dépôt), un dépôt
+   Artifactory de test et une clé de recette évitent de consommer de vrais numéros de version.
+2. En local : `cargo xtask check-ci` affiche « check-ci : OK ».
+3. Points jamais vérifiés, à regarder au passage et à noter s'ils diffèrent : variable dans `tags`
+   (`$WINDOWS_RUNNER_TAG`) ; arrêt d'un job PowerShell par `if (-not $?) { exit 1 }` ; variables de portée
+   `release` reçues par `sign` (`action: prepare`) et `publish` ; `-o ci.variable` sur une poussée de tag ; image
+   JFrog CLI avec `entrypoint: [""]`, `curl` et `cmp` ; `JF_URL` et `JF_ACCESS_TOKEN` lus par `jf` ; en mode
+   `linux-xwin`, image, SDK et `llvm-rc`.
+
+- [ ] **EX-021-03** — Ouvrir une demande de fusion (changement anodin) : son pipeline est de type « merge request »
+  et ne contient que `lint` et `test`, aucun `test:windows`, `build:…`, `sign` ni `publish`. Le journal de `test`
+  contient « check-ci : OK ». Pousser un nouveau commit sur la branche : un seul pipeline (celui de la demande de
+  fusion), pas de pipeline de branche en double. Une branche sans demande de fusion : pipeline de branche, `lint` et
+  `test` seulement.
+- [ ] **EX-021-12** — Sur un commit dont la version est `X.Y.Z`, créer le tag protégé `vX.Y.(Z+99)` : `lint` et
+  `test` passent ; `build:windows` (ou `build:linux-xwin`) échoue sur « check-tag : ÉCHEC : le tag … ne correspond
+  pas à la version du workspace », sans aucune ligne `npm` ni `cargo build` après ; `sign` et `publish` ne tournent
+  pas ; rien n'apparaît dans Artifactory. En mode `windows-runner`, c'est aussi la preuve qu'une commande en échec
+  arrête un job PowerShell. Supprimer ce tag. Un tag non protégé (hors `v*`) : `lint` et `test` seulement.
+- [ ] **EX-021-04** — Créer et pousser le tag protégé `vX.Y.Z` de la version du workspace. Le pipeline montre `lint`,
+  `test`, `test:windows` (mode `windows-runner`), `build:…`, `sign`, `publish` ; aucun job `authenticode`. Journaux :
+  `check-tag : vX.Y.Z = version X.Y.Z du workspace (canal stable)` ; dans `sign`, « check-release : OK » avec la
+  clé courante attendue, puis `dist/mcp-proxy.exe.sig : version X.Y.Z, sha256 …, critical false, key-id …` et
+  « vérifié : … » avec ce même `key-id` ; `publish` se termine par « publié dans … ». Dans Artifactory,
+  `mcp-proxy/X.Y.Z/` contient exactement `mcp-proxy.exe` et `mcp-proxy.exe.sig`, lisibles sans identifiant
+  (fenêtre de navigation privée). Sur un poste Windows, télécharger les deux fichiers :
+  `cargo xtask verify --exe mcp-proxy.exe --sig mcp-proxy.exe.sig` répond « vérifié » ; `Get-FileHash
+  mcp-proxy.exe` donne le `sha256` du `.sig`. L'exe se lance et s'installe (section 019). En mode `linux-xwin`,
+  vérifier en plus qu'il démarre sur un poste sans « Microsoft Visual C++ Redistributable » (bibliothèque
+  d'exécution liée statiquement).
+- [ ] **EX-021-05** — Relancer le job `publish` du même pipeline (« Retry ») : il échoue sur « mcp-proxy/X.Y.Z existe
+  déjà ou Artifactory ne répond pas (HTTP 200), rien n'est envoyé », sans ligne `jf rt upload` exécutée ; dans
+  Artifactory, les deux fichiers gardent leur date et leur empreinte. Lancer un nouveau pipeline pour le même tag
+  (*Build > Pipelines > Run pipeline*) : même échec de `publish`. Contrôle de la vraie garantie : avec le jeton du
+  pipeline, `jf rt upload` d'un fichier quelconque sur `mcp-proxy/X.Y.Z/mcp-proxy.exe` est refusé (droit
+  d'écrasement absent).
+- [ ] **EX-021-06** — Installer l'exe `X.Y.Z` publié par le pipeline (section 019). Monter la version à `X.Y.(Z+1)`,
+  fusionner, pousser le tag : une fois publiée, l'appli installée en `X.Y.Z` la trouve dans la minute qui suit son
+  démarrage (« mise à jour X.Y.(Z+1) prête »), et le redémarrage lance `X.Y.(Z+1)` (comme `EX-020-08`).
+- [ ] **EX-021-10** — Chercher dans les journaux de tous les jobs du pipeline les huit premiers caractères de la clé
+  privée et du jeton : absents. Dans *Settings > CI/CD > Variables*, les quatre variables sont protégées, la clé et
+  le jeton masqués, portée `release`. Dans un projet de test seulement, ajouter temporairement à `test` la ligne
+  `test -n "$ED25519_PRIVATE_KEY" && echo "clé présente" || echo "clé absente"` et pousser un tag protégé : « clé
+  absente » (la portée `release` la réserve à `sign` et `publish`). Ne pas fusionner cette ligne.
+- [ ] **EX-021-11** — Publier `X.Y.(Z+2)` avec `git push origin vX.Y.(Z+2) -o ci.variable="RELEASE_CRITICAL=true"` :
+  `sign` affiche `critical true`, le `.sig` téléchargé contient `critical: true`, et l'appli installée redémarre
+  d'elle-même comme en `EX-020-19`. Puis monter la version à `X.(Y+1).0-rc.1` et pousser `vX.(Y+1).0-rc.1` :
+  `check-tag` affiche « (préversion, canal bêta) », la version est publiée sous `mcp-proxy/X.(Y+1).0-rc.1/`,
+  ignorée par un poste qui ne reçoit pas les préversions et proposée dès que la case est cochée (comme `EX-020-11`).
+
 ## 025 — Module MCP local d'exemple (`jira-local`)
 
 À dérouler quand l'appli (spec 011) et les fenêtres de saisie Basic (spec 012) existent, avec une config dont

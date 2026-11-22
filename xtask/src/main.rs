@@ -6,7 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant};
 
+#[cfg(test)]
+mod commands;
 mod icons;
+mod release;
 mod trace;
 
 const WINDOWS_TARGET: &str = "x86_64-pc-windows-msvc";
@@ -34,7 +37,13 @@ commands:
   verify --exe <exe> [--sig <file>] [--public-key <hex>]...
                         check a manifest and its exe with these keys, or with the embedded ones
   check-release [--exe <exe>]
-                        refuse the development key and a missing current key; with --exe, check the built exe";
+                        refuse the development key and a missing current key; with --exe, check the built exe
+  check-tag <tag>       check that a release tag is v<version of the workspace>, X.Y.Z or X.Y.Z-rc.N (spec 021)
+  check-ci              check .gitlab-ci.yml without GitLab: valid YAML, release jobs on protected tags only, known
+                        `cargo xtask` commands, variables documented in docs/release.md (spec 021)";
+
+/// Where `check-ci` reads the pipeline and its documentation, relative to the workspace root.
+const CHECK_CI_ARGS: [&str; 4] = ["--ci-file", ".gitlab-ci.yml", "--doc", "docs/release.md"];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Group {
@@ -123,6 +132,17 @@ fn ci_steps(root: &Path) -> Vec<Step> {
         root,
     ));
     steps.push(trace_step(root));
+    let mut check_ci = vec![
+        "run",
+        "--quiet",
+        "--package",
+        "mcp-proxy-ci-check",
+        "--bin",
+        "check-ci",
+        "--",
+    ];
+    check_ci.extend(CHECK_CI_ARGS);
+    steps.push(Step::new("pipeline (check-ci)", &[Test], &cargo, &check_ci, root));
     steps
 }
 
@@ -202,22 +222,82 @@ fn delegate(package: &str, bin: &str, args: &[&str]) -> ExitCode {
     }
 }
 
+/// What a command line asks for. Free arguments are checked by the command itself.
+enum Action<'a> {
+    Ci(&'static [Group]),
+    Trace(trace::Mode),
+    Delegate {
+        package: &'static str,
+        bin: &'static str,
+        args: Vec<&'a str>,
+    },
+    CheckTag(&'a [&'a str]),
+    CheckCi,
+    Icons,
+    Help,
+}
+
+fn parse<'a>(args: &'a [&'a str]) -> Option<Action<'a>> {
+    Some(match args {
+        ["ci"] => Action::Ci(&[Group::Lint, Group::Test]),
+        ["ci", "lint"] => Action::Ci(&[Group::Lint]),
+        ["ci", "test"] => Action::Ci(&[Group::Test]),
+        ["trace"] => Action::Trace(trace::Mode::Check),
+        ["trace", "--write-index"] => Action::Trace(trace::Mode::WriteIndex),
+        ["trace", "--report"] => Action::Trace(trace::Mode::Report),
+        ["snapshot-catalog", rest @ ..] => Action::Delegate {
+            package: "mcp-proxy-gateway",
+            bin: "snapshot-catalog",
+            args: rest.to_vec(),
+        },
+        [command @ ("keygen" | "sign" | "verify" | "check-release"), rest @ ..] => Action::Delegate {
+            package: "mcp-proxy-deploy",
+            bin: "update-tool",
+            args: std::iter::once(*command).chain(rest.iter().copied()).collect(),
+        },
+        ["check-tag", rest @ ..] => Action::CheckTag(rest),
+        ["check-ci"] => Action::CheckCi,
+        ["icons"] => Action::Icons,
+        ["help" | "--help" | "-h"] => Action::Help,
+        _ => return None,
+    })
+}
+
+fn check_tag(args: &[&str]) -> ExitCode {
+    let [tag] = args else {
+        eprintln!("check-tag : un seul argument attendu, le tag (par exemple v1.4.0)\n\n{USAGE}");
+        return ExitCode::from(2);
+    };
+    let version = env!("CARGO_PKG_VERSION");
+    match release::check_tag(tag, version) {
+        Ok(channel) => {
+            println!(
+                "check-tag : {tag} = version {version} du workspace ({})",
+                channel.label()
+            );
+            ExitCode::SUCCESS
+        }
+        Err(message) => {
+            eprintln!("check-tag : ÉCHEC : {message}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
-    match args.as_slice() {
-        ["ci"] => run_ci(&[Group::Lint, Group::Test]),
-        ["ci", "lint"] => run_ci(&[Group::Lint]),
-        ["ci", "test"] => run_ci(&[Group::Test]),
-        ["trace"] => trace::run(&workspace_root(), trace::Mode::Check),
-        ["trace", "--write-index"] => trace::run(&workspace_root(), trace::Mode::WriteIndex),
-        ["trace", "--report"] => trace::run(&workspace_root(), trace::Mode::Report),
-        ["snapshot-catalog", rest @ ..] => delegate("mcp-proxy-gateway", "snapshot-catalog", rest),
-        [command @ ("keygen" | "sign" | "verify" | "check-release"), rest @ ..] => {
-            let args: Vec<&str> = std::iter::once(*command).chain(rest.iter().copied()).collect();
-            delegate("mcp-proxy-deploy", "update-tool", &args)
-        }
-        ["icons"] => match icons::write_all(&workspace_root().join("app").join("icons")) {
+    let Some(action) = parse(&args) else {
+        eprintln!("{USAGE}");
+        return ExitCode::FAILURE;
+    };
+    match action {
+        Action::Ci(groups) => run_ci(groups),
+        Action::Trace(mode) => trace::run(&workspace_root(), mode),
+        Action::Delegate { package, bin, args } => delegate(package, bin, &args),
+        Action::CheckTag(rest) => check_tag(rest),
+        Action::CheckCi => delegate("mcp-proxy-ci-check", "check-ci", &CHECK_CI_ARGS),
+        Action::Icons => match icons::write_all(&workspace_root().join("app").join("icons")) {
             Ok(names) => {
                 println!("app/icons : {}", names.join(", "));
                 ExitCode::SUCCESS
@@ -227,13 +307,44 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
-        ["help" | "--help" | "-h"] => {
+        Action::Help => {
             println!("{USAGE}");
             ExitCode::SUCCESS
         }
-        _ => {
-            eprintln!("{USAGE}");
-            ExitCode::FAILURE
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Exigence : EX-021-09
+    #[test]
+    fn every_form_given_to_check_ci_is_a_command_of_xtask() {
+        for form in commands::FORMS {
+            let words: Vec<&str> = form.split_whitespace().filter(|w| *w != "…").collect();
+            assert!(parse(&words).is_some(), "{form}");
         }
+    }
+
+    // Exigence : EX-021-09
+    #[test]
+    fn unknown_commands_are_refused() {
+        for words in [
+            &["deploy"][..],
+            &["ci", "build"],
+            &["trace", "--all"],
+            &["check-ci", "--fix"],
+            &[],
+        ] {
+            assert!(parse(words).is_none(), "{words:?}");
+        }
+    }
+
+    #[test]
+    fn the_ci_runs_check_ci_last() {
+        let steps = ci_steps(&workspace_root());
+        let last = steps.last().map(|s| s.args.clone()).unwrap_or_default();
+        assert!(last.iter().any(|a| a == "check-ci"), "{last:?}");
     }
 }

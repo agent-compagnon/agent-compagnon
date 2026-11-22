@@ -28,6 +28,7 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 | Secrets | `secrecy` 0.10, `zeroize` 1.9, enveloppe : `chacha20poly1305` 0.11 (XChaCha20-Poly1305), `getrandom` 0.4, clé de session enveloppée par DPAPI utilisateur (WinRT `DataProtectionProvider`) |
 | Réglages scellés | `hmac` 0.13 (HMAC-SHA256 avec `sha2` 0.11), clé enveloppée par DPAPI utilisateur (spec 014) |
 | Mises à jour | `ed25519-dalek` 3, `semver` 1.0, `sha2`, `base64` ; remplacement par renommage (spec 019), pas `self-replace` |
+| Pipeline | GitLab CI (`.gitlab-ci.yml`), JFrog CLI ; `yaml-rust2` 0.13 pour `cargo xtask check-ci` (spec 021) |
 | Filtre de sortie | `memchr` 2.8, `regex` 1.13 (motifs génériques seulement), `serde_json` 1.0 |
 | Logs | `tracing`, `tracing-subscriber` 0.3, `tracing-appender` |
 | Front | Vue 3, Vite, TypeScript, Tailwind CSS 4, shadcn-vue (Reka UI), `@lucide/vue`, `valibot` (schémas de l'instantané), `@tauri-apps/api`, TanStack Table (`@tanstack/vue-table` 8), TanStack Virtual (`@tanstack/vue-virtual` 3), npm ; Vitest et Playwright pour les tests |
@@ -54,11 +55,13 @@ crates/auth            mcp-proxy-auth       trait AuthMethod + implémentations,
 crates/gateway         mcp-proxy-gateway    registre, amont, middlewares, serveur MCP, pont, vue, assemblage
 crates/deploy          mcp-proxy-deploy     installation, désinstallation, updater        (ajout)
 crates/testkit         mcp-proxy-testkit    faux MCP, faux SSO, faux Artifactory          (ajout, dev)
+crates/ci-check        mcp-proxy-ci-check   contrôle de .gitlab-ci.yml sans GitLab         (ajout, outil)
 crates/modules/*       un crate par module MCP local
 app/                   mcp-proxy            appli Tauri, Windows uniquement, câblage seulement
 ui/                    front Vue
 config/                default.toml embarqué + catalog/*.json (instantanés d'outils)
-xtask/                 cargo xtask : ci, trace, snapshot-catalog, keygen, sign, verify, check-release
+xtask/                 cargo xtask : ci, trace, snapshot-catalog, keygen, sign, verify, check-release, check-tag,
+                       check-ci
 ```
 
 Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` (posé par l'exe lui-même au premier
@@ -291,3 +294,10 @@ du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
   `verify` et `check-release`. Constaté dans les sources de `tauri-plugin-single-instance` 2.5.5 et de Tauri 2.12.7 :
   le verrou d'instance unique est libéré par `cleanup_before_exit`, que `run_return` appelle à la fin de la boucle
   d'événements ; l'appli lance donc la nouvelle version après `run_return`, une fois ses tâches arrêtées.
+- **2026-11-22** — Spec 021 : pipeline de release dans `.gitlab-ci.yml` (étapes `lint`, `test`, `build`,
+  `authenticode` réservée, `sign`, `publish` ; deux variantes du build Windows), documenté dans `docs/release.md`.
+  Nouveau crate d'outillage `mcp-proxy-ci-check` (exécutable `check-ci`, `yaml-rust2` 0.13, sans fonctions par
+  défaut), lancé par `cargo xtask check-ci` comme `update-tool` l'est par `sign` : xtask reste sans dépendance. Les
+  formes de `cargo xtask` sont dans `xtask/src/commands.rs`, compilé dans les deux crates. `cargo xtask check-tag`
+  compare un tag à la version du workspace. Aucun profil de compilation `release` ajouté : le build de release
+  utilise celui de cargo par défaut.

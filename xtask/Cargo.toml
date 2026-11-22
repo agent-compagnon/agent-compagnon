@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-description = "Project automation: `cargo xtask ci`, `trace`, `snapshot-catalog`, `keygen`, `sign`, `verify`, `check-release`."
+description = "Project automation: `cargo xtask ci`, `trace`, `snapshot-catalog`, `keygen`, `sign`, `verify`, `check-release`, `check-tag`, `check-ci`."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

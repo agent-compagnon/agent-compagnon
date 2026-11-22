@@ -1,0 +1,18 @@
+[package]
+name = "mcp-proxy-ci-check"
+description = "Checks of .gitlab-ci.yml that need no GitLab, run by `cargo xtask check-ci` (spec 021)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "check-ci"
+path = "src/bin/check_ci.rs"
+
+[dependencies]
+yaml-rust2.workspace = true
+
+[lints]
+workspace = true
