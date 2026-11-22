@@ -1,7 +1,8 @@
 # Décisions
 
-Journal des décisions du projet. Les tables D et S reprennent `docs/issues/00-cadrage.md` (décisions du cadrage) ;
-la dernière section est alimentée à chaque étape d'implémentation.
+Journal des décisions du projet, **en ajout seul** : une décision n'est jamais réécrite ni supprimée. Si elle
+change, la nouvelle décision s'ajoute avec sa date et l'ancienne est marquée « remplacée par … ». Les tables D et S
+viennent du cadrage du 2026-11-22 ; la dernière section est alimentée à chaque étape d'implémentation.
 
 ## Décisions validées par QCM
 
@@ -23,6 +24,7 @@ la dernière section est alimentée à chaque étape d'implémentation.
 | D14 | Confort retenu | Configuration automatique des clients, désinstallation propre, canal bêta, auto-diagnostic |
 | D15 | Exe de test | Cross-compilation à la demande, pas à chaque étape |
 | D16 | Implémentation | Opus, issue après issue, piloté et relu dans la session de cadrage |
+| D17 | Organisation des specs (décidé en conversation le 2026-11-22, hors QCM) | Le dépôt est la seule mémoire du projet : specs dans `specs/`, critères d'acceptation numérotés (`EX-NNN-nn`) cités par les tests et vérifiés par `cargo xtask trace`, amendements datés, commits terminés par `Spec: NNN`. Les tickets GitHub ne sont que des pointeurs. Raisons : ne pas perdre la mémoire en changeant de plateforme, garder specs et code alignés, pouvoir retracer un changement |
 
 ## Décisions prises par défaut (option la plus sûre)
 

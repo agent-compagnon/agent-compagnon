@@ -3,8 +3,8 @@
 Passerelle Windows sécurisée entre des clients LLM (Claude Desktop, VS Code/Copilot…) et des serveurs MCP internes.
 Les serveurs MCP délèguent l'authentification à l'application : le LLM ne voit jamais aucun secret.
 
-Cadrage, architecture et plan : [`docs/issues/00-cadrage.md`](docs/issues/00-cadrage.md). Décisions :
-[`DECISIONS.md`](DECISIONS.md).
+Mémoire du projet : [`specs/`](specs/README.md) — constitution, architecture et une spec par fonctionnalité.
+Décisions : [`DECISIONS.md`](DECISIONS.md). Consignes pour les agents : [`CLAUDE.md`](CLAUDE.md).
 
 ## Prérequis
 
