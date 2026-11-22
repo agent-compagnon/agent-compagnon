@@ -2,7 +2,7 @@
 id: "009"
 titre: "Tracing — spans, tampon circulaire, journal fichier filtré, export de diagnostic"
 etape: "3e"
-statut: "prévue"
+statut: "en cours"
 depend_de: ["003", "007"]
 suivi: "github#10"
 ---
