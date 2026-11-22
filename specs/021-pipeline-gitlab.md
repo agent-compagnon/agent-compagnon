@@ -2,7 +2,7 @@
 id: "021"
 titre: "Pipeline GitLab de release"
 etape: "7c"
-statut: "prévue"
+statut: "en cours"
 depend_de: ["001", "020"]
 suivi: "github#22"
 ---

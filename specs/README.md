@@ -77,7 +77,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [018](018-ui-journal.md) | 6c | ui — onglet Journal | implémentée | 009, 016 | 13 |
 | [019](019-installation.md) | 7a | Installation au premier lancement | implémentée | 011 | 18 |
 | [020](020-updater.md) | 7b | Updater Artifactory : signature ed25519, remplacement de l'exe, canal bêta | implémentée | 011, 019 | 20 |
-| [021](021-pipeline-gitlab.md) | 7c | Pipeline GitLab de release | prévue | 001, 020 | 6 |
+| [021](021-pipeline-gitlab.md) | 7c | Pipeline GitLab de release | en cours | 001, 020 | 6 |
 | [022](022-desinstallation.md) | 7d | Désinstallation propre | prévue | 019 | 5 |
 | [023](023-config-clients.md) | 7e | Configuration automatique des clients LLM | prévue | 016, 019 | 8 |
 | [024](024-doctor.md) | 7f | Auto-diagnostic (`doctor`) | prévue | 009, 011, 019, 020 | 8 |
