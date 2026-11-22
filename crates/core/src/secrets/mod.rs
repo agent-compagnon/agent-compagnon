@@ -5,6 +5,7 @@
 
 mod credential;
 mod error;
+mod http;
 mod origin;
 mod protector;
 mod sealed;
@@ -16,6 +17,7 @@ mod tests;
 
 pub use credential::{Credential, ExposedCookie, ExposedCredential, MAX_SECRET_LEN};
 pub use error::{ProtectionFailure, SecretError};
+pub use http::AuthenticatedHttpClient;
 pub use origin::OriginGuard;
 #[cfg(not(windows))]
 pub use protector::InsecureDevProtector;

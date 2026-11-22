@@ -1,7 +1,14 @@
 use std::collections::BTreeSet;
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use proptest::prelude::*;
+use reqwest::Method;
+use reqwest::header::{AUTHORIZATION, COOKIE, HeaderValue};
 use secrecy::SecretString;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
 use url::Url;
 
 use super::sealed::drop_probe;
@@ -221,6 +228,16 @@ proptest! {
             prop_assert!(!output.contains(&value), "secret leaked in {}", output);
         }
     }
+}
+
+#[test]
+fn authenticated_client_debug_has_no_secret() {
+    let s = sid("sso-corp");
+    let store = Arc::new(store());
+    store.put(&s, bearer(SENTINEL)).unwrap();
+    let guard = Arc::new(guard_for(&s, &["https://mcp.example.internal"]));
+    let client = AuthenticatedHttpClient::new(s, store, guard, Duration::from_secs(5)).unwrap();
+    assert!(!format!("{client:?}").contains(SENTINEL));
 }
 
 // --- Store -----------------------------------------------------------------------------------------------------------
@@ -461,5 +478,244 @@ fn guard_from_embedded_config() {
         guard
             .authorize(&tools, &url("https://kibana.example.internal/"))
             .is_err()
+    );
+}
+
+// --- Authenticated HTTP client ---------------------------------------------------------------------------------------
+
+/// Minimal HTTP/1.1 server: records each request head and answers with a fixed response.
+struct TestServer {
+    addr: SocketAddr,
+    requests: Arc<Mutex<Vec<String>>>,
+}
+
+impl TestServer {
+    async fn start(response: String) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let recorded = Arc::clone(&requests);
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut stream, _)) = listener.accept().await else {
+                    return;
+                };
+                let mut head = Vec::new();
+                let mut chunk = [0u8; 1024];
+                while !head.windows(4).any(|w| w == b"\r\n\r\n") {
+                    match stream.read(&mut chunk).await {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => head.extend_from_slice(&chunk[..n]),
+                    }
+                }
+                recorded
+                    .lock()
+                    .unwrap()
+                    .push(String::from_utf8_lossy(&head).into_owned());
+                let _ = stream.write_all(response.as_bytes()).await;
+                let _ = stream.shutdown().await;
+            }
+        });
+        Self { addr, requests }
+    }
+
+    fn url(&self, path: &str) -> Url {
+        Url::parse(&format!("http://{}{path}", self.addr)).unwrap()
+    }
+
+    fn origin(&self) -> String {
+        format!("http://{}", self.addr)
+    }
+
+    fn requests(&self) -> Vec<String> {
+        self.requests.lock().unwrap().clone()
+    }
+}
+
+fn ok_response(extra_headers: &str) -> String {
+    format!("HTTP/1.1 200 OK\r\n{extra_headers}Content-Length: 2\r\nConnection: close\r\n\r\nok")
+}
+
+/// Value of a request header, matched case-insensitively on the name.
+fn header_value(request: &str, name: &str) -> Option<String> {
+    request.lines().find_map(|line| {
+        let (n, v) = line.split_once(':')?;
+        n.eq_ignore_ascii_case(name).then(|| v.trim().to_owned())
+    })
+}
+
+fn client_for(session: &SessionId, store: &Arc<SecretStore>, origins: &[&str]) -> AuthenticatedHttpClient {
+    AuthenticatedHttpClient::new(
+        session.clone(),
+        Arc::clone(store),
+        Arc::new(guard_for(session, origins)),
+        Duration::from_secs(5),
+    )
+    .unwrap()
+}
+
+/// Asserts that nobody connected to `listener` within a short delay.
+async fn assert_no_connection(listener: &TcpListener) {
+    let accepted = tokio::time::timeout(Duration::from_millis(200), listener.accept()).await;
+    assert!(accepted.is_err(), "a connection was made");
+}
+
+#[tokio::test]
+async fn injects_each_credential_kind() {
+    let server = TestServer::start(ok_response("")).await;
+    let s = sid("sso-corp");
+    let store = Arc::new(store());
+    let client = client_for(&s, &store, &[&server.origin()]);
+
+    store.put(&s, bearer(SENTINEL)).unwrap();
+    let mut request = client.request(Method::GET, server.url("/bearer"));
+    request
+        .headers_mut()
+        .insert(AUTHORIZATION, HeaderValue::from_static("Bearer caller-value"));
+    request
+        .headers_mut()
+        .insert(COOKIE, HeaderValue::from_static("caller=1"));
+    let response = client.execute(request).await.unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(response.text().await.unwrap(), "ok");
+
+    store.put(&s, basic("jdoe", "pass word")).unwrap();
+    client
+        .execute(client.request(Method::GET, server.url("/basic")))
+        .await
+        .unwrap();
+
+    store.put(&s, cookies(&[("SID", "abc"), ("XSRF", "def")])).unwrap();
+    client
+        .execute(client.request(Method::POST, server.url("/cookies")))
+        .await
+        .unwrap();
+
+    let requests = server.requests();
+    assert_eq!(requests.len(), 3);
+    assert_eq!(
+        header_value(&requests[0], "authorization").unwrap(),
+        format!("Bearer {SENTINEL}")
+    );
+    assert_eq!(header_value(&requests[0], "cookie"), None, "caller cookie removed");
+    assert_eq!(
+        header_value(&requests[1], "authorization").unwrap(),
+        "Basic amRvZTpwYXNzIHdvcmQ=",
+        "base64 of jdoe:pass word"
+    );
+    assert_eq!(header_value(&requests[2], "cookie").unwrap(), "SID=abc; XSRF=def");
+    assert_eq!(header_value(&requests[2], "authorization"), None);
+}
+
+#[tokio::test]
+async fn redirect_to_another_origin_is_not_followed() {
+    let elsewhere = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let target = format!("http://{}/stolen", elsewhere.local_addr().unwrap());
+    let server = TestServer::start(format!(
+        "HTTP/1.1 302 Found\r\nLocation: {target}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+    ))
+    .await;
+    let s = sid("sso-corp");
+    let store = Arc::new(store());
+    store.put(&s, bearer(SENTINEL)).unwrap();
+    let client = client_for(&s, &store, &[&server.origin()]);
+
+    let response = client
+        .execute(client.request(Method::GET, server.url("/")))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 302);
+    assert_eq!(server.requests().len(), 1);
+    assert_no_connection(&elsewhere).await;
+}
+
+#[tokio::test]
+async fn credential_headers_are_removed_from_the_response() {
+    let server = TestServer::start(ok_response(
+        "Set-Cookie: SID=new-session-value; HttpOnly\r\nSet-Cookie: other=1\r\nAuthorization: Bearer echoed\r\n\
+         WWW-Authenticate: Bearer realm=\"x\"\r\nProxy-Authenticate: Basic\r\nX-Kept: yes\r\n",
+    ))
+    .await;
+    let s = sid("sso-corp");
+    let store = Arc::new(store());
+    store.put(&s, bearer(SENTINEL)).unwrap();
+    let client = client_for(&s, &store, &[&server.origin()]);
+
+    let response = client
+        .execute(client.request(Method::GET, server.url("/")))
+        .await
+        .unwrap();
+    let headers = response.headers();
+    for name in ["set-cookie", "authorization", "www-authenticate", "proxy-authenticate"] {
+        assert!(!headers.contains_key(name), "{name} kept");
+    }
+    assert_eq!(headers.get("x-kept").unwrap(), "yes");
+}
+
+#[tokio::test]
+async fn undeclared_origin_is_refused_before_sending() {
+    let declared = TestServer::start(ok_response("")).await;
+    let undeclared = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = Url::parse(&format!("http://{}/", undeclared.local_addr().unwrap())).unwrap();
+    let s = sid("sso-corp");
+    let store = Arc::new(store());
+    store.put(&s, bearer(SENTINEL)).unwrap();
+    let client = client_for(&s, &store, &[&declared.origin()]);
+
+    let error = client.execute(client.request(Method::GET, url)).await.unwrap_err();
+    assert!(matches!(error, SecretError::OriginNotAllowed { .. }), "{error:?}");
+    assert_no_connection(&undeclared).await;
+    assert!(declared.requests().is_empty());
+}
+
+#[tokio::test]
+async fn session_without_secret_sends_nothing() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let s = sid("sso-corp");
+    let store = Arc::new(store());
+    let client = client_for(&s, &store, &[&origin]);
+
+    let url = Url::parse(&format!("{origin}/")).unwrap();
+    let error = client.execute(client.request(Method::GET, url)).await.unwrap_err();
+    assert_eq!(error, SecretError::NoSecret(s));
+    assert_no_connection(&listener).await;
+}
+
+#[tokio::test]
+async fn request_timeout_applies() {
+    // Accepts connections but never answers.
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let origin = format!("http://{}", listener.local_addr().unwrap());
+    let held = Arc::new(Mutex::new(Vec::new()));
+    let keep = Arc::clone(&held);
+    tokio::spawn(async move {
+        while let Ok((stream, _)) = listener.accept().await {
+            keep.lock().unwrap().push(stream);
+        }
+    });
+    let s = sid("sso-corp");
+    let store = Arc::new(store());
+    store.put(&s, bearer(SENTINEL)).unwrap();
+    let client = AuthenticatedHttpClient::new(
+        s.clone(),
+        Arc::clone(&store),
+        Arc::new(guard_for(&s, &[&origin])),
+        Duration::from_millis(300),
+    )
+    .unwrap();
+
+    let url = Url::parse(&format!("{origin}/")).unwrap();
+    let error = client.execute(client.request(Method::GET, url)).await.unwrap_err();
+    assert_eq!(error, SecretError::Timeout);
+}
+
+#[test]
+fn client_requires_a_known_session() {
+    let store = Arc::new(store());
+    let guard = Arc::new(guard_for(&sid("sso-corp"), &["https://mcp.example.internal"]));
+    assert_eq!(
+        AuthenticatedHttpClient::new(sid("sso-prod"), store, guard, Duration::from_secs(5)).unwrap_err(),
+        SecretError::UnknownSession(sid("sso-prod"))
     );
 }

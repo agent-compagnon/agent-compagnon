@@ -13,7 +13,7 @@ pub enum ProtectionFailure {
     Os(i32),
 }
 
-/// Errors of the secret store and the origin guard.
+/// Errors of the secret store, the origin guard and the authenticated HTTP client.
 ///
 /// No variant carries a secret value, nor anything derived from one: messages are in French and may reach the user
 /// or the LLM as-is.
@@ -44,6 +44,18 @@ pub enum SecretError {
 
     #[error("destination refusée pour la session « {session} » : l'URL contient des identifiants")]
     CredentialsInUrl { session: SessionId },
+
+    #[error("client HTTP : initialisation impossible")]
+    ClientInit,
+
+    #[error("requête HTTP : délai dépassé")]
+    Timeout,
+
+    #[error("requête HTTP : connexion impossible")]
+    Connect,
+
+    #[error("requête HTTP : échec de l'échange")]
+    Transport,
 }
 
 impl std::fmt::Display for ProtectionFailure {
