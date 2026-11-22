@@ -10,7 +10,7 @@ mod clock;
 mod credential;
 mod error;
 pub(crate) mod http;
-mod key;
+pub(crate) mod key;
 mod origin;
 mod sealed;
 mod store;

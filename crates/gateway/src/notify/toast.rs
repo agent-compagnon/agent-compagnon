@@ -344,7 +344,7 @@ pub enum Information {
     UpdateReady { version: String },
     /// The tools of an MCP changed (spec 008).
     McpUpdated { mcp: String, environment: String },
-    /// The settings file was unreadable and replaced by the strictest settings.
+    /// The settings file was unreadable or its seal did not hold: the strictest settings replaced it.
     SettingsReset,
 }
 
@@ -360,7 +360,8 @@ pub fn information_toast(number: u64, information: &Information) -> ToastContent
         ),
         Information::SettingsReset => (
             "Réglages réinitialisés".to_owned(),
-            "Vos réglages étaient illisibles : les plus stricts s'appliquent. Choisissez de nouveau votre profil."
+            "Vos réglages étaient illisibles ou modifiés hors de MCP Proxy : les plus stricts s'appliquent. \
+             Choisissez de nouveau votre profil."
                 .to_owned(),
         ),
     };

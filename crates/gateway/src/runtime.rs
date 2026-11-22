@@ -3,9 +3,9 @@
 //! the windows, the icon and the message boxes.
 //!
 //! Start order (I011.2): secret store (given), output filter, log file, global collector, journal, panic hook,
-//! settings, registry with its file cache, sessions, on-demand authenticator, upstreams, list watcher, confirmation
-//! broker, call chain, MCP server. A failure of any step stops the start: there is no gateway without its filter, its journal or its
-//! chain.
+//! settings and catalogue cache (given, sealed in the application, spec 014), registry, sessions, on-demand
+//! authenticator, upstreams, list watcher, confirmation broker, call chain, MCP server. A failure of any step stops
+//! the start: there is no gateway without its filter, its journal or its chain.
 
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write as _};
@@ -16,9 +16,10 @@ use std::time::{Duration, SystemTime};
 use mcp_proxy_auth::{AuthUi, AuthenticatorDeps, BasicProbe, HttpProbe, OnDemandAuthenticator, methods_from_config};
 use mcp_proxy_core::config::Config;
 use mcp_proxy_core::filter::{FilterError, OutputFilter};
-use mcp_proxy_core::secrets::{OriginGuard, SecretStore};
+use mcp_proxy_core::sealed::Sealer;
+use mcp_proxy_core::secrets::{KeyWrapper, OriginGuard, SecretStore};
 use mcp_proxy_core::session::{SessionGate, SessionRegistry};
-use mcp_proxy_core::settings::{JsonFileStore, SettingsError, SettingsOrigin, SettingsStore, UserSettings};
+use mcp_proxy_core::settings::{SealedSettingsStore, SettingsError, SettingsOrigin, SettingsStore, UserSettings};
 use mcp_proxy_core::trace::{
     Journal, JournalConfig, LogFileOptions, LogGuard, LoggingError, WallClock, install_global, install_panic_hook,
     log_file_name, open_log, rfc3339,
@@ -33,7 +34,9 @@ use crate::bridge::{PeerProof, ProofError, Role, prove};
 use crate::journal::follow_tool_changes;
 use crate::modules;
 use crate::notify::{ConfirmationPresenter, NotificationBroker, PendingConfirmations};
-use crate::registry::{CatalogError, EmbeddedCatalog, FileCatalogCache, Registry, RegistryError};
+use crate::registry::{
+    CacheSeal, CatalogError, EmbeddedCatalog, FileCatalogCache, Registry, RegistryError, SealedCatalog,
+};
 use crate::server::{CallChain, CallChainDeps, ChainError, GatewayServer, OutputGate};
 use crate::updates::{ListWatcher, ListWatcherDeps, UpdateTracker, WatchTiming};
 use crate::upstream::Upstreams;
@@ -50,6 +53,8 @@ pub struct DataDirs {
     pub logs: PathBuf,
     pub catalog_cache: PathBuf,
     pub settings: PathBuf,
+    /// Key of the seal of the settings and of the catalogue cache (spec 014), wrapped by DPAPI.
+    pub settings_key: PathBuf,
     /// Shared profile of the login windows (spec 012), emptied at start and at exit.
     pub webview: PathBuf,
     /// Icon of the notifications, named by the registered AUMID (spec 013).
@@ -59,7 +64,7 @@ pub struct DataDirs {
 impl DataDirs {
     pub const FOLDER: &'static str = "MCP Proxy";
 
-    /// `<base>\MCP Proxy\` with `logs\`, `cache\catalog\`, `webview\`, `settings.json` and
+    /// `<base>\MCP Proxy\` with `logs\`, `cache\catalog\`, `webview\`, `settings.json`, `settings.key` and
     /// `notification-icon.png`.
     pub fn under(base: &Path) -> Self {
         let root = base.join(Self::FOLDER);
@@ -67,6 +72,7 @@ impl DataDirs {
             logs: root.join("logs"),
             catalog_cache: root.join("cache").join("catalog"),
             settings: root.join("settings.json"),
+            settings_key: root.join("settings.key"),
             webview: root.join("webview"),
             notification_icon: root.join("notification-icon.png"),
             root,
@@ -82,10 +88,37 @@ pub enum Logging {
     Local,
 }
 
+/// How the settings and the catalogue cache are kept (spec 014).
+pub struct Persistence {
+    pub settings: Box<dyn SettingsStore + Send + Sync>,
+    /// Applied to the files of the catalogue cache, in `DataDirs::catalog_cache`.
+    pub cache_seal: Box<dyn CacheSeal>,
+}
+
+impl std::fmt::Debug for Persistence {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Persistence").finish_non_exhaustive()
+    }
+}
+
+impl Persistence {
+    /// `settings.json` and the cache files sealed by one key, kept in `settings.key` wrapped by `wrapper`
+    /// (user-scoped DPAPI in the application).
+    pub fn sealed(dirs: &DataDirs, wrapper: Box<dyn KeyWrapper>) -> Self {
+        let sealer = Arc::new(Sealer::open(&dirs.settings_key, wrapper));
+        Self {
+            settings: Box::new(SealedSettingsStore::new(&dirs.settings, Arc::clone(&sealer))),
+            cache_seal: Box::new(SealedCatalog(sealer)),
+        }
+    }
+}
+
 /// What the gateway is started from.
 pub struct RuntimeDeps {
     pub config: Arc<Config>,
     pub dirs: DataDirs,
+    /// Sealed settings and cache in the application ([`Persistence::sealed`]).
+    pub persistence: Persistence,
     /// From `SecretStore::for_platform`: if it failed, there is no gateway.
     pub store: SecretStore,
     /// Login windows: the WebView2 windows of the application (spec 012), `UnavailableAuthUi` in tests.
@@ -125,7 +158,7 @@ pub struct Gateway {
     journal: Journal,
     registry: Arc<RwLock<Registry>>,
     settings: watch::Sender<UserSettings>,
-    settings_store: JsonFileStore,
+    settings_store: Box<dyn SettingsStore + Send + Sync>,
     sessions: Arc<SessionRegistry>,
     authenticator: Arc<OnDemandAuthenticator>,
     watcher: ListWatcher,
@@ -180,24 +213,25 @@ impl Gateway {
         }
         tracing::info!(version = env!("CARGO_PKG_VERSION"), "démarrage de MCP Proxy");
 
-        let settings_store = JsonFileStore::new(&deps.dirs.settings);
+        let settings_store = deps.persistence.settings;
         let loaded = settings_store.load();
         let mut alerts = Vec::new();
         if let SettingsOrigin::Reset(error) = &loaded.origin {
             tracing::warn!(%error, "réglages remplacés par les plus stricts");
-            alerts.push(Alert {
-                level: AlertLevel::Error,
-                kind: AlertKind::SettingsReset,
-                message: format!(
-                    "Vos réglages étaient illisibles ({error}) : les réglages les plus stricts les remplacent. \
-                     Choisissez de nouveau votre profil."
-                ),
-            });
+            journal.record_event(
+                tracing::Level::WARN,
+                &format!("réglages remplacés par les plus stricts : {error}"),
+            );
+            alerts.push(settings_reset_alert(error));
         }
         let settings = loaded.settings;
 
         let embedded = EmbeddedCatalog::builtin(&config)?;
-        let cache = FileCatalogCache::new(&deps.dirs.catalog_cache, Arc::clone(&filter));
+        let cache = FileCatalogCache::with_seal(
+            &deps.dirs.catalog_cache,
+            Arc::clone(&filter),
+            deps.persistence.cache_seal,
+        );
         let mut registry = Registry::new(Arc::clone(&config), &embedded, Box::new(cache), Arc::clone(&filter))?;
         registry.apply_settings(&settings);
         let registry_events = registry.subscribe();
@@ -387,6 +421,22 @@ impl Gateway {
         self.registry.write().await.apply_settings(&settings);
         self.settings.send_replace(settings.clone());
         self.settings_store.save(&settings)
+    }
+}
+
+/// The banner of a settings reset: why, and what applies now.
+fn settings_reset_alert(error: &SettingsError) -> Alert {
+    let cause = match error {
+        SettingsError::Seal(_) => "Vos réglages n'ont pas pu être vérifiés",
+        _ => "Vos réglages étaient illisibles",
+    };
+    Alert {
+        level: AlertLevel::Error,
+        kind: AlertKind::SettingsReset,
+        message: format!(
+            "{cause} ({error}) : les réglages les plus stricts les remplacent, aucun environnement n'est exposé. \
+             Choisissez de nouveau votre profil."
+        ),
     }
 }
 
@@ -588,6 +638,10 @@ mod tests {
             Path::new("base").join("MCP Proxy").join("cache").join("catalog")
         );
         assert_eq!(dirs.settings, Path::new("base").join("MCP Proxy").join("settings.json"));
+        assert_eq!(
+            dirs.settings_key,
+            Path::new("base").join("MCP Proxy").join("settings.key")
+        );
         assert_eq!(dirs.webview, Path::new("base").join("MCP Proxy").join("webview"));
     }
 }

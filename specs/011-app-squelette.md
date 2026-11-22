@@ -154,7 +154,8 @@ puis arrêt avec un code non nul.
    fichier, `SessionRegistry`, `OnDemandAuthenticator`, chaîne de middlewares, serveur de pipe.
    Réalisation (`gateway::runtime::Gateway::start`) : délai de grâce des variantes retirées =
    `upstream_timeout_secs` + 10 s ; `JsonFileStore` sur `settings.json` (réglages illisibles : les plus stricts,
-   alerte de niveau erreur) ; `FileCatalogCache` sur `cache\catalog\` ; `OriginGuard::from_config` ; `HttpProbe`
+   alerte de niveau erreur) ; `FileCatalogCache` sur `cache\catalog\` (depuis la spec 014 : réglages et cache
+   scellés, reçus par `RuntimeDeps::persistence`) ; `OriginGuard::from_config` ; `HttpProbe`
    borné par `upstream_timeout_secs` ; `Upstreams::from_config` avec `modules::builtin()` ; `ListWatcher` gardé
    vivant et abonné aux événements de session ; journal donné comme trace à la chaîne ; `follow_tool_changes`.
    Un échec de n'importe quelle étape arrête le démarrage : pas de passerelle sans filtre, journal ou chaîne.
@@ -257,3 +258,7 @@ Fenêtres de login (5b), notifications (5c), contenu de l'interface (6).
   `NotificationBroker`. Les tests et assemblages sans fenêtre passent `UnavailablePresenter`, dont toute confirmation
   hors chat rend le même refus « confirmation impossible, aucun moyen de la demander à l'utilisateur ; appel
   refusé. ».
+- **2026-11-22** — Spec 014 : `Gateway::start` ne crée plus lui-même le stockage des réglages ni le scellement du
+  cache, il les reçoit par `RuntimeDeps::persistence` (`SealedSettingsStore` et `SealedCatalog` dans l'appli). Un
+  `settings.json` écrit à la main n'est plus accepté : la recette choisit le profil par le menu « Profil » de
+  l'icône. Comportement et critères de la 011 inchangés.

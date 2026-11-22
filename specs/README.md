@@ -64,7 +64,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [011](011-app-squelette.md) | 5a | app — squelette Tauri, pont stdio (named pipe), instance unique, tray, réglages | implémentée | 001 à 010 | 17 |
 | [012](012-fenetres-login.md) | 5b | app — fenêtres de login WebView2 (JWT, cookie, Basic), profil InPrivate | implémentée | 010, 011 | 16 |
 | [013](013-notifications-confirmations.md) | 5c | app — notifications Windows et confirmations | implémentée | 007, 011, 012 | 14 |
-| [014](014-reglages-scelles.md) | 5d | Réglages scellés (HMAC + DPAPI) | en cours | 004, 005, 011 | 7 |
+| [014](014-reglages-scelles.md) | 5d | Réglages scellés (HMAC + DPAPI) | en cours | 004, 005, 011 | 8 |
 | [015](015-arret-urgence.md) | 5e | Arrêt d'urgence dans le menu de l'icône | prévue | 007, 010, 011, 012 | 8 |
 | [016](016-ui-socle-connexions.md) | 6a | ui — socle Vue/shadcn-vue, en-tête et profil, onglet Connexions | prévue | 011 | 5 |
 | [017](017-ui-mcp.md) | 6b | ui — onglet MCP | prévue | 008, 016 | 9 |

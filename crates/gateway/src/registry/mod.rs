@@ -28,6 +28,7 @@ use tokio::sync::broadcast;
 
 pub use cache::{
     CACHE_SCHEMA_VERSION, CacheError, CacheSeal, CachedCatalog, CatalogCache, FileCatalogCache, NoCatalogCache, NoSeal,
+    SealedCatalog,
 };
 pub use catalog::{CatalogError, EmbeddedCatalog};
 pub use exposure::Exposure;

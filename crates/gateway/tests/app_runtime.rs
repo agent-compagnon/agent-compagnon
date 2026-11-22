@@ -11,13 +11,13 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use mcp_proxy_auth::UnavailableAuthUi;
 use mcp_proxy_core::config::{Config, EnvId, ProfileId, SessionId};
-use mcp_proxy_core::secrets::{Credential, SecretStore};
-use mcp_proxy_core::trace::SystemWallClock;
+use mcp_proxy_core::secrets::{Credential, SecretStore, platform_key_wrapper};
+use mcp_proxy_core::trace::{EntryKind, JournalFilter, SystemWallClock};
 use mcp_proxy_gateway::bridge::{PeerProof, ProtectFailure, Role, prove};
 use mcp_proxy_gateway::notify::{
     ConfirmationId, ConfirmationPresenter, DetailView, PresentError, ToastContent, ToastState, UnavailablePresenter,
 };
-use mcp_proxy_gateway::runtime::{DataDirs, Gateway, Logging, RuntimeDeps};
+use mcp_proxy_gateway::runtime::{DataDirs, Gateway, Logging, Persistence, RuntimeDeps};
 use mcp_proxy_gateway::view::{AlertKind, AppStatus};
 use rmcp::ServiceExt;
 use rmcp::model::CallToolRequestParams;
@@ -72,9 +72,11 @@ async fn start(dir: &TempDir, store: SecretStore) -> Gateway {
 }
 
 async fn start_with(dir: &TempDir, store: SecretStore, presenter: Arc<dyn ConfirmationPresenter>) -> Gateway {
+    let dirs = DataDirs::under(&dir.0);
     Gateway::start(RuntimeDeps {
         config: config(),
-        dirs: DataDirs::under(&dir.0),
+        persistence: Persistence::sealed(&dirs, platform_key_wrapper()),
+        dirs,
         store,
         auth_ui: Arc::new(UnavailableAuthUi),
         presenter,
@@ -241,7 +243,7 @@ async fn settings_are_saved_then_reloaded_and_a_reset_is_an_error() {
     assert!(snapshot.environments.iter().any(|e| e.id == "prod" && e.exposed));
     drop(gateway);
 
-    // The file the manual checks write by hand while the interface does not exist (docs/recette.md, EX-011-06).
+    // The settings are sealed (spec 014): a file written by hand, even valid, is refused.
     std::fs::write(
         DataDirs::under(&dir.0).settings,
         br#"{"schema_version":1,"profile":"developpeur","exposed_environments":["dev","int","rec"],"disabled_mcp":[],"hardening":{},"autostart":false,"beta_channel":false,"gateway_suspended":false}"#,
@@ -249,8 +251,8 @@ async fn settings_are_saved_then_reloaded_and_a_reset_is_an_error() {
     .unwrap();
     let gateway = start(&dir, SecretStore::for_platform().unwrap()).await;
     let snapshot = gateway.snapshot().await;
-    assert_eq!(snapshot.profile.chosen.as_deref(), Some("developpeur"));
-    assert!(snapshot.alerts.is_empty());
+    assert_eq!(snapshot.profile.chosen, None);
+    assert_eq!(snapshot.alerts[0].kind, AlertKind::SettingsReset);
     drop(gateway);
 
     std::fs::write(DataDirs::under(&dir.0).settings, b"{ pas du json").unwrap();
@@ -421,4 +423,171 @@ async fn a_waiting_confirmation_shows_in_the_snapshot_until_answered() {
 
     Arc::try_unwrap(client).ok().unwrap().cancel().await.unwrap();
     assert_eq!(server.await.unwrap(), Ok(()));
+}
+
+/// The softest settings: developer profile, every environment exposed.
+async fn expose_everything(gateway: &Gateway) {
+    let config = gateway.config().clone();
+    gateway
+        .change_settings(|s| {
+            s.choose_profile(&config.profiles[&ProfileId::new("developpeur").unwrap()]);
+            s.exposed_environments = config.environments.iter().map(|e| e.id.clone()).collect();
+            s.autostart = true;
+        })
+        .await
+        .unwrap();
+}
+
+/// The settings file without its seal line, as a previous version wrote it.
+fn without_seal(sealed: &[u8]) -> Vec<u8> {
+    sealed[sealed.iter().position(|b| *b == b'\n').unwrap() + 1..].to_vec()
+}
+
+// Exigence : EX-014-01, EX-014-03
+#[tokio::test]
+async fn sealed_settings_survive_a_restart_and_anything_else_falls_back_to_the_strictest() {
+    let dir = TempDir::new();
+    let dirs = DataDirs::under(&dir.0);
+    {
+        let gateway = start(&dir, SecretStore::for_platform().unwrap()).await;
+        expose_everything(&gateway).await;
+    }
+    let sealed = std::fs::read(&dirs.settings).unwrap();
+    assert!(sealed.starts_with(b"MCP-PROXY-SEAL v1 hmac-sha256="));
+    assert!(dirs.settings_key.exists());
+    let gateway = start(&dir, SecretStore::for_platform().unwrap()).await;
+    let snapshot = gateway.snapshot().await;
+    assert_eq!(snapshot.profile.chosen.as_deref(), Some("developpeur"));
+    assert!(!snapshot.alerts.iter().any(|a| a.kind == AlertKind::SettingsReset));
+    drop(gateway);
+
+    let mut profile_edited = sealed.clone();
+    let at = profile_edited.windows(11).position(|w| w == b"developpeur").unwrap();
+    profile_edited[at..at + 7].copy_from_slice(b"support");
+    type Damage = Box<dyn Fn()>;
+    let cases: Vec<(&str, Damage)> = vec![
+        ("one byte changed", {
+            let path = dirs.settings.clone();
+            let file = profile_edited.clone();
+            Box::new(move || std::fs::write(&path, &file).unwrap())
+        }),
+        ("no seal (previous version)", {
+            let path = dirs.settings.clone();
+            let file = without_seal(&sealed);
+            Box::new(move || std::fs::write(&path, &file).unwrap())
+        }),
+        ("key removed", {
+            let key = dirs.settings_key.clone();
+            let path = dirs.settings.clone();
+            let file = sealed.clone();
+            Box::new(move || {
+                std::fs::write(&path, &file).unwrap();
+                let _ = std::fs::remove_file(&key);
+            })
+        }),
+    ];
+    for (name, damage) in cases {
+        damage();
+        let gateway = start(&dir, SecretStore::for_platform().unwrap()).await;
+        let snapshot = gateway.snapshot().await;
+        assert_eq!(snapshot.profile.chosen, None, "{name}");
+        assert_eq!(snapshot.profile.active.as_deref(), Some("lecture-seule"), "{name}");
+        assert!(snapshot.environments.iter().all(|e| !e.exposed), "{name}");
+        assert_eq!(snapshot.exposed_tools, 0, "{name}");
+        assert!(!gateway.settings().autostart, "{name}");
+        assert_eq!(snapshot.alerts.len(), 1, "{name}");
+        assert_eq!(snapshot.alerts[0].kind, AlertKind::SettingsReset, "{name}");
+        assert!(
+            snapshot.alerts[0]
+                .message
+                .starts_with("Vos réglages n'ont pas pu être vérifiés"),
+            "{name}: {}",
+            snapshot.alerts[0].message
+        );
+        assert_eq!(snapshot.status, AppStatus::Error, "{name}");
+        let events: Vec<String> = gateway
+            .journal()
+            .snapshot(&JournalFilter::default())
+            .into_iter()
+            .filter(|e| e.kind == EntryKind::Event)
+            .map(|e| e.summary)
+            .collect();
+        assert_eq!(events.len(), 1, "{name}: {events:?}");
+        assert!(
+            events[0].starts_with("réglages remplacés par les plus stricts : réglages refusés"),
+            "{events:?}"
+        );
+
+        // Choosing the profile again seals the file anew (with a new key if it was lost).
+        expose_everything(&gateway).await;
+        drop(gateway);
+        let gateway = start(&dir, SecretStore::for_platform().unwrap()).await;
+        let alerts = gateway.snapshot().await.alerts;
+        assert!(!alerts.iter().any(|a| a.kind == AlertKind::SettingsReset), "{name}");
+    }
+}
+
+// Exigence : EX-014-02
+#[tokio::test]
+async fn an_altered_catalogue_cache_is_ignored_for_the_embedded_snapshot() {
+    use mcp_proxy_core::config::{EnvId, McpId};
+    use mcp_proxy_core::sealed::Sealer;
+    use mcp_proxy_gateway::registry::{
+        CachedCatalog, CatalogCache, FileCatalogCache, InstanceId, SealedCatalog, ToolDefinition,
+    };
+
+    let dir = TempDir::new();
+    let dirs = DataDirs::under(&dir.0);
+    let instance = InstanceId::new(EnvId::new("rec").unwrap(), McpId::new("jira").unwrap());
+    let filter = Arc::new(
+        mcp_proxy_core::filter::OutputFilter::new(Arc::new(SecretStore::for_platform().unwrap()), &config().filter)
+            .unwrap(),
+    );
+    let catalog = CachedCatalog {
+        tools: vec![ToolDefinition {
+            name: "search_issues".to_owned(),
+            title: None,
+            description: Some("Cache sealed by the application.".to_owned()),
+            input_schema: json!({ "type": "object" }),
+            output_schema: None,
+            annotations: None,
+        }],
+    };
+    {
+        // The same key file as the application's.
+        let sealer = Arc::new(Sealer::open(&dirs.settings_key, platform_key_wrapper()));
+        let cache = FileCatalogCache::with_seal(&dirs.catalog_cache, filter, Box::new(SealedCatalog(sealer)));
+        cache.store(&instance, &catalog).unwrap();
+    }
+    let path = dirs.catalog_cache.join("jira.rec.json");
+
+    // Sealed by the application: used.
+    let gateway = start(&dir, SecretStore::for_platform().unwrap()).await;
+    let snapshot = gateway.snapshot().await;
+    let rec = &snapshot.mcps.iter().find(|m| m.id == "jira").unwrap().instances[0];
+    assert_eq!(rec.source.as_deref(), Some("cache"));
+    assert_eq!(rec.tools.len(), 1);
+    drop(gateway);
+
+    // Edited outside of it (one byte), or written without seal: ignored, back to the embedded snapshot.
+    let sealed = std::fs::read(&path).unwrap();
+    let mut edited = sealed.clone();
+    let at = edited.windows(6).position(|w| w == b"sealed").unwrap();
+    edited[at] = b'S';
+    for file in [edited, without_seal(&sealed)] {
+        std::fs::write(&path, &file).unwrap();
+        let gateway = start(&dir, SecretStore::for_platform().unwrap()).await;
+        let snapshot = gateway.snapshot().await;
+        let rec = &snapshot.mcps.iter().find(|m| m.id == "jira").unwrap().instances[0];
+        assert_eq!(rec.source.as_deref(), Some("embedded"));
+        assert_eq!(rec.tools.len(), 3);
+        assert!(
+            snapshot
+                .alerts
+                .iter()
+                .any(|a| a.kind == AlertKind::CatalogCache && a.message.contains("scellement invalide")),
+            "{:?}",
+            snapshot.alerts
+        );
+    }
 }

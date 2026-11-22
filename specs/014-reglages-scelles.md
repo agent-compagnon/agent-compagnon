@@ -23,17 +23,45 @@ accès au disque, qui changerait le profil ou exposerait PROD.
   `%LOCALAPPDATA%\MCP Proxy\settings.key`. Plus de `CryptProtectData`, qui n'existe qu'en `unsafe` (D18).
 - `settings.json` est accompagné d'un HMAC-SHA256 de son contenu canonique. Vérification à chaque chargement,
   comparaison en temps constant.
+  - Forme du fichier : une ligne d'en-tête `MCP-PROXY-SEAL v1 hmac-sha256=<64 hexadécimaux>`, puis le JSON des
+    réglages tel que l'appli l'écrit. Le « contenu canonique » est ce contenu à l'octet près : le HMAC couvre une
+    étiquette de domaine, l'usage du fichier (`settings.json`) et les octets exacts du contenu. Tout octet changé,
+    espaces compris, invalide le sceau (I014.2).
+  - Clé : `settings.key` contient un en-tête fixe puis la clé enveloppée par DPAPI ; en mémoire, elle reste
+    enveloppée et n'est ouverte que le temps d'un scellement ou d'une vérification.
 - Fichier modifié hors de l'appli, HMAC absent ou clé illisible : **retour aux réglages les plus stricts** — profil
   marqué `strictest` dans la config, aucun environnement exposé. L'utilisateur est prévenu (notification et
   bandeau) et doit choisir à nouveau son profil. L'événement est journalisé.
+  - Clé illisible : absente, endommagée, d'un autre utilisateur Windows, ou ouverte par DPAPI mais d'une autre
+    longueur. Clé d'un autre fichier (une autre installation) : le sceau ne correspond pas. Tous ces cas donnent les
+    réglages par défaut (`UserSettings::default()`), dont les durcissements sont perdus (I004.11).
+  - Bandeau : alerte de niveau erreur `settingsReset` (« Vos réglages n'ont pas pu être vérifiés (…) : les réglages
+    les plus stricts les remplacent, aucun environnement n'est exposé. Choisissez de nouveau votre profil. ») ;
+    notification « Réglages réinitialisés » (spec 013) ; entrée de journal de type `event` et ligne `mcp.event` dans
+    le fichier du jour.
+  - Le scellement suivant (premier enregistrement des réglages) remplace une clé absente ou illisible par une
+    nouvelle clé : les fichiers scellés par l'ancienne ne s'ouvrent plus, ce qui ne mène qu'à l'état sûr. Un
+    chargement ne crée jamais de clé (I014.3).
+- **Première exécution après cette étape** : un `settings.json` écrit par une version sans scellement n'a pas de
+  sceau. Il n'est **pas** migré : il est traité comme un fichier modifié hors de l'appli (réglages les plus stricts,
+  bandeau, notification, journal) et l'utilisateur choisit de nouveau son profil. Raison : rien ne distingue un
+  ancien fichier d'un fichier écrit par un tiers (I014.4). Les fichiers du cache du catalogue sans sceau sont
+  ignorés de même (alerte d'information par instance) jusqu'à la liste réelle suivante.
 - Le démarrage automatique et les autres préférences sans effet sur la sécurité sont remis à leur valeur par
   défaut dans ce cas.
 - Le même scellement protège les fichiers du **cache du catalogue** (3a). Un fichier de cache invalide est ignoré :
-  retour à l'instantané embarqué.
-- Logique dans `core::sealed`, indépendante de la plateforme : `SealedStore` paramétré par un trait
-  `KeyProtector` — l'enrobage DPAPI WinRT du core sous Windows, implémentation de développement ailleurs. Réutiliser
-  `secrets::KeyWrapper` (spec 002) s'il convient tel quel.
-- `SealedSettingsStore` implémente `SettingsStore` et remplace le fichier JSON simple dans l'appli.
+  retour à l'instantané embarqué. L'usage scellé est `catalog/<mcp>.<env>` : un fichier recopié sous le nom d'une
+  autre instance ne s'ouvre pas.
+- Logique dans `core::sealed`, indépendante de la plateforme : `Sealer` (scellement et vérification avec une clé),
+  paramétré par le trait `secrets::KeyWrapper` de la spec 002, réutilisé tel quel comme protecteur de clé —
+  l'enrobage DPAPI WinRT du core sous Windows (`DpapiKeyWrapper`), implémentation de développement ailleurs.
+- `SealedSettingsStore` implémente `SettingsStore` et remplace le fichier JSON simple dans l'appli ;
+  `SealedCatalog` implémente `CacheSeal` (spec 005) avec le même `Sealer`. `Gateway::start` les reçoit par
+  `RuntimeDeps::persistence` (`Persistence::sealed(&dirs, wrapper)` dans l'appli et les tests de l'assemblage).
+- Choix du profil sans l'interface : tant que la spec 016 n'existe pas, le menu de l'icône a un sous-menu
+  « Profil » (un élément coché par profil de la config). Un clic pose une question Oui/Non qui nomme les
+  environnements exposés par le profil, sensibles compris ; seul « Oui » change les réglages, qui sont alors
+  scellés. C'est le seul moyen de rétablir un profil après un retour aux réglages stricts (I014.6).
 - Limite à écrire dans `DECISIONS.md` : un programme qui tourne sous le compte de l'utilisateur peut lui aussi
   appeler DPAPI. Le scellement relève la barre, il ne la rend pas infranchissable.
 
@@ -56,9 +84,18 @@ accès au disque, qui changerait le profil ou exposerait PROD.
 - **EX-014-06** (manuel) — Un usage normal (changer de profil dans l'appli, relancer) conserve les réglages.
 - **EX-014-07** (manuel) — `settings.key` ne contient pas la clé en clair ; copié avec `settings.json` dans le
   profil d'un autre utilisateur Windows, il ne s'ouvre pas : réglages stricts et notification.
+- **EX-014-08** (manuel) — Mise à niveau : un `settings.json` écrit par une version sans scellement (ou à la main)
+  donne au premier lancement les réglages stricts, le bandeau, la notification « Réglages réinitialisés » et une
+  ligne `mcp.event` dans le journal ; un profil choisi par le menu « Profil » de l'icône tient au redémarrage.
 
 ## Amendements
 
 - **2026-11-22** — Aucun `unsafe` (D18, demande de l'utilisateur) : la clé HMAC est protégée par l'enrobage DPAPI
   WinRT du core (spec 002), pas par `CryptProtectData`. `EX-014-04` reste vrai (tests DPAPI compilés en contrôle
   croisé). Aucun critère retiré ; ajouté : `EX-014-07`.
+- **2026-11-22** — Implémentation. Le trait `KeyProtector` n'est pas créé : `secrets::KeyWrapper` convient tel quel
+  (I014.1) ; `SealedStore` s'appelle `Sealer`. Précisés : forme du fichier scellé et sens de « contenu canonique »
+  (octets exacts, I014.2) ; remplacement d'une clé inutilisable au premier enregistrement (I014.3) ; première
+  exécution après mise à niveau, sans migration (I014.4) ; injection par `RuntimeDeps::persistence`. Ajoutés :
+  l'entrée de journal `event` (I014.5), le sous-menu provisoire « Profil » de l'icône, faute duquel aucun profil ne
+  pourrait être rétabli avant la spec 016 (I014.6), et le critère `EX-014-08`. Aucun critère retiré.

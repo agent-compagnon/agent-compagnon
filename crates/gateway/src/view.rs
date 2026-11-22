@@ -7,7 +7,7 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use mcp_proxy_core::config::{Category, Config, McpKind, SessionScope};
+use mcp_proxy_core::config::{Category, Config, McpKind, Profile, SessionScope};
 use mcp_proxy_core::session::{AuthKind, SessionInfo, SessionState};
 use mcp_proxy_core::settings::UserSettings;
 use serde::Serialize;
@@ -469,9 +469,58 @@ impl AppSnapshot {
     }
 }
 
+/// What choosing `profile` does, asked before it applies: the environments it exposes, sensitive ones named. For
+/// the « Profil » menu of the icon (spec 014) until the profile selector of the interface (spec 016).
+pub fn profile_change_question(config: &Config, profile: &Profile) -> String {
+    let label = |id: &mcp_proxy_core::config::EnvId| {
+        config
+            .environment(id)
+            .map_or_else(|| id.to_string(), |e| e.label.clone())
+    };
+    let exposed: Vec<String> = profile.default_environments.iter().map(label).collect();
+    let sensitive: Vec<String> = profile
+        .default_environments
+        .iter()
+        .filter(|id| config.environment(id).is_some_and(|e| e.sensitive))
+        .map(label)
+        .collect();
+    let mut text = format!(
+        "Passer au profil « {} » ?\n\nEnvironnements exposés aux clients LLM : {}.",
+        profile.label,
+        if exposed.is_empty() {
+            "aucun".to_owned()
+        } else {
+            exposed.join(", ")
+        }
+    );
+    if !sensitive.is_empty() {
+        text.push_str(&format!(" Environnements sensibles : {}.", sensitive.join(", ")));
+    }
+    text.push_str(" Vos durcissements sont conservés.");
+    text
+}
+
 #[cfg(test)]
 mod tests {
+    use mcp_proxy_core::config::ProfileId;
+
     use super::*;
+
+    #[test]
+    fn the_profile_question_names_what_gets_exposed() {
+        let config = crate::modules::embedded_config().unwrap();
+        let question = |id: &str| profile_change_question(&config, &config.profiles[&ProfileId::new(id).unwrap()]);
+        assert_eq!(
+            question("developpeur"),
+            "Passer au profil « Développeur » ?\n\nEnvironnements exposés aux clients LLM : DEV, INT, REC. Vos \
+             durcissements sont conservés."
+        );
+        assert!(
+            question("support").contains("Environnements sensibles : PPROD, PROD."),
+            "{}",
+            question("support")
+        );
+    }
 
     // Exigence : EX-011-01
     #[test]

@@ -63,6 +63,9 @@ pub enum EntryKind {
     ToolsChanged,
     /// A panic of the application.
     Panic,
+    /// Something the user must be able to find again: settings reset (spec 014), gateway suspended or resumed,
+    /// every session disconnected (spec 015).
+    Event,
 }
 
 /// What an entry shows when unfolded: only for a call that did not end normally, or a slow one. Filtered.
@@ -425,6 +428,36 @@ impl Journal {
                 client: None,
                 env: Some(env.clone()),
                 mcp: Some(mcp.clone()),
+                tool: None,
+                duration: None,
+                decision: None,
+                summary,
+                details: None,
+            },
+            &line,
+        );
+    }
+
+    /// An event of the application (spec 014, 015): one French line, filtered, in the buffer and in the file.
+    pub fn record_event(&self, level: tracing::Level, summary: &str) {
+        let summary = self.text(summary);
+        let now = self.inner.clock.now();
+        let line = format!(
+            "{} {:<5} mcp.event summary={}\n",
+            time::rfc3339(now),
+            level.as_str(),
+            quoted(&summary),
+        );
+        self.push(
+            JournalEntry {
+                seq: 0,
+                at: now,
+                kind: EntryKind::Event,
+                status: None,
+                slow: false,
+                client: None,
+                env: None,
+                mcp: None,
                 tool: None,
                 duration: None,
                 decision: None,

@@ -4,7 +4,8 @@
 //! `strictest` profile of the configuration and no exposed environment.
 
 mod file;
-mod store;
+mod sealed;
+pub(crate) mod store;
 
 #[cfg(test)]
 mod tests;
@@ -14,6 +15,7 @@ use std::collections::BTreeSet;
 use crate::config::{Config, EnvId, McpId, PolicyTree, Profile, ProfileId};
 use crate::policy::PolicyEngine;
 
+pub use sealed::SealedSettingsStore;
 pub use store::{JsonFileStore, LoadedSettings, SettingsError, SettingsOrigin, SettingsStore};
 
 /// Settings schema understood by this build. Any other version gives the strictest settings.

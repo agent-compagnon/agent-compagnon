@@ -1,7 +1,8 @@
 //! Local cache of the last live list of each instance.
 //!
 //! The content holds no secret, but it comes from servers: it goes through the output filter before being written,
-//! and nothing is written if the filter fails. Sealing (spec 014) plugs in through [`CacheSeal`].
+//! and nothing is written if the filter fails. Files are sealed (spec 014) through [`CacheSeal`]: [`SealedCatalog`] in
+//! the application, so that a cache file edited outside of it is ignored and the embedded snapshot is used.
 
 use std::fs;
 use std::io::{self, Read as _, Write as _};
@@ -9,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use mcp_proxy_core::filter::{FilterError, OutputFilter};
+use mcp_proxy_core::sealed::{Sealer, catalog_purpose};
 use serde::{Deserialize, Serialize};
 
 use super::model::{InstanceId, ToolDefinition};
@@ -63,7 +65,7 @@ pub trait CacheSeal: Send + Sync {
     fn open(&self, instance: &InstanceId, sealed: Vec<u8>) -> Result<Vec<u8>, CacheError>;
 }
 
-/// No protection, until spec 014.
+/// No protection: tests and development tools only.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct NoSeal;
 
@@ -74,6 +76,27 @@ impl CacheSeal for NoSeal {
 
     fn open(&self, _: &InstanceId, sealed: Vec<u8>) -> Result<Vec<u8>, CacheError> {
         Ok(sealed)
+    }
+}
+
+/// The seal of the settings (spec 014), with the instance as purpose: a file copied under the name of another
+/// instance does not open.
+#[derive(Debug, Clone)]
+pub struct SealedCatalog(pub Arc<Sealer>);
+
+impl CacheSeal for SealedCatalog {
+    fn seal(&self, instance: &InstanceId, plain: Vec<u8>) -> Result<Vec<u8>, CacheError> {
+        let purpose = catalog_purpose(instance.mcp.as_str(), instance.env.as_str());
+        self.0
+            .seal(&purpose, &plain)
+            .map_err(|e| CacheError::Seal(e.to_string()))
+    }
+
+    fn open(&self, instance: &InstanceId, sealed: Vec<u8>) -> Result<Vec<u8>, CacheError> {
+        let purpose = catalog_purpose(instance.mcp.as_str(), instance.env.as_str());
+        self.0
+            .unseal(&purpose, &sealed)
+            .map_err(|e| CacheError::Seal(e.to_string()))
     }
 }
 

@@ -8,17 +8,18 @@ use std::time::SystemTime;
 
 use mcp_proxy_auth::AuthUi;
 use mcp_proxy_auth::webview::reset_profile_dir;
-use mcp_proxy_core::secrets::SecretStore;
+use mcp_proxy_core::config::ProfileId;
+use mcp_proxy_core::secrets::{SecretStore, platform_key_wrapper};
 use mcp_proxy_core::trace::SystemWallClock;
 use mcp_proxy_gateway::bridge::{PeerProof, pipe_name};
 use mcp_proxy_gateway::notify::{ConfirmationPresenter, Information, ToastAction, ToastState, information_toast};
 use mcp_proxy_gateway::runtime::{
-    DataDirs, Gateway, Logging, RuntimeDeps, StartupFailure, check_webview, record_startup_failure,
+    DataDirs, Gateway, Logging, Persistence, RuntimeDeps, StartupFailure, check_webview, record_startup_failure,
 };
 use mcp_proxy_gateway::updates::UpdateEvent;
-use mcp_proxy_gateway::view::{Alert, AlertKind, AlertLevel, AppStatus};
+use mcp_proxy_gateway::view::{Alert, AlertKind, AlertLevel, AppStatus, profile_change_question};
 use tauri::image::Image;
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tokio::sync::broadcast::error::RecvError;
@@ -34,6 +35,8 @@ const MAIN_WINDOW: &str = "main";
 const TRAY: &str = "main";
 const MENU_OPEN: &str = "open";
 const MENU_QUIT: &str = "quit";
+/// `profile:<id>`: the provisional profile choice (spec 014), until the selector of the interface (spec 016).
+const MENU_PROFILE: &str = "profile:";
 const SNAPSHOT_CHANGED: &str = "snapshot-changed";
 
 /// The three icons of the notification area, drawn by `cargo xtask icons`.
@@ -214,8 +217,10 @@ fn start_gateway(
         }
     };
     let logs = dirs.logs.clone();
+    let persistence = Persistence::sealed(&dirs, platform_key_wrapper());
     let started = tauri::async_runtime::block_on(Gateway::start(RuntimeDeps {
         config,
+        persistence,
         dirs,
         store,
         auth_ui,
@@ -282,17 +287,44 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
 
     let icons = Arc::new(TrayIcons::load()?);
     let open = MenuItem::with_id(app, MENU_OPEN, "Ouvrir", true, None::<&str>)?;
+    let chosen = gateway.settings().profile;
+    let profiles = Arc::new(
+        gateway
+            .config()
+            .profiles
+            .values()
+            .map(|p| {
+                let checked = chosen.as_ref() == Some(&p.id);
+                let id = format!("{MENU_PROFILE}{}", p.id);
+                CheckMenuItem::with_id(app, id, &p.label, true, checked, None::<&str>).map(|item| (p.id.clone(), item))
+            })
+            .collect::<tauri::Result<Vec<_>>>()?,
+    );
+    let profile_items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = profiles
+        .iter()
+        .map(|(_, item)| item as &dyn tauri::menu::IsMenuItem<tauri::Wry>)
+        .collect();
+    let profile_menu = Submenu::with_items(app, "Profil", true, &profile_items)?;
     let quit = MenuItem::with_id(app, MENU_QUIT, "Quitter", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &quit])?;
+    let separator = PredefinedMenuItem::separator(app)?;
+    let menu = Menu::with_items(app, &[&open, &profile_menu, &separator, &quit])?;
+    let menu_gateway = Arc::clone(&gateway);
+    let menu_profiles = Arc::clone(&profiles);
     TrayIconBuilder::with_id(TRAY)
         .icon(icons.neutral.clone())
         .tooltip("MCP Proxy")
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id().as_ref() {
+        .on_menu_event(move |app, event| match event.id().as_ref() {
             MENU_OPEN => show_main_window(app),
             MENU_QUIT => app.exit(0),
-            _ => {}
+            id => {
+                if let Some(profile) = id.strip_prefix(MENU_PROFILE).and_then(|p| ProfileId::new(p).ok()) {
+                    let gateway = Arc::clone(&menu_gateway);
+                    let profiles = Arc::clone(&menu_profiles);
+                    tauri::async_runtime::spawn(choose_profile(gateway, profiles, profile));
+                }
+            }
         })
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
@@ -307,7 +339,7 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
         .build(app)?;
 
     let handle = app.handle().clone();
-    tauri::async_runtime::spawn(follow_snapshot(handle.clone(), Arc::clone(&gateway), icons));
+    tauri::async_runtime::spawn(follow_snapshot(handle.clone(), Arc::clone(&gateway), icons, profiles));
     if let Some(toaster) = app.try_state::<Arc<Toaster>>().map(|t| Arc::clone(t.inner())) {
         tauri::async_runtime::spawn(follow_information(handle.clone(), Arc::clone(&gateway), toaster));
     }
@@ -327,8 +359,40 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
-/// Keeps the icon and the window in step with the gateway.
-async fn follow_snapshot(app: AppHandle, gateway: Arc<Gateway>, icons: Arc<TrayIcons>) {
+type ProfileItems = Arc<Vec<(ProfileId, CheckMenuItem<tauri::Wry>)>>;
+
+/// The check marks of the « Profil » menu follow the chosen profile, whatever was clicked.
+fn check_chosen(profiles: &ProfileItems, chosen: Option<&ProfileId>) {
+    for (id, item) in profiles.iter() {
+        let _ = item.set_checked(chosen == Some(id));
+    }
+}
+
+/// A click in the « Profil » menu: the question names what gets exposed; only « Oui » changes the settings, which
+/// are then sealed (spec 014).
+async fn choose_profile(gateway: Arc<Gateway>, profiles: ProfileItems, profile: ProfileId) {
+    let config = Arc::clone(gateway.config());
+    let Some(chosen) = config.profiles.get(&profile) else {
+        return;
+    };
+    let question = profile_change_question(&config, chosen);
+    let yes = tauri::async_runtime::spawn_blocking(move || dialog::confirm("MCP Proxy — profil", &question))
+        .await
+        .unwrap_or(false);
+    if yes {
+        if let Err(error) = gateway.change_settings(|s| s.choose_profile(chosen)).await {
+            tracing::error!(%error, "profil appliqué mais non enregistré");
+            let message = format!("Le profil s'applique jusqu'à l'arrêt de MCP Proxy, mais {error}.");
+            let _ = tauri::async_runtime::spawn_blocking(move || dialog::error("MCP Proxy", &message)).await;
+        } else {
+            tracing::info!(profile = profile.as_str(), "profil choisi depuis le menu de l'icône");
+        }
+    }
+    check_chosen(&profiles, gateway.settings().profile.as_ref());
+}
+
+/// Keeps the icon, its menu and the window in step with the gateway.
+async fn follow_snapshot(app: AppHandle, gateway: Arc<Gateway>, icons: Arc<TrayIcons>, profiles: ProfileItems) {
     let mut changes = gateway.changes();
     loop {
         let snapshot = gateway.snapshot().await;
@@ -336,6 +400,7 @@ async fn follow_snapshot(app: AppHandle, gateway: Arc<Gateway>, icons: Arc<TrayI
             let _ = tray.set_icon(Some(icons.for_status(snapshot.status)));
             let _ = tray.set_tooltip(Some(&snapshot.tooltip));
         }
+        check_chosen(&profiles, gateway.settings().profile.as_ref());
         if let Some(json) = gateway.snapshot_json().await {
             let _ = app.emit_to(MAIN_WINDOW, SNAPSHOT_CHANGED, json);
         }

@@ -81,7 +81,7 @@ Ordre de préférence des sources, par instance : **liste réelle** de cette ex�
   l'instance : un fichier d'une autre instance, d'une autre version, illisible ou refusé par le registre est ignoré,
   signalé dans `cache_warnings()`, et l'instantané embarqué est utilisé.
 - Scellement (spec 014) : trait `CacheSeal { seal, open }` appliqué aux octets du fichier, avec l'instance pour
-  lier un fichier à son instance ; `NoSeal` en attendant.
+  lier un fichier à son instance ; `NoSeal` en attendant. Depuis la spec 014, l'appli utilise `SealedCatalog`.
 - `apply_live_list(instance, tools) -> Result<ToolDiff { added, removed, modified }, RegistryError>` remplace les
   outils de l'instance et met à jour le cache. Liste refusée en entier, registre et cache inchangés : instance
   inconnue, nom invalide ou masqué, outil en double, schéma qui n'est pas un objet, collision, filtre en échec. Le
@@ -138,3 +138,5 @@ Connexions réelles aux serveurs (3b). Rechargement automatique (3d). Scellement
   - trait `CacheSeal` pour le scellement de la spec 014 ;
   - `lookup` (correspondance inverse sans tenir compte de l'exposition) et `Exposure` ;
   - critères ajoutés : `EX-005-07` (instantanés embarqués) et `EX-005-08` (filtre et échec fermé).
+- **2026-11-22** — Spec 014 : l'appli scelle les fichiers du cache par `SealedCatalog` (même clé que les réglages) ;
+  `NoSeal` ne sert plus qu'aux tests. Comportement et critères de la 005 inchangés.

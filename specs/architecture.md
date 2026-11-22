@@ -26,6 +26,7 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 | Appli | Tauri 2.12 (`tray-icon`, `wry`), `tauri-plugin-single-instance` 2.5, `windows` 0.62 (projection WinRT seulement), `winreg` 0.56, `rfd` 0.18 (boîtes de message) |
 | HTTP/TLS | `reqwest` 0.13 en `native-tls` : SChannel et magasin de certificats Windows, aucune chaîne d'outils C |
 | Secrets | `secrecy` 0.10, `zeroize` 1.9, enveloppe : `chacha20poly1305` 0.11 (XChaCha20-Poly1305), `getrandom` 0.4, clé de session enveloppée par DPAPI utilisateur (WinRT `DataProtectionProvider`) |
+| Réglages scellés | `hmac` 0.13 (HMAC-SHA256 avec `sha2` 0.11), clé enveloppée par DPAPI utilisateur (spec 014) |
 | Mises à jour | `ed25519-dalek` 3, `self-replace` 1.5, `semver` |
 | Filtre de sortie | `memchr` 2.8, `regex` 1.13 (motifs génériques seulement), `serde_json` 1.0 |
 | Logs | `tracing`, `tracing-subscriber` 0.3, `tracing-appender` |
@@ -60,7 +61,8 @@ xtask/                 cargo xtask : ci, snapshot-catalog, keygen, sign, verify
 ```
 
 Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; données non secrètes dans
-`%LOCALAPPDATA%\MCP Proxy\` (`logs\`, `cache\catalog\`, `webview\`, `update\`, `settings.json`).
+`%LOCALAPPDATA%\MCP Proxy\` (`logs\`, `cache\catalog\`, `webview\`, `update\`, `settings.json`, `settings.key` : clé
+du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
 
 ### Parcours d'un `tools/call`
 
@@ -249,3 +251,5 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
   0.8.1 et du crate `windows` 0.62 : ce crate ne permet ni de retirer un toast ni d'en suivre l'échec, l'appli passe
   donc directement par la projection WinRT ; « Ne pas déranger » se lit dans `NotificationMode`, pas dans `Setting`.
   Les notifications et confirmations sont décidées dans `mcp_proxy_gateway::notify`.
+- **2026-11-22** — Spec 014 : `settings.key` ajouté aux données locales ; dépendance `hmac` 0.13 (déjà tirée par
+  rmcp). Le scellement vit dans `mcp_proxy_core::sealed`.
