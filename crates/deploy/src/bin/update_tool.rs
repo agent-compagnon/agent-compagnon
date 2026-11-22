@@ -1,5 +1,6 @@
 //! `update-tool`: the signing tools of the updater (spec 020), launched by `cargo xtask keygen | sign | verify |
-//! check-release`. Exit codes: 0, 1 (failure), 2 (arguments).
+//! check-release`, and run directly, already built, by the `sign` job of the release pipeline (spec 021). Exit
+//! codes: 0, 1 (failure), 2 (arguments).
 
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
@@ -11,6 +12,7 @@ use mcp_proxy_deploy::update::release::{
     SIGNING_KEY_ENV, describe_key, generate, sign_exe, signing_key, verify_release,
 };
 use mcp_proxy_deploy::update::slots::{hex_key, parse_slot};
+use mcp_proxy_deploy::update::tool_commands::options;
 use mcp_proxy_deploy::update::{KeyRing, check_release, embedded_slots};
 use mcp_proxy_deploy::version::Version;
 use zeroize::Zeroizing;
@@ -209,24 +211,23 @@ fn main() -> ExitCode {
         eprintln!("{USAGE}");
         return ExitCode::from(2);
     };
-    let known: &[&str] = match command.as_str() {
-        "keygen" => &["--out"],
-        "sign" => &["--exe", "--version", "--critical", "--key-env", "--out"],
-        "verify" => &["--exe", "--sig", "--public-key"],
-        "check-release" => &["--exe"],
+    let run: fn(&Args) -> Result<(), Failure> = match command.as_str() {
+        "keygen" => keygen,
+        "sign" => sign,
+        "verify" => verify,
+        "check-release" => check,
         _ => {
             eprintln!("{USAGE}");
             return ExitCode::from(2);
         }
     };
+    let Some(known) = options(command) else {
+        eprintln!("{USAGE}");
+        return ExitCode::from(2);
+    };
     let result = Args::parse(rest, known)
         .map_err(Failure::Usage)
-        .and_then(|args| match command.as_str() {
-            "keygen" => keygen(&args),
-            "sign" => sign(&args),
-            "verify" => verify(&args),
-            _ => check(&args),
-        });
+        .and_then(|args| run(&args));
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(Failure::Usage(message)) => {

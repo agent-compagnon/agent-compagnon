@@ -301,3 +301,7 @@ du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
   formes de `cargo xtask` sont dans `xtask/src/commands.rs`, compilé dans les deux crates. `cargo xtask check-tag`
   compare un tag à la version du workspace. Aucun profil de compilation `release` ajouté : le build de release
   utilise celui de cargo par défaut.
+- **2026-11-22** — Spec 021, relecture : le pipeline construit `update-tool` dans un job sans les secrets
+  (`build:release-tools`) et `sign` l'exécute tel quel, sans cargo ; les commandes de l'outil sont listées dans
+  `mcp_proxy_deploy::update::tool_commands`, compilé aussi dans `mcp-proxy-ci-check`. Aucun job de release ne
+  télécharge Node.

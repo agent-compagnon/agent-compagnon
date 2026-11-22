@@ -5,7 +5,10 @@
 //!   jobs, every job has a `script`;
 //! - the release jobs (stages `build`, `authenticode`, `sign`, `publish`) run on protected tags only, and nothing
 //!   turns on a trace of the commands (`set -x`, `Set-PSDebug`, `CI_DEBUG_TRACE`), which would print secrets;
-//! - every `cargo xtask …` it cites is a form of xtask (`xtask/src/commands.rs`);
+//! - a job that declares the `release` environment, and so receives the private key, runs no build tool nor package
+//!   manager (cargo, rustup, npm…): it runs tools built by an earlier job, without the key;
+//! - every `cargo xtask …` it cites is a form of xtask (`xtask/src/commands.rs`), and every `update-tool …` a
+//!   command of that tool (`crates/deploy/src/update/tool_commands.rs`);
 //! - every variable it uses or defines is documented in `docs/release.md`, as `` `NAME` ``.
 //!
 //! GitLab's own rules (keywords, `rules:if` syntax, runners) are not checked here: the first pipeline does it
@@ -21,6 +24,49 @@ mod commands;
 
 /// The forms of `cargo xtask`, shared with xtask.
 pub use commands::FORMS as XTASK_FORMS;
+
+#[path = "../../deploy/src/update/tool_commands.rs"]
+mod tool_commands;
+
+/// The signing tool of spec 020, run directly by `sign`.
+pub const TOOL: &str = "update-tool";
+
+/// The environment whose variables hold the secrets of a release.
+pub const RELEASE_ENVIRONMENT: &str = "release";
+
+/// Programs that build code or install packages: whatever they run (build scripts, procedural macros, install
+/// scripts) would run with the variables of the job.
+pub const BUILD_TOOLS: [&str; 29] = [
+    "cargo",
+    "cargo-xwin",
+    "rustup",
+    "rustc",
+    "npm",
+    "npx",
+    "pnpm",
+    "yarn",
+    "node",
+    "corepack",
+    "pip",
+    "pip3",
+    "pipx",
+    "apt",
+    "apt-get",
+    "apk",
+    "dnf",
+    "yum",
+    "microdnf",
+    "zypper",
+    "choco",
+    "winget",
+    "scoop",
+    "make",
+    "cmake",
+    "ninja",
+    "msbuild",
+    "dotnet",
+    "go",
+];
 
 /// Stages whose jobs build, sign or publish a release: protected tags only.
 pub const RELEASE_STAGES: [&str; 4] = ["build", "authenticode", "sign", "publish"];
@@ -266,6 +312,54 @@ pub fn xtask_citations(line: &str) -> Vec<Vec<&str>> {
     found
 }
 
+/// The commands a shell line runs (bash or PowerShell, roughly): for each one, the program's name without its
+/// directory nor `.exe`/`.cmd`/`.ps1`/`.bat`, then its arguments. Quotes are not understood, which can only find more
+/// commands than there are.
+pub fn shell_commands(line: &str) -> Vec<(String, Vec<&str>)> {
+    const WRAPPERS: [&str; 5] = ["sudo", "exec", "command", "env", "time"];
+    let mut found = Vec::new();
+    for segment in line.split([';', '|', '&', '(', ')', '{', '}', '`']) {
+        let mut words = segment.split_whitespace().skip_while(|w| {
+            WRAPPERS.contains(w)
+                || w.split_once('=')
+                    .is_some_and(|(name, _)| !name.is_empty() && name.chars().all(is_name_char))
+        });
+        let Some(program) = words.next() else { continue };
+        let program = program.trim_matches(|c| c == '"' || c == '\'' || c == '$');
+        let base = program
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or(program)
+            .to_ascii_lowercase();
+        let base = [".exe", ".cmd", ".ps1", ".bat"]
+            .iter()
+            .find_map(|ext| base.strip_suffix(ext))
+            .map_or(base.clone(), str::to_owned);
+        if !base.is_empty() {
+            found.push((base, words.collect()));
+        }
+    }
+    found
+}
+
+/// Whether a text of the file is a line of a script, from its path (`sign.script[1]`).
+fn is_script(path: &str) -> bool {
+    path.split('.').any(|segment| {
+        ["script", "before_script", "after_script"]
+            .iter()
+            .any(|key| segment == *key || segment.strip_prefix(key).is_some_and(|rest| rest.starts_with('[')))
+    })
+}
+
+/// Whether a job declares the release environment.
+fn declares_release_environment(value: &Yaml) -> bool {
+    match value {
+        Yaml::String(name) => name == RELEASE_ENVIRONMENT,
+        Yaml::Hash(environment) => get(environment, "name").and_then(Yaml::as_str) == Some(RELEASE_ENVIRONMENT),
+        _ => false,
+    }
+}
+
 /// Whether the words of a citation are one of the forms of xtask.
 pub fn is_known_command(words: &[&str], forms: &[&str]) -> bool {
     forms.iter().any(|form| {
@@ -339,6 +433,7 @@ pub fn check(ci: &str, doc: &str, forms: &[&str]) -> Report {
 
     check_structure(root, &jobs, &mut report.problems);
     check_release_jobs(&jobs, &mut report.problems);
+    check_secret_jobs(root, &jobs, &mut report.problems);
     check_texts(&walked, doc, forms, &mut report);
     report
 }
@@ -468,6 +563,48 @@ fn check_release_jobs(jobs: &Jobs<'_>, problems: &mut Vec<Problem>) {
     }
 }
 
+/// The jobs that receive the secrets run no build tool nor package manager, in their own scripts, in those they
+/// inherit through `extends`, or in the `before_script` and `after_script` of `default`.
+fn check_secret_jobs(root: &Hash, jobs: &Jobs<'_>, problems: &mut Vec<Problem>) {
+    let default = get(root, "default").and_then(Yaml::as_hash);
+    for (name, _) in &jobs.all {
+        let name = *name;
+        if !jobs
+            .effective(name, "environment", 0)
+            .is_some_and(declares_release_environment)
+        {
+            continue;
+        }
+        for key in ["before_script", "script", "after_script"] {
+            let (lines, origin) = match jobs.effective(name, key, 0) {
+                Some(lines) => (lines, format!("{name}.{key}")),
+                None => match default.and_then(|d| get(d, key)).or_else(|| get(root, key)) {
+                    Some(lines) => (lines, format!("{name}.{key} (hérité de default)")),
+                    None => continue,
+                },
+            };
+            let texts: Vec<&str> = match lines {
+                Yaml::String(text) => vec![text.as_str()],
+                Yaml::Array(items) => items.iter().filter_map(Yaml::as_str).collect(),
+                _ => Vec::new(),
+            };
+            for line in texts.iter().flat_map(|t| t.lines()) {
+                for (program, _) in shell_commands(line) {
+                    if BUILD_TOOLS.contains(&program.as_str()) {
+                        problems.push(Problem::new(
+                            &origin,
+                            format!(
+                                "job de l'environnement {RELEASE_ENVIRONMENT} : {program} interdit, il exécuterait du \
+                                 code tiers avec les secrets (construire l'outil dans un job sans l'environnement)"
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn check_texts(walked: &Walk<'_>, doc: &str, forms: &[&str], report: &mut Report) {
     let mut variables: BTreeMap<&str, &str> = BTreeMap::new();
     for (name, path) in &walked.defined {
@@ -489,6 +626,19 @@ fn check_texts(walked: &Walk<'_>, doc: &str, forms: &[&str], report: &mut Report
             }
         }
         for line in text.text.lines() {
+            for (program, words) in shell_commands(line).into_iter().filter(|_| is_script(&text.path)) {
+                if program != TOOL {
+                    continue;
+                }
+                report.commands += 1;
+                let known = words.first().is_some_and(|c| tool_commands::options(c).is_some());
+                if !known {
+                    report.problems.push(Problem::new(
+                        &text.path,
+                        format!("commande inconnue : {TOOL} {}", words.join(" ")),
+                    ));
+                }
+            }
             for words in xtask_citations(line) {
                 report.commands += 1;
                 if !is_known_command(&words, forms) {

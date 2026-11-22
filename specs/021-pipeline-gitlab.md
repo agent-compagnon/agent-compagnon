@@ -51,6 +51,10 @@ Réalisation (amendement du 2026-11-22) :
   plutôt que `npm` (le script `npm.ps1` dépend de la stratégie d'exécution).
 - `linux-xwin` : job `build:linux-xwin`, en shell POSIX, image `XWIN_IMAGE` ; `docs/release.md` donne un exemple
   d'image (non essayé) qui embarque la bibliothèque d'exécution MSVC et le SDK.
+- Amendement du 2026-11-22 : aucun job de release ne télécharge Node, qui construit l'interface embarquée dans l'exe
+  publié. `build:linux-xwin` exige Node 22 et npm dans `XWIN_IMAGE`, comme le runner Windows les exige déjà, et
+  s'arrête avant tout autre chose s'ils manquent ou si la version n'est pas 22 ; l'exemple d'image les copie de
+  l'image officielle de Node. `lint` et `test`, sans secret ni artefact de release, gardent le téléchargement.
 - L'exe va dans `dist/mcp-proxy.exe` (artefact, 7 jours).
 
 ### Version
@@ -76,6 +80,16 @@ Artefacts : l'exe et son `.sig`, 30 jours. `RELEASE_CRITICAL` vaut `"false"` dan
 pipeline à la poussée du tag (`git push … -o ci.variable="RELEASE_CRITICAL=true"`). La clé privée et le jeton
 Artifactory sont en plus limités à l'environnement `release`, que seuls `sign` (`action: prepare`) et `publish`
 déclarent : `lint`, `test` et `build`, qui exécutent du code tiers, ne les reçoivent pas.
+
+Second amendement (2026-11-22), qui remplace le paragraphe précédent pour ce qui concerne la façon de lancer les trois
+commandes : `cargo xtask check-release`, `sign` et `verify` passent par `cargo run -p mcp-proxy-deploy`, qui compile
+tout l'arbre de dépendances du crate (scripts de build et macros procédurales compris) ; dans `sign`, ce code tiers
+tournerait avec la clé privée dans son environnement. Le binaire `update-tool` (celui qu'exécutent ces commandes
+xtask) est donc construit par un job `build:release-tools` de l'étape `build`, sur tag protégé, **sans**
+l'environnement `release` (donc sans la clé), avec `MCP_PROXY_RELEASE=1`, et passé en artefact
+(`dist/update-tool`). `sign` ne fait plus que l'exécuter : `dist/update-tool check-release --exe`, `sign`, `verify`,
+mêmes options ; ni cargo, ni rustup, ni npm, ni téléchargement dans son script, qui n'a pas besoin du réseau.
+Reste exécuté avec la clé, par nature : le code lié dans `update-tool`, et l'image du job.
 
 ### Emplacement réservé pour Authenticode
 
@@ -141,6 +155,10 @@ Réalisation (amendement du 2026-11-22) : exécutable `check-ci` du crate `mcp-p
   `only`/`except`, chaque règle autre que `when: never` exige un tag protégé (conjonction sans `||` de
   `$CI_COMMIT_TAG` et de `$CI_COMMIT_REF_PROTECTED == "true"`) ;
 - aucune trace des commandes (`set -x`, `set -o xtrace`, `Set-PSDebug`, `CI_DEBUG_TRACE`, `CI_DEBUG_SERVICES`) ;
+- (amendement du 2026-11-22) un job qui déclare l'environnement `release` ne lance aucun outil de construction ni
+  gestionnaire de paquets (cargo, rustup, rustc, npm, npx, Node, pip, apt, apk, make…), ni dans ses scripts, ni dans
+  ceux qu'il hérite par `extends` ou de `default` ; chaque `update-tool …` des scripts est une commande de l'outil
+  (`crates/deploy/src/update/tool_commands.rs`, compilé aussi dans `mcp-proxy-ci-check`) ;
 - une variable est documentée quand son nom figure entre accents graves dans `docs/release.md` ; sont vérifiées
   toutes les références (`$NOM`, `${NOM…}`, `$env:NOM`) et toutes les clés des tables `variables`.
 
@@ -161,6 +179,11 @@ pipeline (`docs/recette.md`).
   commandes (`set -x`, `Set-PSDebug`, `CI_DEBUG_TRACE`).
 - **EX-021-09** — Chaque forme de `cargo xtask` connue de `check-ci` est acceptée par xtask ; une commande inconnue est
   refusée.
+- **EX-021-13** — `check-ci` refuse un job de l'environnement `release` qui lance un outil de construction ou un
+  gestionnaire de paquets (dans son script, par `extends` ou par le `before_script` de `default`), y compris sur le
+  fichier livré si `sign` repasse par `cargo xtask`.
+- **EX-021-14** — `check-ci` refuse une commande inconnue de `update-tool` lancé directement ; chaque commande connue de
+  `check-ci` est une commande de `update-tool`.
 
 ## Vérification
 
@@ -178,6 +201,9 @@ pipeline (`docs/recette.md`).
   `vX.Y.Z-rc.N` publie une préversion, proposée au seul canal bêta.
 - **EX-021-12** (manuel) — Un tag protégé qui ne nomme pas la version du workspace fait échouer `build` avant toute
   compilation, et rien n'est publié.
+- **EX-021-15** (manuel) — Le journal de `sign` ne montre ni compilation ni téléchargement : il exécute l'`update-tool`
+  construit par `build:release-tools` ; en mode `linux-xwin`, une image sans Node 22 fait échouer `build:linux-xwin`
+  avant toute compilation.
 
 ## Amendements
 
@@ -190,3 +216,11 @@ pipeline (`docs/recette.md`).
   `EX-021-07` à `EX-021-09` ajoutés. Critères manuels `EX-021-10` à `EX-021-12` ajoutés : la confidentialité des
   secrets dans un vrai pipeline, la version critique et la préversion, et l'échec sur un tag faux ne se prouvent
   qu'à l'exécution. Raisons : `DECISIONS.md`, section « Spec 021 ».
+- **2026-11-22** — Relecture : le job `sign` lançait `cargo xtask check-release`, `sign` et `verify`, donc
+  `cargo run`, qui compile les dépendances de `mcp-proxy-deploy` (scripts de build, macros procédurales) avec la clé
+  privée dans l'environnement : la garantie « le code tiers ne voit jamais la clé » ne tenait pas pour ce job.
+  `update-tool` est désormais construit sans la clé par `build:release-tools` et exécuté tel quel par `sign`.
+  `build:linux-xwin` téléchargeait Node sans contrôle d'intégrité, alors que ce Node construit l'interface de l'exe
+  publié : il exige désormais Node 22 dans `XWIN_IMAGE`. `check-ci` vérifie qu'un job de l'environnement `release`
+  ne lance aucun outil de construction ni gestionnaire de paquets, et les commandes de `update-tool` : critères
+  `EX-021-13`, `EX-021-14` et, manuel, `EX-021-15` ajoutés. Raisons : `DECISIONS.md`, I021.17 à I021.19.

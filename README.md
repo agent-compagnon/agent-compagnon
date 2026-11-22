@@ -32,7 +32,7 @@ propose de s'installer (spec 019) ; `mcp-proxy.exe --no-install` le fait tourner
 | `cargo xtask verify --exe <exe> [--sig <fichier>] [--public-key <hex>]` | Vérifie un manifeste et son exe avec ces clés, sinon avec les clés embarquées |
 | `cargo xtask check-release [--exe <exe>]` | Refuse la clé de développement et l'absence de clé courante ; avec `--exe`, vérifie l'exe construit. Le build avec `MCP_PROXY_RELEASE=1` fait le même contrôle de clés |
 | `cargo xtask check-tag <tag>` | Vérifie qu'un tag de release est `v` suivi de la version du workspace, `X.Y.Z` ou `X.Y.Z-rc.N` (spec 021, lancé par le pipeline avant le build) |
-| `cargo xtask check-ci` | Vérifie `.gitlab-ci.yml` sans GitLab : YAML valide, structure, jobs de release réservés aux tags protégés, aucune trace des commandes, commandes `cargo xtask` connues, variables documentées dans `docs/release.md` (spec 021) |
+| `cargo xtask check-ci` | Vérifie `.gitlab-ci.yml` sans GitLab : YAML valide, structure, jobs de release réservés aux tags protégés, aucun outil de construction ni gestionnaire de paquets dans les jobs qui reçoivent les secrets, aucune trace des commandes, commandes `cargo xtask` et `update-tool` connues, variables documentées dans `docs/release.md` (spec 021) |
 | `cargo test -p mcp-proxy-core` | Tests du core, dont la validation de la config embarquée |
 | `cd ui && npm run dev` | Interface dans un navigateur, avec le backend simulé (`?scenario=sessions`, `premier-lancement`, … : `ui/src/api/mock.ts` ; fenêtre d'installation : `install.html?scenario=mise-a-jour`, … : `ui/src/install/mock.ts`) |
 | `cd ui && npm run e2e` | Tests Playwright de l'interface sur `vite preview` du backend simulé, hors `cargo xtask ci` ; `CAPTURES_DIR=…` y ajoute les captures |

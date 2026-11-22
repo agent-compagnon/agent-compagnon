@@ -438,7 +438,8 @@ Préparation :
    (`$WINDOWS_RUNNER_TAG`) ; arrêt d'un job PowerShell par `if (-not $?) { exit 1 }` ; variables de portée
    `release` reçues par `sign` (`action: prepare`) et `publish` ; `-o ci.variable` sur une poussée de tag ; image
    JFrog CLI avec `entrypoint: [""]`, `curl` et `cmp` ; `JF_URL` et `JF_ACCESS_TOKEN` lus par `jf` ; en mode
-   `linux-xwin`, image, SDK et `llvm-rc`.
+   `linux-xwin`, image, SDK, `llvm-rc` et Node 22 dans l'image ; bit d'exécution de `dist/update-tool` conservé
+  dans l'artefact (le job le remet de toute façon).
 
 - [ ] **EX-021-03** — Ouvrir une demande de fusion (changement anodin) : son pipeline est de type « merge request »
   et ne contient que `lint` et `test`, aucun `test:windows`, `build:…`, `sign` ni `publish`. Le journal de `test`
@@ -451,7 +452,7 @@ Préparation :
   pas ; rien n'apparaît dans Artifactory. En mode `windows-runner`, c'est aussi la preuve qu'une commande en échec
   arrête un job PowerShell. Supprimer ce tag. Un tag non protégé (hors `v*`) : `lint` et `test` seulement.
 - [ ] **EX-021-04** — Créer et pousser le tag protégé `vX.Y.Z` de la version du workspace. Le pipeline montre `lint`,
-  `test`, `test:windows` (mode `windows-runner`), `build:…`, `sign`, `publish` ; aucun job `authenticode`. Journaux :
+  `test`, `test:windows` (mode `windows-runner`), `build:…`, `build:release-tools`, `sign`, `publish` ; aucun job `authenticode`. Journaux :
   `check-tag : vX.Y.Z = version X.Y.Z du workspace (canal stable)` ; dans `sign`, « check-release : OK » avec la
   clé courante attendue, puis `dist/mcp-proxy.exe.sig : version X.Y.Z, sha256 …, critical false, key-id …` et
   « vérifié : … » avec ce même `key-id` ; `publish` se termine par « publié dans … ». Dans Artifactory,
@@ -470,6 +471,12 @@ Préparation :
 - [ ] **EX-021-06** — Installer l'exe `X.Y.Z` publié par le pipeline (section 019). Monter la version à `X.Y.(Z+1)`,
   fusionner, pousser le tag : une fois publiée, l'appli installée en `X.Y.Z` la trouve dans la minute qui suit son
   démarrage (« mise à jour X.Y.(Z+1) prête »), et le redémarrage lance `X.Y.(Z+1)` (comme `EX-020-08`).
+- [ ] **EX-021-15** — Dans le pipeline de `EX-021-04`, le journal de `sign` ne contient aucune ligne `Compiling`,
+  `Downloading`, `rustup` ni `npm` : seulement `chmod +x dist/update-tool` et les trois commandes
+  `dist/update-tool …`, avec leurs résultats. `build:release-tools` (sans environnement dans la page *Operate >
+  Environments*) a produit l'artefact `dist/update-tool`. En mode `linux-xwin`, avec une image sans Node (ou avec un
+  autre Node que le 22) : `build:linux-xwin` s'arrête sur « XWIN_IMAGE doit contenir Node 22 … » avant toute ligne
+  `rustup` ou `cargo`, et rien n'est publié.
 - [ ] **EX-021-10** — Chercher dans les journaux de tous les jobs du pipeline les huit premiers caractères de la clé
   privée et du jeton : absents. Dans *Settings > CI/CD > Variables*, les quatre variables sont protégées, la clé et
   le jeton masqués, portée `release`. Dans un projet de test seulement, ajouter temporairement à `test` la ligne

@@ -274,7 +274,14 @@ fn the_delivered_release_jobs_lose_their_protection_if_the_rule_is_weakened() {
     let weakened = DELIVERED_CI.replace(r#" && $CI_COMMIT_REF_PROTECTED == "true""#, "");
     assert_ne!(weakened, DELIVERED_CI);
     let report = check(&weakened, DELIVERED_DOC, XTASK_FORMS);
-    for job in ["build:windows", "build:linux-xwin", "sign", "publish", ".authenticode"] {
+    for job in [
+        "build:windows",
+        "build:linux-xwin",
+        "build:release-tools",
+        "sign",
+        "publish",
+        ".authenticode",
+    ] {
         assert!(
             report
                 .problems
@@ -300,4 +307,99 @@ fn a_trace_of_the_commands_is_refused() {
     }
     let in_variables = BASE.replace("  MODE: \"a\"", "  MODE: \"a\"\n  CI_DEBUG_TRACE: \"true\"");
     assert!(messages(&in_variables).contains("trace des commandes interdite"));
+}
+
+/// A job with the release environment, to which one line is added.
+fn with_secret_job(line: &str) -> String {
+    format!(
+        "{BASE}publish:\n  stage: sign\n  extends: .release\n  environment:\n    name: release\n  script:\n    - {line}\n"
+    )
+}
+
+// Exigence : EX-021-13
+#[test]
+fn a_job_with_the_secrets_runs_no_build_tool() {
+    assert_eq!(problems(&with_secret_job("jf rt upload a b")), Vec::new());
+    for line in [
+        "cargo xtask sign --exe a",
+        "cargo build --release",
+        "/usr/local/cargo/bin/cargo run",
+        "MCP_PROXY_RELEASE=1 cargo build",
+        "sudo apt-get install -y curl",
+        "rustup toolchain install",
+        "(cd ui && npm ci)",
+        "npm.cmd run build; if (-not $?) { exit 1 }",
+        "C:\\tools\\NPX.CMD vite",
+        "x=$(node -e 1)",
+        "apk add curl",
+    ] {
+        let message = messages(&with_secret_job(line));
+        assert!(
+            message.contains("job de l'environnement release : "),
+            "{line} :\n{message}"
+        );
+    }
+    // The before_script of `default` runs in the job unless the job replaces it.
+    let inherited = with_secret_job("jf --version").replace(
+        "stages:",
+        "default:\n  before_script:\n    - rustup toolchain install\nstages:",
+    );
+    assert!(messages(&inherited).contains("publish.before_script (hérité de default)"));
+    let replaced = inherited.replace(
+        "  script:\n    - jf --version",
+        "  before_script: []\n  script:\n    - jf --version",
+    );
+    assert_eq!(problems(&replaced), Vec::new());
+    // Through `extends`, and with the environment given as a plain name.
+    let extended = format!(
+        "{BASE}.secret:\n  environment: release\n  before_script: [npm ci]\npublish:\n  stage: sign\n  extends: [.release, .secret]\n  script: [jf --version]\n"
+    );
+    assert!(messages(&extended).contains("publish.before_script : job de l'environnement release : npm interdit"));
+    // The delivered pipeline, if `sign` builds the tool again.
+    let rebuilt = DELIVERED_CI.replace("    - dist/update-tool sign ", "    - cargo xtask sign ");
+    assert_ne!(rebuilt, DELIVERED_CI);
+    let report = check(&rebuilt, DELIVERED_DOC, XTASK_FORMS);
+    assert!(
+        report
+            .problems
+            .iter()
+            .any(|p| p.location == "sign.script" && p.message.contains("cargo interdit")),
+        "{:?}",
+        report.problems
+    );
+}
+
+// Exigence : EX-021-14
+#[test]
+fn an_unknown_command_of_the_signing_tool_is_refused() {
+    for (line, shown) in [
+        ("dist/update-tool deploy --exe a", "update-tool deploy --exe a"),
+        ("./dist/update-tool", "update-tool "),
+        ("dist\\update-tool.exe chek-release", "update-tool chek-release"),
+    ] {
+        let message = messages(&with_secret_job(line));
+        assert!(
+            message.contains(&format!("commande inconnue : {shown}")),
+            "{line} :\n{message}"
+        );
+    }
+    for command in ["keygen", "sign", "verify", "check-release"] {
+        assert_eq!(
+            problems(&with_secret_job(&format!("dist/update-tool {command} --exe a"))),
+            Vec::new()
+        );
+    }
+    let report = check(DELIVERED_CI, DELIVERED_DOC, XTASK_FORMS);
+    assert!(report.commands >= 7, "{}", report.commands);
+}
+
+#[test]
+fn shell_commands_are_split_at_shell_operators() {
+    let names = |line| shell_commands(line).into_iter().map(|(p, _)| p).collect::<Vec<_>>();
+    assert_eq!(
+        names("A=1 B=2 cargo build && npm.cmd ci | tee x; exit 1"),
+        ["cargo", "npm", "tee", "exit"]
+    );
+    assert_eq!(names("if (-not $?) { exit 1 }"), ["if", "-not", "exit"]);
+    assert_eq!(names("echo $(Node.EXE -v)"), ["echo", "node"]);
 }

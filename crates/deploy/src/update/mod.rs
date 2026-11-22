@@ -14,6 +14,7 @@ pub mod release;
 mod replace;
 mod schedule;
 pub mod slots;
+pub mod tool_commands;
 
 #[cfg(test)]
 mod tests;

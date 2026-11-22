@@ -210,3 +210,21 @@ fn arguments_are_strict() {
         assert_eq!(output.status.code(), Some(2), "{args:?}: {}", text(&output));
     }
 }
+
+// Exigence : EX-021-14
+#[test]
+fn every_command_known_to_check_ci_is_a_command_of_the_tool() {
+    use mcp_proxy_deploy::update::tool_commands::COMMANDS;
+    for (command, _) in COMMANDS {
+        let output = tool().args([command, "--unknown-option", "x"]).output().unwrap();
+        assert_eq!(output.status.code(), Some(2), "{command}");
+        assert!(
+            text(&output).starts_with(&format!("{command} : argument inconnu : --unknown-option")),
+            "{command} : {}",
+            text(&output)
+        );
+    }
+    let unknown = tool().args(["deploy", "--exe", "x"]).output().unwrap();
+    assert_eq!(unknown.status.code(), Some(2));
+    assert!(text(&unknown).starts_with("usage:"), "{}", text(&unknown));
+}

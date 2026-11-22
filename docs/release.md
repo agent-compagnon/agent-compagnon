@@ -19,7 +19,8 @@ une version critique et une préversion, comment changer de clé de signature, e
 | `test` | `test:windows` | tag protégé, mode `windows-runner` | `cargo test --workspace` sous Windows |
 | `build` | `build:windows` ou `build:linux-xwin` | tag protégé, selon `WINDOWS_BUILD_MODE` | `cargo xtask check-tag`, build de `ui/`, build de l'exe avec `MCP_PROXY_RELEASE=1` |
 | `authenticode` | `.authenticode` | jamais (réservé, spec 028) | signature Authenticode, désactivée |
-| `sign` | `sign` | tag protégé | `cargo xtask check-release --exe`, `cargo xtask sign`, `cargo xtask verify` |
+| `build` | `build:release-tools` | tag protégé | construit l'outil de signature `update-tool` (`dist/update-tool`), sans la clé |
+| `sign` | `sign` | tag protégé | `dist/update-tool check-release --exe`, `sign`, `verify` : l'outil déjà construit, sans cargo ni téléchargement |
 | `publish` | `publish` | tag protégé | dépôt de `mcp-proxy.exe` puis de `mcp-proxy.exe.sig` dans Artifactory |
 
 - Une **demande de fusion** ou une **branche** ne lance que `lint` et `test`. Pour une branche qui a une demande de
@@ -30,6 +31,10 @@ une version critique et une préversion, comment changer de clé de signature, e
   des exe installés découvre (spec 020).
 - Les jobs de release n'utilisent pas le cache : un pipeline de demande de fusion ne peut rien glisser dans le build
   d'une version.
+- Aucun job de release ne télécharge Node : il vient du runner Windows ou de l'image `XWIN_IMAGE`. Seuls `lint` et
+  `test`, qui n'ont ni secret ni artefact de release, le téléchargent (sans contrôle d'empreinte).
+- `update-tool` est le programme qu'exécutent `cargo xtask check-release`, `sign` et `verify` ; le pipeline le
+  construit dans `build:release-tools` et `sign` le lance directement.
 - Aucun secret n'est écrit dans `.gitlab-ci.yml` : seulement des noms de variables. Aucun job n'affiche ses commandes
   avec leurs valeurs (`cargo xtask check-ci` refuse `set -x`, `Set-PSDebug` et `CI_DEBUG_TRACE`).
 
@@ -84,8 +89,15 @@ Pourquoi :
 - **Masquée** : si la valeur est affichée par erreur, GitLab la remplace par `[MASKED]` dans le journal. C'est un
   filet, pas une garantie (une valeur encodée ou découpée n'est pas reconnue) : le pipeline ne l'affiche jamais.
 - **Portée `release`** : seuls les jobs qui déclarent l'environnement `release` (`sign` et `publish`) la reçoivent.
-  `lint`, `test` et `build` exécutent du code tiers (paquets npm, scripts de build des crates) qui ne voit donc
-  jamais la clé ni le jeton. Si votre instance ne propose pas de portée d'environnement, laisser « All » : les
+  Ni l'un ni l'autre ne construit ni n'installe quoi que ce soit (`cargo xtask check-ci` refuse cargo, rustup,
+  npm, Node, apt… dans un tel job) : `sign` exécute `update-tool`, construit par `build:release-tools` sans la clé ;
+  `publish` n'exécute que `jf`, `curl` et `cmp` de son image. Le code tiers que lancent `lint`, `test` et `build`
+  (scripts npm, scripts de build et macros procédurales des crates) ne voit donc jamais la clé ni le jeton. **Ce qui
+  reste** : le code des dépendances lié dans `update-tool` (cryptographie, client HTTP…) s'exécute forcément avec la
+  clé, comme l'image de `sign` et celle de `publish` ; et le job qui construit `update-tool` pourrait, s'il était
+  compromis, produire un outil piégé, que `sign` exécuterait. Le script de `sign` n'accède pas au réseau (`update-tool`
+  ne fait aucune requête pour ces trois commandes), mais rien dans GitLab ne l'en empêche : seul le runner récupère
+  les artefacts avant le job. Si votre instance ne propose pas de portée d'environnement, laisser « All » : les
   variables restent réservées aux tags protégés, mais tous les jobs d'un pipeline de tag les reçoivent ; c'est un
   risque à accepter en connaissance de cause.
 - Ne jamais définir `RELEASE_CRITICAL` dans les réglages du projet : toutes les versions deviendraient critiques.
@@ -115,8 +127,8 @@ Les variables en tête de `.gitlab-ci.yml` se règlent dans le fichier (ou, pour
 |---|---|
 | `WINDOWS_BUILD_MODE` | `windows-runner` (défaut) ou `linux-xwin` |
 | `WINDOWS_RUNNER_TAG` | tag du runner Windows |
-| `RUST_IMAGE` | image des jobs Linux (`lint`, `test`, `sign`) : `rust:1.97.0` |
-| `XWIN_IMAGE` | image du build `linux-xwin` ; la valeur livrée est un exemple à remplacer |
+| `RUST_IMAGE` | image des jobs Linux (`lint`, `test`, `build:release-tools`, `sign`) : `rust:1.97.0` ; `sign` y exécute l'outil construit dans la même image |
+| `XWIN_IMAGE` | image du build `linux-xwin`, **avec Node 22 et npm** ; la valeur livrée est un exemple à remplacer |
 | `JFROG_CLI_IMAGE` | image du job `publish` : JFrog CLI, `curl`, `cmp`, un shell POSIX ; épingler une version testée |
 
 **Mode `windows-runner`** (défaut) : un runner GitLab sous Windows, exécuteur « shell » en PowerShell (`pwsh` ou
@@ -132,7 +144,10 @@ Ce mode lance aussi `test:windows` (tous les tests sous Windows) avant le build.
 l'exécuteur shell.
 
 **Mode `linux-xwin`** : un runner Docker Linux et l'image `XWIN_IMAGE`, qui doit contenir `rustup`, `clang`, `lld`,
-`llvm` (dont `llvm-rc`, pour les ressources Windows de l'exe), `cargo-xwin`, `curl` et `xz`. `cargo-xwin` a besoin de
+`llvm` (dont `llvm-rc`, pour les ressources Windows de l'exe), `cargo-xwin`, et **Node 22 avec npm**. Le build de
+release ne télécharge jamais Node : c'est ce Node qui construit l'interface embarquée dans l'exe publié, il doit donc
+venir d'une source vérifiée, l'image. Sans lui, `build:linux-xwin` s'arrête aussitôt (« XWIN_IMAGE doit contenir
+Node 22 et npm »). `cargo-xwin` a besoin de
 la bibliothèque d'exécution MSVC et du SDK Windows, qu'il télécharge depuis les serveurs de Microsoft (licence
 Microsoft, à accepter par votre organisation) : mieux vaut une image qui les contient déjà, ou bien autoriser ces
 téléchargements depuis le runner. Aucun test ne tourne sous Windows dans ce mode. Exemple d'image, **non essayé** :
@@ -143,6 +158,13 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends clang lld llvm xz-utils \
  && rm -rf /var/lib/apt/lists/*
 RUN rustup target add x86_64-pc-windows-msvc && cargo install --locked cargo-xwin
+# Node 22 and npm from the official Node image (its build checks the signed checksums of the Node archive). Pin it by
+# digest (node:22-bookworm-slim@sha256:…) once chosen.
+COPY --from=node:22-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+ && node --version && npm --version
 # Downloads the MSVC CRT and the Windows SDK once, into the image (cache of cargo-xwin under /root/.cache).
 RUN cargo new /tmp/warmup \
  && cd /tmp/warmup \
@@ -157,8 +179,9 @@ cargo xtask check-ci
 ```
 
 Vérifie ce qui peut l'être sans GitLab : le YAML est valide, les étapes, `extends`, `dependencies` et `needs` se
-tiennent, les jobs de release ne tournent que sur un tag protégé, aucune trace de commande n'est activée, chaque
-`cargo xtask …` cité existe et chaque variable utilisée ou définie figure dans le tableau « Variables » ci-dessous.
+tiennent, les jobs de release ne tournent que sur un tag protégé, un job de l'environnement `release` ne lance aucun
+outil de construction ni gestionnaire de paquets, aucune trace de commande n'est activée, chaque `cargo xtask …` et
+chaque `update-tool …` cité existe et chaque variable utilisée ou définie figure dans le tableau « Variables » ci-dessous.
 Il fait partie de `cargo xtask ci`. Le comportement réel du pipeline se vérifie au premier tag (`docs/recette.md`,
 section 021).
 
@@ -177,7 +200,8 @@ section 021).
 
 4. Suivre le pipeline du tag (*Build > Pipelines*) :
    - `build:…` commence par `check-tag : vX.Y.Z = version X.Y.Z du workspace (canal stable)` ;
-   - `sign` affiche `check-release : OK`, puis `dist/mcp-proxy.exe.sig : version X.Y.Z, sha256 …, critical false,
+   - `build:release-tools` construit `dist/update-tool` ;
+   - `sign`, sans aucune compilation ni téléchargement, affiche `check-release : OK`, puis `dist/mcp-proxy.exe.sig : version X.Y.Z, sha256 …, critical false,
      key-id …`, puis `vérifié : version X.Y.Z, critical false, key-id …` ; le `key-id` est celui de la clé courante ;
    - `publish` se termine par `publié dans <dépôt>/mcp-proxy/X.Y.Z/ (mcp-proxy.exe, mcp-proxy.exe.sig)`.
 5. Les postes l'installent à leur vérification suivante (une minute après le démarrage de l'appli, puis toutes les
@@ -241,9 +265,12 @@ change le code, publier un nouveau numéro). Ne jamais supprimer ni déplacer un
 |---|---|---|
 | `build:…` | `check-tag : ÉCHEC : le tag « … » ne correspond pas à la version du workspace` | Le tag ne nomme pas la version du `Cargo.toml`. Supprimer ce tag (rien n'a été publié) et créer le bon, ou monter la version puis retaguer. |
 | `build:…` | `aucune clé de mise à jour courante (keys/current.pub)`, ou clé de développement dans un emplacement | La clé publique de release n'est pas dans `current.pub` (étape 1 de la préparation). |
+| `build:linux-xwin` | `XWIN_IMAGE doit contenir Node 22 et npm …` ou `… Node 22, pas v…` | Ajouter Node 22 et npm à l'image (exemple ci-dessus) ; le pipeline ne le télécharge pas. |
+| `build:release-tools` | échec de `cargo build … update-tool` | Même cause que pour le build de l'exe (clé courante absente, `Cargo.lock` pas à jour : `--locked`). |
 | `build:linux-xwin` | échec de `cargo xwin` au téléchargement | L'image n'embarque pas le SDK et le runner ne peut pas le télécharger : voir « Mode `linux-xwin` ». |
 | `test:windows` | tests DPAPI (`platform::windows`) en échec | Le compte du runner n'a pas de profil chargé ; lancer le runner sous un compte utilisateur. |
-| `sign` | `check-release : ÉCHEC : l'exe ne contient pas la clé de mise à jour courante` | L'exe ne vient pas de ce commit, ou l'activation d'`authenticode` n'a pas mis `dependencies: [authenticode]`. |
+| `sign` | `check-release : ÉCHEC : l'exe ne contient pas la clé de mise à jour courante` | L'exe ne vient pas de ce commit, ou l'activation d'`authenticode` n'a pas mis `dependencies: [authenticode, build:release-tools]`. |
+| `sign` | `dist/update-tool: not found` ou `No such file` | L'artefact de `build:release-tools` manque (job en échec, ou `dependencies` de `sign` qui ne le cite pas). |
 | `sign` | `sign : ÉCHEC : ED25519_PRIVATE_KEY : variable de la clé privée absente ou vide` | Variable absente, non protégée alors que le tag l'est, ou portée différente de `release`. |
 | `sign` | `… : clé privée illisible : 64 caractères hexadécimaux minuscules attendus` | Valeur mal collée (espace intérieur, majuscules, autre contenu). |
 | `sign` | `sign : … l'exe porte la version …` | L'exe ne porte pas la version du tag : le build ne vient pas du bon commit. |
@@ -276,13 +303,13 @@ d'elles manque ici (nom entre accents graves).
 | `XWIN_IMAGE` | image du build `linux-xwin` |
 | `JFROG_CLI_IMAGE` | image du job `publish` |
 | `RELEASE_CRITICAL` | `"false"` ; `"true"` pour une version critique, donné à la poussée du tag |
-| `MCP_PROXY_RELEASE` | `"1"` dans les jobs de build et `sign` : le build échoue sans clé courante ou avec la clé de développement (spec 020) |
+| `MCP_PROXY_RELEASE` | `"1"` dans les jobs de build (exe et `update-tool`) : le build échoue sans clé courante ou avec la clé de développement (spec 020) |
 | `JFROG_CLI_REPORT_USAGE` | `"false"` : la JFrog CLI n'envoie pas de statistiques d'usage |
 | `AUTHENTICODE_TIMESTAMP_URL` | réservée au job `.authenticode` (désactivé) : serveur d'horodatage, à créer quand la spec 028 sera faite |
 | `CARGO_HOME` | cache de cargo dans le projet, pour le cache des jobs `lint` et `test` |
 | `CARGO_TERM_COLOR` | couleurs de cargo dans les journaux |
 | `CARGO_INCREMENTAL` | `"0"` : pas de compilation incrémentale en CI |
-| `NODE_VERSION` | version de Node installée dans les jobs Linux |
+| `NODE_VERSION` | version de Node téléchargée par `lint` et `test` (jamais par un job de release) |
 | `npm_config_cache` | cache de npm dans le projet |
 
 **Internes au job `publish`** : `VERSION` (le tag sans son `v`), `HTTP_STATUS` (réponse d'Artifactory au contrôle

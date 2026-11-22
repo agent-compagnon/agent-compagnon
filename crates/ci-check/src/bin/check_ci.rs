@@ -34,7 +34,7 @@ fn main() -> ExitCode {
     let report = check(&ci, &doc, XTASK_FORMS);
     if report.problems.is_empty() {
         println!(
-            "check-ci : OK ({ci_file} : {} jobs, {} commandes cargo xtask, {} variables documentées dans {doc_file})",
+            "check-ci : OK ({ci_file} : {} jobs, {} commandes cargo xtask ou update-tool, {} variables documentées dans {doc_file})",
             report.jobs, report.commands, report.variables
         );
         return ExitCode::SUCCESS;

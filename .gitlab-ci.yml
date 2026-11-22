@@ -6,8 +6,10 @@
 # mcp-proxy/X.Y.Z/mcp-proxy.exe and mcp-proxy.exe.sig to the Artifactory repository.
 #
 # This file holds no secret, only variable names. ED25519_PRIVATE_KEY and JF_ACCESS_TOKEN are CI/CD variables of the
-# project, protected, masked and scoped to the `release` environment: only `sign` and `publish` receive them. Never
-# turn on CI_DEBUG_TRACE in this project, and never add `set -x`: both would print them.
+# project, protected, masked and scoped to the `release` environment: only `sign` and `publish` receive them, and
+# neither builds nor installs anything (`cargo xtask check-ci` refuses cargo, rustup, npm… in them): `sign` runs the
+# signing tool built by `build:release-tools`, without the key. Never turn on CI_DEBUG_TRACE in this project, and
+# never add `set -x`: both would print them. No release job downloads Node: it comes with the runner or the image.
 
 variables:
   # --- To adapt to your runners (docs/release.md, « Runners ») --------------------------------------------------
@@ -21,8 +23,9 @@ variables:
   WINDOWS_RUNNER_TAG: "windows"
   # Image of the Linux jobs: lint, test, sign.
   RUST_IMAGE: "rust:1.97.0"
-  # Image of the linux-xwin build: rustup, clang, lld, llvm, cargo-xwin, curl and xz, ideally with the MSVC CRT and
-  # the Windows SDK already downloaded (example Dockerfile in docs/release.md). Placeholder: replace it.
+  # Image of the linux-xwin build: rustup, clang, lld, llvm, cargo-xwin and Node 22 with npm (required: the release
+  # build never downloads Node), ideally with the MSVC CRT and the Windows SDK already downloaded (example Dockerfile
+  # in docs/release.md). Placeholder: replace it.
   XWIN_IMAGE: "registry.example.internal/mcp-proxy/xwin:1.97.0"
   # Image of `publish`: the JFrog CLI (`jf`), curl, cmp and a POSIX shell. Pin a tested tag or an internal mirror.
   JFROG_CLI_IMAGE: "releases-docker.jfrog.io/jfrog/jfrog-cli-v2-jf:latest"
@@ -141,6 +144,7 @@ build:windows:
       - dist/mcp-proxy.exe
     expire_in: 7 days
 
+# Node comes with XWIN_IMAGE, never downloaded here: this Node builds the interface embedded in the published exe.
 build:linux-xwin:
   stage: build
   extends: .release
@@ -150,6 +154,12 @@ build:linux-xwin:
   variables:
     # The build fails without a current release key, or with the development key (spec 020).
     MCP_PROXY_RELEASE: "1"
+  before_script:
+    - command -v node >/dev/null && command -v npm >/dev/null || { echo "XWIN_IMAGE doit contenir Node 22 et npm (voir docs/release.md), le build de release ne les télécharge pas"; exit 1; }
+    - case "$(node --version)" in v22.*) ;; *) echo "XWIN_IMAGE doit contenir Node 22, pas $(node --version)"; exit 1 ;; esac
+    - npm --version
+    - rustup toolchain install
+    - cargo --version
   script:
     - cargo xtask check-tag "$CI_COMMIT_TAG"
     - (cd ui && npm ci --no-audit --no-fund && npm run build)
@@ -161,12 +171,33 @@ build:linux-xwin:
       - dist/mcp-proxy.exe
     expire_in: 7 days
 
+# The signing tool, built here, without the release environment and so without the private key: everything cargo
+# compiles (build scripts, procedural macros of the dependencies) runs here. `sign` only runs the binary.
+build:release-tools:
+  stage: build
+  extends: .release
+  variables:
+    # update-tool embeds the keys of crates/deploy/keys/ for `verify`: same guard as the exe.
+    MCP_PROXY_RELEASE: "1"
+  before_script:
+    - rustup toolchain install
+    - cargo --version
+  script:
+    - cargo build --release --locked -p mcp-proxy-deploy --bin update-tool
+    - mkdir -p dist
+    - cp target/release/update-tool dist/update-tool
+  artifacts:
+    paths:
+      - dist/update-tool
+    expire_in: 30 days
+
 # Reserved for Authenticode (specs/028-authenticode.md), disabled: a job whose name starts with a dot never runs.
 # It sits between build and sign because Authenticode changes the exe: `sign` must hash the exe Windows will check.
 # To turn it on:
 #   1. rename `.authenticode` to `authenticode`, adapt the signtool command (certificate, timestamp server) and
 #      document its variables in docs/release.md (`cargo xtask check-ci` refuses an undocumented one);
-#   2. add `dependencies: [authenticode]` to `sign`, so that `sign` takes this job's exe, not the unsigned one of build;
+#   2. add `dependencies: [authenticode, build:release-tools]` to `sign`, so that `sign` takes this job's exe, not the
+#      unsigned one of build, and still gets the signing tool;
 #   3. on a linux-xwin pipeline, this job still needs a Windows runner (signtool), or another signing tool.
 .authenticode:
   stage: authenticode
@@ -181,23 +212,21 @@ build:linux-xwin:
       - dist/mcp-proxy.exe
     expire_in: 7 days
 
-# check-release, sign, then verify, on the exe of the previous stages. ED25519_PRIVATE_KEY is read by `cargo xtask
-# sign` from the environment, by name: it never appears on a command line nor in the log.
+# check-release, sign, then verify, on the exe of the previous stages, with the update-tool of build:release-tools (what
+# `cargo xtask check-release | sign | verify` run): no cargo, no rustup, no npm, no download in this job. The private
+# key is read by update-tool from the environment, by name: it never appears on a command line nor in the log.
 sign:
   stage: sign
   extends: .release
   environment:
     name: release
     action: prepare
-  variables:
-    MCP_PROXY_RELEASE: "1"
   before_script:
-    - rustup toolchain install
-    - cargo --version
+    - chmod +x dist/update-tool
   script:
-    - cargo xtask check-release --exe dist/mcp-proxy.exe
-    - cargo xtask sign --exe dist/mcp-proxy.exe --version "$CI_COMMIT_TAG" --critical "$RELEASE_CRITICAL" --key-env ED25519_PRIVATE_KEY
-    - cargo xtask verify --exe dist/mcp-proxy.exe
+    - dist/update-tool check-release --exe dist/mcp-proxy.exe
+    - dist/update-tool sign --exe dist/mcp-proxy.exe --version "$CI_COMMIT_TAG" --critical "$RELEASE_CRITICAL" --key-env ED25519_PRIVATE_KEY
+    - dist/update-tool verify --exe dist/mcp-proxy.exe
   artifacts:
     paths:
       - dist/mcp-proxy.exe
