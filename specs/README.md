@@ -68,7 +68,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [015](015-arret-urgence.md) | 5e | Arrêt d'urgence dans le menu de l'icône | implémentée | 007, 010, 011, 012 | 9 |
 | [016](016-ui-socle-connexions.md) | 6a | ui — socle Vue/shadcn-vue, en-tête et profil, onglet Connexions | implémentée | 011 | 10 |
 | [017](017-ui-mcp.md) | 6b | ui — onglet MCP | implémentée | 008, 016 | 12 |
-| [018](018-ui-journal.md) | 6c | ui — onglet Journal | en cours | 009, 016 | 13 |
+| [018](018-ui-journal.md) | 6c | ui — onglet Journal | implémentée | 009, 016 | 13 |
 | [019](019-installation.md) | 7a | Installation au premier lancement | prévue | 011 | 8 |
 | [020](020-updater.md) | 7b | Updater Artifactory : signature ed25519, self-replace, canal bêta | prévue | 011, 019 | 11 |
 | [021](021-pipeline-gitlab.md) | 7c | Pipeline GitLab de release | prévue | 001, 020 | 6 |
