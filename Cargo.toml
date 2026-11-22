@@ -71,3 +71,11 @@ print_stdout = "deny"
 print_stderr = "deny"
 todo = "deny"
 unimplemented = "deny"
+
+# Test binaries link the whole MCP and HTTP stack: with full debug info for dependencies, `target/` grew past 30 GB
+# and filled the disk. Line tables for our own code keep backtraces readable.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
