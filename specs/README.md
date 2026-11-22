@@ -32,6 +32,12 @@ on peut les recréer ailleurs à partir d'ici.
      `git log --grep "Spec: 003"` ;
    - *pourquoi un choix a été fait* : `DECISIONS.md`. Une décision n'est jamais réécrite : elle est marquée
      « remplacée par … ».
+6. **Le gestionnaire de tickets suit le dépôt, jamais l'inverse.** Chaque spec a un ticket (champ `suivi`) dont le
+   texte n'est qu'un pointeur vers elle. Après chaque étape poussée, l'état du ticket est aligné sur la spec :
+   - spec `implémentée` dont tous les critères sont prouvés par des tests : ticket **fermé** ;
+   - spec `implémentée` avec des critères `(manuel)` : ticket **ouvert**, avec le nombre de vérifications qui
+     restent dans `docs/recette.md` ; c'est la personne qui passe la recette qui le ferme ;
+   - autres statuts : ticket ouvert.
 
 ## Statuts
 
