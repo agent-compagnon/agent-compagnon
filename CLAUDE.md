@@ -17,8 +17,8 @@ conversation.
 
 ## Avant de dire qu'un travail est fini
 
-- `cargo xtask ci` est vert : formatage, clippy hôte, tests, clippy en cible Windows, traçabilité, puis `ui/` s'il
-  existe.
+- `cargo xtask ci` est vert : formatage, clippy hôte, tests, vérifications de `ui/` (lint, types, tests, build),
+  clippy en cible Windows (`app/` compris), traçabilité.
 - La spec concernée est à jour **dans le même commit** : comportement, critères `EX-…`, statut, et une entrée datée
   dans « Amendements » si le comportement s'écarte de ce qui était écrit.
 - Chaque critère touché est cité par un test (`// Exigence : EX-003-07`) ou, s'il est `(manuel)`, par
