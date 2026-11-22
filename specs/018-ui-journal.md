@@ -2,7 +2,7 @@
 id: "018"
 titre: "ui — onglet Journal"
 etape: "6c"
-statut: "prévue"
+statut: "en cours"
 depend_de: ["009", "016"]
 suivi: "github#19"
 ---
