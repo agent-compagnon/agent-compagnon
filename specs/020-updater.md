@@ -2,7 +2,7 @@
 id: "020"
 titre: "Updater Artifactory : signature ed25519, remplacement de l'exe, canal bêta"
 etape: "7b"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["011", "019"]
 suivi: "github#21"
 ---
