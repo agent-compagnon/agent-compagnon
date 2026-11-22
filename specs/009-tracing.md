@@ -2,7 +2,7 @@
 id: "009"
 titre: "Tracing — spans, tampon circulaire, journal fichier filtré, export de diagnostic"
 etape: "3e"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["003", "007"]
 suivi: "github#10"
 ---
@@ -47,7 +47,7 @@ Précisions de réalisation :
   valeur aussi.
 - Poids d'une entrée : taille fixe de la structure, plus ses textes, plus la longueur JSON de la requête et de la
   réponse. Les plus anciennes entrées sortent jusqu'à ce que les deux bornes tiennent. Une entrée plus lourde que
-  tout le tampon perd ses détails (son résumé l'indique) ; client, outil et résumé sont bornés à 256 octets.
+  tout le tampon perd ses détails (son résumé l'indique) ; client et outil sont bornés à 256 octets.
 - `record` ne fait aucune entrée-sortie et ne prend que le verrou court du tampon : le fichier est écrit par un fil
   dédié (voir plus bas), la diffusion passe par un canal `broadcast` qui ne bloque pas.
 
@@ -168,7 +168,7 @@ Onglet Journal (6c).
 
 ## Amendements
 
-- **2026-11-22** — Réalisation (I009.1 à I009.14). Ajouts : précisions de réalisation dans chaque section ; critères
+- **2026-11-22** — Réalisation (I009.1 à I009.15). Ajouts : précisions de réalisation dans chaque section ; critères
   `EX-009-09` à `EX-009-13`, pour ce que le texte demandait sans critère (span, changements de liste, panic, lignes
   des bibliothèques, refiltrage à l'export). Écarts : le contenu est gardé pour tous les statuts sauf `ok`,
   `input_required` et `suspended` (le texte ne citait que « erreur, bloqué, refusé ») ; les trois statuts ajoutés par

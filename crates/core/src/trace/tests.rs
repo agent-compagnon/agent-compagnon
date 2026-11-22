@@ -955,7 +955,7 @@ fn a_panic_is_journaled_with_its_location_and_filtered_message() {
     let location = std::panic::Location::caller();
     let payload: Box<dyn std::any::Any + Send> = Box::new(format!("échec : {SECRET}"));
     let (place, message) = panic::describe(Some(location), payload.as_ref());
-    assert!(place.starts_with("crates/core/src/trace/tests.rs:"), "{place}");
+    assert!(place.starts_with(&format!("{}:", file!())), "{place}");
     journal.record_panic(&place, &message);
     journal.flush().unwrap();
     let entry = journal.snapshot(&JournalFilter::default()).pop().unwrap();
@@ -964,7 +964,10 @@ fn a_panic_is_journaled_with_its_location_and_filtered_message() {
     assert_eq!(entry.summary, format!("panic à {place} : échec : {SECRET_MARKER}"));
     let file = read_logs(dir.path());
     assert!(
-        file.contains(" ERROR panic location=\"crates/core/src/trace/tests.rs:"),
+        file.contains(&format!(
+            " ERROR panic location={}",
+            serde_json::to_string(&place).unwrap()
+        )),
         "{file}"
     );
     assert_no_variant(&f.store, "log file", file.as_bytes());

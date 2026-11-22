@@ -22,8 +22,10 @@ use crate::config::{Config, Decision, EnvId, McpId, SessionId, ToolName};
 use crate::filter::{FilterReport, OutputFilter, SECRET_MARKER};
 
 const EVENT_CAPACITY: usize = 256;
-/// Longest client name, tool name or summary kept in an entry, in bytes.
+/// Longest client name, tool name or panic location kept in an entry, in bytes.
 const MAX_LABEL_BYTES: usize = 256;
+/// Longest panic message kept, in bytes.
+const MAX_MESSAGE_BYTES: usize = 4096;
 /// Longest request or response written to the log file, in bytes of JSON.
 pub const MAX_FILE_CONTENT_BYTES: usize = 64 * 1024;
 /// Tool names quoted in a tool list change entry, per kind.
@@ -310,7 +312,8 @@ impl Journal {
             summary.push_str(" (lent)");
         }
         let _ = write!(summary, ", {duration_ms} ms");
-        let summary = self.label(&summary);
+        // Made of bounded parts: not cut again, so that the status stays visible.
+        let summary = self.text(&summary);
         let details = content.then(|| CallDetails {
             call_id: record.id,
             client: client.clone(),
@@ -436,7 +439,8 @@ impl Journal {
     /// was held.
     pub fn record_panic(&self, location: &str, message: &str) {
         let location = self.label(location);
-        let message = self.label(message);
+        let mut message = self.text(message);
+        truncate(&mut message, MAX_MESSAGE_BYTES);
         let now = self.inner.clock.now();
         let line = format!(
             "{} ERROR panic location={} message={}\n",

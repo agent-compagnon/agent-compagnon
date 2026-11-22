@@ -53,7 +53,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [006](006-transports-testkit.md) | 3b | gateway — transports MCP (côté clients, côté serveurs) et testkit | implémentée | 002, 003, 005 | 13 |
 | [007](007-middlewares.md) | 3c | gateway — chaîne de middlewares | implémentée | 003, 004, 006 | 13 |
 | [008](008-mises-a-jour-serveurs.md) | 3d | gateway — mises à jour des serveurs MCP | implémentée | 005, 006, 007 | 14 |
-| [009](009-tracing.md) | 3e | Tracing — spans, tampon circulaire, journal fichier filtré, export de diagnostic | en cours | 003, 007 | 13 |
+| [009](009-tracing.md) | 3e | Tracing — spans, tampon circulaire, journal fichier filtré, export de diagnostic | implémentée | 003, 007 | 13 |
 | [010](010-auth.md) | 4 | auth — méthodes d'authentification et authentification à la demande | prévue | 002, 006, 007 | 11 |
 | [011](011-app-squelette.md) | 5a | app — squelette Tauri, pont stdio (named pipe), instance unique, tray, réglages | prévue | 001 à 010 | 11 |
 | [012](012-fenetres-login.md) | 5b | app — fenêtres de login WebView2 (JWT, cookie, Basic), profil InPrivate | prévue | 010, 011 | 10 |
