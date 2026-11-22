@@ -70,7 +70,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [017](017-ui-mcp.md) | 6b | ui — onglet MCP | implémentée | 008, 016 | 12 |
 | [018](018-ui-journal.md) | 6c | ui — onglet Journal | implémentée | 009, 016 | 13 |
 | [019](019-installation.md) | 7a | Installation au premier lancement | implémentée | 011 | 18 |
-| [020](020-updater.md) | 7b | Updater Artifactory : signature ed25519, self-replace, canal bêta | en cours | 011, 019 | 11 |
+| [020](020-updater.md) | 7b | Updater Artifactory : signature ed25519, self-replace, canal bêta | en cours | 011, 019 | 20 |
 | [021](021-pipeline-gitlab.md) | 7c | Pipeline GitLab de release | prévue | 001, 020 | 6 |
 | [022](022-desinstallation.md) | 7d | Désinstallation propre | prévue | 019 | 5 |
 | [023](023-config-clients.md) | 7e | Configuration automatique des clients LLM | prévue | 016, 019 | 8 |

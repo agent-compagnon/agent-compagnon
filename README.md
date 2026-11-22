@@ -27,6 +27,10 @@ propose de s'installer (spec 019) ; `mcp-proxy.exe --no-install` le fait tourner
 | `cargo xtask ci test` | Tests hôte, tests et build de `ui/`, traçabilité |
 | `cargo xtask icons` | Redessine les icônes de `app/icons/` (appli, zone de notification) |
 | `cargo xtask trace` | Alignement specs ↔ tests ↔ `docs/recette.md` (voir `specs/README.md`) ; `--write-index` régénère l'index des specs, `--report` affiche la matrice critère → fichiers |
+| `cargo xtask keygen --out <fichier>` | Crée une paire de clés de signature des mises à jour (spec 020) : la clé privée dans `<fichier>`, jamais affichée ; la clé publique s'affiche, à mettre dans `crates/deploy/keys/current.pub` (ou `next.pub` pour une rotation) |
+| `cargo xtask sign --exe <exe> [--version X.Y.Z] [--critical true\|false] [--key-env NOM]` | Écrit `<exe>.sig`, le manifeste signé ; clé privée lue dans `NOM` (`ED25519_PRIVATE_KEY` par défaut), jamais affichée |
+| `cargo xtask verify --exe <exe> [--sig <fichier>] [--public-key <hex>]` | Vérifie un manifeste et son exe avec ces clés, sinon avec les clés embarquées |
+| `cargo xtask check-release [--exe <exe>]` | Refuse la clé de développement et l'absence de clé courante ; avec `--exe`, vérifie l'exe construit. Le build avec `MCP_PROXY_RELEASE=1` fait le même contrôle de clés |
 | `cargo test -p mcp-proxy-core` | Tests du core, dont la validation de la config embarquée |
 | `cd ui && npm run dev` | Interface dans un navigateur, avec le backend simulé (`?scenario=sessions`, `premier-lancement`, … : `ui/src/api/mock.ts` ; fenêtre d'installation : `install.html?scenario=mise-a-jour`, … : `ui/src/install/mock.ts`) |
 | `cd ui && npm run e2e` | Tests Playwright de l'interface sur `vite preview` du backend simulé, hors `cargo xtask ci` ; `CAPTURES_DIR=…` y ajoute les captures |
@@ -40,7 +44,7 @@ propose de s'installer (spec 019) ; `mcp-proxy.exe --no-install` le fait tourner
 crates/core              mcp-proxy-core       config (étape 1), secrets en mémoire (2a) ; filtre, politiques… à venir
 crates/auth              mcp-proxy-auth       méthodes d'authentification (étape 4)
 crates/gateway           mcp-proxy-gateway    registre, amont, middlewares, serveur MCP, pont, vue, assemblage
-crates/deploy            mcp-proxy-deploy     installation (7a) ; désinstallation, updater à venir
+crates/deploy            mcp-proxy-deploy     installation (7a), updater (7b, clés dans keys/) ; désinstallation à venir
 crates/testkit           mcp-proxy-testkit    faux MCP, faux SSO, faux Artifactory (étape 3b)
 crates/modules/jira-local                     module MCP local Jira (étape 8)
 app/                     mcp-proxy            appli Tauri et pont stdio, Windows uniquement, câblage seulement (5a)

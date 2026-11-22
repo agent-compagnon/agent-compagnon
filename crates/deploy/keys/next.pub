@@ -1,0 +1,3 @@
+# Clé publique de mise à jour, emplacement « suivante » (spec 020) : 64 caractères hexadécimaux sur une ligne, ou
+# rien. Sert à la rotation : une version publiée embarque ici la future clé, puis les versions suivantes sont
+# signées avec elle et elle passe dans `current.pub` (procédure dans `docs/release.md`, spec 021).

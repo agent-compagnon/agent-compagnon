@@ -25,7 +25,16 @@ commands:
   icons                 draw the icons of app/icons/ (application, notification area)
   snapshot-catalog --url <url> --out config/catalog/<mcp>.json [--header-env NAME]
                         write the tools of an MCP server as an embedded catalogue snapshot; the bearer token, if
-                        any, is read from the environment variable NAME and never printed";
+                        any, is read from the environment variable NAME and never printed
+  keygen --out <file>   create an update signing key pair: the private key in <file> (which must not exist), the
+                        public key printed, for crates/deploy/keys/current.pub or next.pub
+  sign --exe <exe> [--version X.Y.Z] [--critical true|false] [--key-env NAME] [--out <file>]
+                        write <exe>.sig, the signed manifest of spec 020; the private key is read from NAME
+                        (ED25519_PRIVATE_KEY by default) and never printed
+  verify --exe <exe> [--sig <file>] [--public-key <hex>]...
+                        check a manifest and its exe with these keys, or with the embedded ones
+  check-release [--exe <exe>]
+                        refuse the development key and a missing current key; with --exe, check the built exe";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Group {
@@ -171,25 +180,21 @@ fn print_summary(done: &[(String, Duration)], total: Duration) {
     println!("  total                {}", format_duration(total));
 }
 
-/// Delegates to the `snapshot-catalog` binary of the gateway crate, which has the MCP client: xtask stays light.
-fn snapshot_catalog(args: &[&str]) -> ExitCode {
+/// Runs a binary of a crate of the workspace, which has the dependencies xtask goes without (MCP client,
+/// cryptography): xtask stays light. Its exit code is passed on.
+fn delegate(package: &str, bin: &str, args: &[&str]) -> ExitCode {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
     let status = Command::new(cargo)
-        .args([
-            "run",
-            "--quiet",
-            "--package",
-            "mcp-proxy-gateway",
-            "--bin",
-            "snapshot-catalog",
-            "--",
-        ])
+        .args(["run", "--quiet", "--package", package, "--bin", bin, "--"])
         .args(args)
         .current_dir(workspace_root())
         .status();
     match status {
         Ok(status) if status.success() => ExitCode::SUCCESS,
-        Ok(_) => ExitCode::FAILURE,
+        Ok(status) => status
+            .code()
+            .and_then(|c| u8::try_from(c).ok())
+            .map_or(ExitCode::FAILURE, ExitCode::from),
         Err(e) => {
             eprintln!("lancement impossible : {e}");
             ExitCode::FAILURE
@@ -207,7 +212,11 @@ fn main() -> ExitCode {
         ["trace"] => trace::run(&workspace_root(), trace::Mode::Check),
         ["trace", "--write-index"] => trace::run(&workspace_root(), trace::Mode::WriteIndex),
         ["trace", "--report"] => trace::run(&workspace_root(), trace::Mode::Report),
-        ["snapshot-catalog", rest @ ..] => snapshot_catalog(rest),
+        ["snapshot-catalog", rest @ ..] => delegate("mcp-proxy-gateway", "snapshot-catalog", rest),
+        [command @ ("keygen" | "sign" | "verify" | "check-release"), rest @ ..] => {
+            let args: Vec<&str> = std::iter::once(*command).chain(rest.iter().copied()).collect();
+            delegate("mcp-proxy-deploy", "update-tool", &args)
+        }
         ["icons"] => match icons::write_all(&workspace_root().join("app").join("icons")) {
             Ok(names) => {
                 println!("app/icons : {}", names.join(", "));

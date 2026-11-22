@@ -1,0 +1,5 @@
+# Clé publique de DÉVELOPPEMENT (spec 020), dont la clé privée est publique : sa graine est dans le testkit
+# (`mcp_proxy_testkit::DEV_SIGNING_SEED`). Elle ne sert qu'aux tests, qui la passent eux-mêmes à l'updater. Tout
+# build échoue si elle figure dans `current.pub` ou `next.pub`, l'exe l'écarte s'il la trouvait quand même, et
+# `cargo xtask check-release --exe …` refuse un exe qui contient ses octets.
+8f4d6578a8e95e6b17957e2a71f6147db8bc74d04ea7b75199db7578d4c5d57a

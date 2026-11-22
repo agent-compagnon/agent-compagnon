@@ -1,6 +1,7 @@
 //! An in-memory [`SystemOps`] for tests: files, directories, the shortcut, the `Run` value, the running instance and
 //! launched processes, with every operation recorded in order and a failure injectable at any of them. Meant for the
-//! tests of this crate and of the specs that reuse the trait (updater, uninstallation).
+//! tests of this crate and of the specs that reuse the trait (updater, uninstallation). [`FakeReplacer`] stands for
+//! the replacement of the exe in the tests of the updater.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
@@ -8,7 +9,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use crate::ops::{OpError, Shortcut, Stopped, SystemOps};
-use crate::version::{Installed, version_in};
+use crate::update::{ExeReplacer, ReplaceError, VerifiedExe};
+use crate::version::{Installed, Version, version_in};
 
 /// An operation that changes something, as recorded.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,6 +20,7 @@ pub enum Op {
     Copy { from: PathBuf, to: PathBuf },
     Rename { from: PathBuf, to: PathBuf },
     RemoveFile(PathBuf),
+    RemoveDirAll(PathBuf),
     WriteShortcut(PathBuf),
     SetRun(String),
     RemoveRun,
@@ -220,6 +223,37 @@ impl SystemOps for FakeSystem {
         })
     }
 
+    fn read(&self, path: &Path) -> Result<Vec<u8>, OpError> {
+        self.state().world.files.get(path).cloned().ok_or_else(not_found)
+    }
+
+    fn entries(&self, dir: &Path) -> Result<Vec<PathBuf>, OpError> {
+        let state = self.state();
+        if !state.world.has_dir(dir) {
+            return Err(not_found());
+        }
+        let child = |p: &&PathBuf| p.parent() == Some(dir);
+        Ok(state
+            .world
+            .files
+            .keys()
+            .filter(child)
+            .chain(state.world.dirs.iter().filter(child))
+            .cloned()
+            .collect())
+    }
+
+    fn remove_dir_all(&self, path: &Path) -> Result<(), OpError> {
+        self.apply(Op::RemoveDirAll(path.to_path_buf()), |w| {
+            if !w.has_dir(path) {
+                return Err(not_found());
+            }
+            w.files.retain(|p, _| !p.starts_with(path));
+            w.dirs.retain(|p| !p.starts_with(path));
+            Ok(())
+        })
+    }
+
     fn write_shortcut(&self, shortcut: &Shortcut) -> Result<(), OpError> {
         self.apply(Op::WriteShortcut(shortcut.path.clone()), |w| {
             if !w.parent_exists(&shortcut.path) || !w.files.contains_key(&shortcut.target) {
@@ -280,5 +314,66 @@ impl SystemOps for FakeSystem {
             self.state().launched.push((exe.to_path_buf(), args));
         }
         launched
+    }
+}
+
+/// An [`ExeReplacer`] that records what it is asked to put in place: the version, and the bytes found at the
+/// verified path at the time of the call. Once it succeeds, the installed version is the new one.
+#[derive(Debug)]
+pub struct FakeReplacer {
+    state: Mutex<ReplacerState>,
+}
+
+#[derive(Debug)]
+struct ReplacerState {
+    installed: Installed,
+    failure: Option<ReplaceError>,
+    calls: Vec<(Version, Vec<u8>)>,
+}
+
+impl FakeReplacer {
+    pub fn new(installed: Version) -> Self {
+        Self {
+            state: Mutex::new(ReplacerState {
+                installed: Installed::Known(installed),
+                failure: None,
+                calls: Vec::new(),
+            }),
+        }
+    }
+
+    fn state(&self) -> MutexGuard<'_, ReplacerState> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Every call, in order: version and bytes of the verified exe.
+    pub fn calls(&self) -> Vec<(Version, Vec<u8>)> {
+        self.state().calls.clone()
+    }
+
+    pub fn set_installed(&self, installed: Installed) {
+        self.state().installed = installed;
+    }
+
+    /// Every later call fails with `error`.
+    pub fn fail_with(&self, error: ReplaceError) {
+        self.state().failure = Some(error);
+    }
+}
+
+impl ExeReplacer for FakeReplacer {
+    fn installed(&self) -> Installed {
+        self.state().installed.clone()
+    }
+
+    fn replace(&self, verified: &VerifiedExe) -> Result<(), ReplaceError> {
+        let bytes = std::fs::read(&verified.path).unwrap_or_default();
+        let mut state = self.state();
+        state.calls.push((verified.version.clone(), bytes));
+        if let Some(error) = state.failure.clone() {
+            return Err(error);
+        }
+        state.installed = Installed::Known(verified.version.clone());
+        Ok(())
     }
 }

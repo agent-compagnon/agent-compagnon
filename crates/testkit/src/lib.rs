@@ -1,5 +1,6 @@
 //! Test doubles: fake MCP servers, fake SSO, fake Jira, fake Artifactory.
 
+mod artifactory;
 mod auth;
 mod catalog;
 mod confirm;
@@ -10,6 +11,7 @@ mod session;
 mod sso;
 mod trace;
 
+pub use artifactory::{ArtifactoryRequest, DEV_SIGNING_SEED, FakeArtifactory, Served};
 pub use auth::{FakeAuthUi, FakeBasicServer, FakeWindow};
 pub use catalog::{catalog_tools, test_tools};
 pub use confirm::FakeConfirmationBroker;

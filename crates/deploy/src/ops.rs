@@ -132,6 +132,24 @@ pub trait SystemOps: Send + Sync {
         Ok(std::fs::remove_file(path)?)
     }
 
+    /// The whole content of a file.
+    fn read(&self, path: &Path) -> Result<Vec<u8>, OpError> {
+        Ok(std::fs::read(path)?)
+    }
+
+    /// The entries of a directory, in no particular order.
+    fn entries(&self, dir: &Path) -> Result<Vec<PathBuf>, OpError> {
+        std::fs::read_dir(dir)?
+            .map(|entry| Ok(entry?.path()))
+            .collect::<Result<_, std::io::Error>>()
+            .map_err(OpError::from)
+    }
+
+    /// A directory and everything in it.
+    fn remove_dir_all(&self, path: &Path) -> Result<(), OpError> {
+        Ok(std::fs::remove_dir_all(path)?)
+    }
+
     /// Writes the shortcut whole or not at all (temporary file then rename), replacing an existing one.
     fn write_shortcut(&self, shortcut: &Shortcut) -> Result<(), OpError>;
 

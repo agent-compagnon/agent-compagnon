@@ -4,4 +4,5 @@
 pub mod fake;
 pub mod install;
 pub mod ops;
+pub mod update;
 pub mod version;

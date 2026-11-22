@@ -33,6 +33,7 @@ async-trait = "0.1.89"
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
 base64 = "0.23.1"
 chacha20poly1305 = { version = "0.11.0", default-features = false, features = ["alloc", "zeroize"] }
+ed25519-dalek = "3.0.0"
 flate2 = { version = "1.1.11", default-features = false, features = ["rust_backend"] }
 futures = "0.3.31"
 getrandom = "0.4.3"

@@ -101,6 +101,24 @@ Dans cet ordre ; le moindre échec abandonne la mise à jour et supprime les fic
 - **EX-020-05** — Garde de la clé de développement.
 - **EX-020-06** — Indicateur critique : redémarrage différé tant qu'un appel est en cours.
 - **EX-020-07** — Bout en bout avec `FakeArtifactory` jusqu'à l'appel du faux `ExeReplacer`.
+- **EX-020-12** — Téléchargement anonyme : aucun en-tête d'authentification, de cookie ni `Referer` ; HTTPS seulement
+  (HTTP vers la boucle locale seulement) ; redirection suivie dans la même origine seulement, chaîne bornée ; taille
+  bornée, annoncée ou reçue ; coupure détectée.
+- **EX-020-13** — Remplacement par renommage (faux système, vrais fichiers) : ordre des opérations ; un échec à chaque
+  étape laisse l'exe installé tel quel et retire la copie ; une copie différente de l'exe vérifié n'est jamais mise
+  en place ; un ancien exe impossible à remettre est nommé.
+- **EX-020-14** — Nettoyage au démarrage : `.old`, `.new`, `.__relocated__.exe`, `.__selfdelete__.exe` et tout
+  `update\` sont retirés, le reste est intact, le journal ne donne que des nombres.
+- **EX-020-15** — `keygen`, `sign`, `verify` : cycle complet ; la clé privée n'apparaît jamais dans ce que l'outil
+  affiche, erreurs comprises ; `keygen` n'écrase rien et crée un fichier lisible du seul utilisateur ; `sign` contrôle
+  la version de l'exe ; arguments stricts.
+- **EX-020-16** — Planification (horloge injectée) : première vérification après une minute, puis toutes les
+  `check_interval_hours` ; cocher « Recevoir les préversions » relance une vérification ; un échec n'apparaît que dans
+  le journal, sans adresse ni chemin.
+- **EX-020-17** — État `UpdateReady { version, critical }` dans l'instantané (contrat avec l'interface), notification
+  de mise à jour prête ; la commande de redémarrage est refusée sans mise à jour prête.
+- **EX-020-18** — Interface (navigateur, backend simulé) : bouton « Redémarrer pour mettre à jour » actif, dialogue qui
+  prévient que les connexions seront fermées, état critique ; en clair et en sombre.
 
 ## Vérification
 
@@ -113,6 +131,10 @@ Dans cet ordre ; le moindre échec abandonne la mise à jour et supprime les fic
 - **EX-020-09** (manuel) — Un `.sig` altéré, ou un exe remplacé : aucune mise à jour, entrée dans le journal.
 - **EX-020-10** (manuel) — Un ancien exe republié sous un numéro plus élevé : refusé.
 - **EX-020-11** (manuel) — Préversion publiée : ignorée par défaut, proposée après avoir coché « Recevoir les préversions ».
+- **EX-020-19** (manuel) — Release critique : notification qui annonce le redémarrage et la reconnexion ; redémarrage
+  automatique seulement une fois les appels, connexions et confirmations en cours terminés.
+- **EX-020-20** (manuel) — Mise à jour pendant qu'un client LLM tient l'exe installé (pont) : le remplacement réussit,
+  le client continue, et `mcp-proxy.exe.old` disparaît à un démarrage suivant, une fois le pont fermé.
 
 ## Hors périmètre
 

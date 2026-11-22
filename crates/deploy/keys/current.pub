@@ -1,0 +1,6 @@
+# Clé publique de mise à jour, emplacement « courante » (spec 020) : 64 caractères hexadécimaux sur une ligne, ou
+# rien. C'est la clé qui signe les versions publiées. `cargo xtask keygen` en crée une paire.
+#
+# Vide dans le dépôt : aucune clé de release n'a encore été créée (spec 021). Tant qu'aucun emplacement n'est rempli,
+# l'exe ne se met jamais à jour, et `cargo xtask check-release` comme le build de release (`MCP_PROXY_RELEASE=1`)
+# échouent. La clé de développement (`dev.pub`) n'a rien à faire ici : tout build échoue si elle y figure.
