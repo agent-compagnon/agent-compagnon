@@ -1,0 +1,77 @@
+# [Étape 5c] app — notifications Windows et confirmations
+
+> Référence commune : `00-cadrage.md`. Dépend de : étapes 3c, 5a, 5b.
+
+## Objectif
+
+Prévenir l'utilisateur quand un LLM attend une connexion, et lui faire valider hors du chat les appels soumis à
+confirmation. Sans réponse, c'est un refus.
+
+## À faire
+
+### Identité de l'appli pour les toasts
+
+- Au démarrage : enregistrer l'AUMID sous `HKCU\Software\Classes\AppUserModelId\McpProxy.Desktop` (`DisplayName`,
+  `IconUri`) et appeler `SetCurrentProcessExplicitAppUserModelID`. Idempotent, sans droits admin, et sans dépendre
+  du raccourci du menu Démarrer.
+
+### Service de toasts
+
+- `tauri-winrt-notification` pour l'affichage et les boutons (`add_button(texte, action)`,
+  `on_activated(Fn(Option<String>))`, `on_dismissed`). Le crate `windows` pour ce qu'il ne couvre pas : savoir si
+  les toasts sont activés (`ToastNotifier::Setting`) et retirer un toast.
+- Trois usages :
+  - **Connexion demandée** : « Claude Desktop attend une connexion à SSO PROD ». Le clic met la fenêtre de login au
+    premier plan.
+  - **Confirmation** : voir ci-dessous.
+  - **Information** : mise à jour prête, MCP mis à jour, réglages réinitialisés.
+
+### Confirmation
+
+- Contenu : chemin (`PROD / kibana-logs / delete_index`), client, arguments **filtrés**.
+- Si les arguments tiennent entièrement dans le toast : boutons « Refuser » et « Autoriser une fois ».
+- S'ils seraient tronqués : boutons « Refuser » et « Voir le détail ». On n'approuve jamais ce qu'on n'a pas pu
+  lire.
+- Le toast reste affiché jusqu'à la décision ou l'échéance (`scenario` rappel). À l'échéance, il est retiré.
+- **Toasts désactivés** (Ne pas déranger, stratégie d'entreprise) : pas de toast, la fenêtre de détail s'ouvre
+  directement et l'icône passe à l'orange.
+- Fenêtre de détail : fenêtre locale, au premier plan. Elle montre le chemin, le client, l'explication de la
+  politique, les arguments complets filtrés, le compte à rebours, et les boutons « Refuser » et « Autoriser une
+  fois ». La fermer vaut refus.
+
+### `ConfirmationBroker`
+
+- `PendingConfirmations` : registre des demandes en attente, dans un crate, testé sous Linux. Une demande se résout
+  une seule fois, par la première réponse reçue (bouton du toast, fenêtre de détail, bandeau de l'interface).
+  Échéance → `TimedOut`. Tout cas imprévu → refus.
+- L'appli se contente d'afficher et de transmettre la réponse.
+- Les demandes en attente figurent dans `AppSnapshot` : bandeau orange dans l'interface, icône orange.
+
+### Raccordement
+
+- `AuthUi::notify_login_needed` → toast « Connexion demandée ».
+- `ConfirmationBroker` branché dans la chaîne de middlewares à la place du provisoire de 5a.
+
+## Tests (sous Linux)
+
+- `PendingConfirmations` : approbation, refus, échéance, double réponse (la seconde est ignorée), demande inconnue,
+  arrêt de l'appli avec des demandes en attente (toutes refusées).
+- Règle « tient dans le toast » : arguments courts, longs, multi-lignes.
+- Les textes du toast et de la fenêtre sont construits à partir d'arguments déjà filtrés (valeur sentinelle).
+
+## Vérification
+
+`cargo xtask ci` vert.
+
+## Recette manuelle (Windows)
+
+- Un appel qui exige une connexion affiche le toast ; le clic amène la fenêtre de login devant.
+- Arguments courts : « Autoriser une fois » laisse passer l'appel ; « Refuser » renvoie le refus au LLM.
+- Arguments longs : le toast propose « Voir le détail » ; la fenêtre montre tout ; la fermer refuse.
+- Sans réponse pendant 30 s : refus, toast retiré.
+- Avec « Ne pas déranger » activé : la fenêtre de détail s'ouvre seule.
+- L'icône est orange tant qu'une demande attend, puis redevient neutre.
+
+## Hors périmètre
+
+Canal elicitation (fait en 3c). Bandeaux de l'interface (6a).
