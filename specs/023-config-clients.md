@@ -2,7 +2,7 @@
 id: "023"
 titre: "Configuration automatique des clients LLM"
 etape: "7e"
-statut: "prévue"
+statut: "en cours"
 depend_de: ["016", "019"]
 suivi: "github#24"
 ---
