@@ -2,7 +2,7 @@
 id: "020"
 titre: "Updater Artifactory : signature ed25519, self-replace, canal bêta"
 etape: "7b"
-statut: "prévue"
+statut: "en cours"
 depend_de: ["011", "019"]
 suivi: "github#21"
 ---
