@@ -2,7 +2,7 @@
 id: "013"
 titre: "app — notifications Windows et confirmations"
 etape: "5c"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["007", "011", "012"]
 suivi: "github#14"
 ---
