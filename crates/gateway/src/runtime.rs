@@ -379,6 +379,19 @@ impl Gateway {
         let _ = self.changes.send(());
     }
 
+    /// Withdraws the banners of `kind`, once what they asked for is done.
+    pub fn remove_alerts(&self, kind: AlertKind) {
+        let removed = {
+            let mut alerts = self.alerts.lock().unwrap_or_else(PoisonError::into_inner);
+            let before = alerts.len();
+            alerts.retain(|a| a.kind != kind);
+            alerts.len() != before
+        };
+        if removed {
+            let _ = self.changes.send(());
+        }
+    }
+
     /// What the interface shows, unfiltered: for the icon, which only reads its status.
     pub async fn snapshot(&self) -> AppSnapshot {
         let registry = self.registry.read().await;
@@ -395,6 +408,7 @@ impl Gateway {
             updates: &tracker.pending(),
             pending_confirmations: self.confirmations.pending().count(),
             alerts: &alerts,
+            login_requesters: &self.authenticator.login_requesters(),
             utc_offset: self.utc_offset,
         })
     }

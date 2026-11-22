@@ -38,7 +38,8 @@ Donner à l'utilisateur deux gestes immédiats quand quelque chose lui paraît a
 - L'icône prend un état visible : `AppStatus::Suspended` (icône grise marquée d'une pause), prioritaire sur
   « attention » et « erreur », infobulle « MCP Proxy — passerelle suspendue » suivie des autres éléments.
 - Le bandeau de l'interface avec le bouton « Reprendre » est dessiné par la spec 016 à partir de
-  `AppSnapshot::gateway_suspended` ; en attendant, l'élément du menu de l'icône devient « Reprendre ».
+  `AppSnapshot::gateway_suspended` (commande `resume_gateway`, qui appelle `GatewayControl::resume`) ; l'élément du
+  menu de l'icône devient aussi « Reprendre ».
 
 ### « Tout déconnecter »
 
@@ -58,8 +59,8 @@ Donner à l'utilisateur deux gestes immédiats quand quelque chose lui paraît a
 
 ### Menu
 
-« Ouvrir », « Profil » (sous-menu provisoire de la spec 014), « Suspendre la passerelle » ou « Reprendre », « Tout
-déconnecter », « Quitter ».
+« Ouvrir », « Suspendre la passerelle » ou « Reprendre », « Tout déconnecter », « Quitter ». (Le sous-menu
+provisoire « Profil » de la spec 014 est retiré par la spec 016, qui choisit le profil dans la fenêtre.)
 
 - La logique (`GatewayControl::suspend`, `resume`, `disconnect_all`) vit dans les crates ; l'appli ne fait que
   l'appeler. `GatewayControl` est un trait de `mcp_proxy_gateway::control`, implémenté par `Gateway`. Suspendre une
@@ -98,3 +99,6 @@ déconnecter », « Quitter ».
   (I015.6), alerte en cas d'échec d'enregistrement. Le bandeau « Reprendre » de l'interface est reporté à la
   spec 016, qui dispose déjà de `gatewaySuspended` ; le menu de l'icône garde le sous-menu « Profil » de la
   spec 014. Ajouté : `EX-015-09` (état de l'icône). Aucun critère retiré.
+- **2026-11-22** — Spec 016 : le menu de l'icône perd le sous-menu « Profil » (le profil se choisit dans la
+  fenêtre) ; le bandeau « passerelle suspendue » de la fenêtre offre « Reprendre » (`resume_gateway`), et l'élément du
+  menu suit l'état quelle que soit l'origine du changement. Comportement et critères de la 015 inchangés.

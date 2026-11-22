@@ -3,6 +3,7 @@
 pub mod bridge;
 pub mod control;
 mod convert;
+pub mod interface;
 pub mod journal;
 pub mod launch;
 pub mod modules;

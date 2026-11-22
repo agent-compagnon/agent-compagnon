@@ -241,6 +241,11 @@ impl PendingConfirmations {
         self.lock().entries.get(&id).map(|e| e.request.clone())
     }
 
+    /// The waiting requests, oldest first.
+    pub fn waiting(&self) -> Vec<ConfirmationId> {
+        self.lock().entries.keys().copied().collect()
+    }
+
     pub fn count(&self) -> usize {
         self.lock().entries.len()
     }

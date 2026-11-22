@@ -1,0 +1,1543 @@
+{
+  "version": "0.1.0",
+  "status": "attention",
+  "tooltip": "MCP Proxy — 2 connexions attendent, 1 confirmation attend, 1 erreur",
+  "profile": {
+    "chosen": "developpeur",
+    "active": "developpeur",
+    "firstLaunch": false,
+    "choices": [
+      {
+        "id": "developpeur",
+        "label": "Développeur",
+        "description": "Pour développer et tester hors production ; toute action destructive est confirmée.",
+        "strictest": false,
+        "defaultEnvironments": [
+          "dev",
+          "int",
+          "rec"
+        ]
+      },
+      {
+        "id": "lecture-seule",
+        "label": "Lecture seule",
+        "description": "Pour consulter sans risque : aucune écriture, aucune suppression.",
+        "strictest": true,
+        "defaultEnvironments": [
+          "rec"
+        ]
+      },
+      {
+        "id": "support",
+        "label": "Support",
+        "description": "Pour diagnostiquer jusqu'en production ; chaque écriture en production est confirmée.",
+        "strictest": false,
+        "defaultEnvironments": [
+          "rec",
+          "pprod",
+          "prod"
+        ]
+      }
+    ]
+  },
+  "environments": [
+    {
+      "id": "dev",
+      "label": "DEV",
+      "description": "Développement",
+      "sensitive": false,
+      "exposed": true
+    },
+    {
+      "id": "int",
+      "label": "INT",
+      "description": "Intégration",
+      "sensitive": false,
+      "exposed": true
+    },
+    {
+      "id": "qua",
+      "label": "QUA",
+      "description": "Qualification",
+      "sensitive": false,
+      "exposed": false
+    },
+    {
+      "id": "rec",
+      "label": "REC",
+      "description": "Recette",
+      "sensitive": false,
+      "exposed": true
+    },
+    {
+      "id": "perf",
+      "label": "PERF",
+      "description": "Performance",
+      "sensitive": false,
+      "exposed": false
+    },
+    {
+      "id": "pprod",
+      "label": "PPROD",
+      "description": "Préproduction",
+      "sensitive": true,
+      "exposed": false
+    },
+    {
+      "id": "prod",
+      "label": "PROD",
+      "description": "Production",
+      "sensitive": true,
+      "exposed": true
+    },
+    {
+      "id": "pra",
+      "label": "PRA",
+      "description": "Plan de reprise d'activité",
+      "sensitive": true,
+      "exposed": false
+    }
+  ],
+  "sessions": [
+    {
+      "id": "sso-corp",
+      "label": "SSO Entreprise",
+      "environment": null,
+      "method": "jwtHeader",
+      "state": {
+        "kind": "active",
+        "label": "active jusqu'à 17:00",
+        "at": 1795366800000,
+        "requestedBy": null
+      },
+      "services": [
+        {
+          "environment": "dev",
+          "mcp": "gitlab-ops"
+        },
+        {
+          "environment": "int",
+          "mcp": "db-readonly"
+        },
+        {
+          "environment": "pprod",
+          "mcp": "db-readonly"
+        },
+        {
+          "environment": "prod",
+          "mcp": "db-readonly"
+        },
+        {
+          "environment": "prod",
+          "mcp": "gitlab-ops"
+        },
+        {
+          "environment": "rec",
+          "mcp": "db-readonly"
+        },
+        {
+          "environment": "rec",
+          "mcp": "gitlab-ops"
+        }
+      ]
+    },
+    {
+      "id": "sso-tools",
+      "label": "SSO Outils",
+      "environment": null,
+      "method": "basic",
+      "state": {
+        "kind": "loginRequested",
+        "label": "connexion demandée",
+        "at": 1795355980000,
+        "requestedBy": "Claude Desktop"
+      },
+      "services": [
+        {
+          "environment": "prod",
+          "mcp": "jira"
+        },
+        {
+          "environment": "rec",
+          "mcp": "jira"
+        }
+      ]
+    },
+    {
+      "id": "sso-dev",
+      "label": "SSO DEV",
+      "environment": "dev",
+      "method": "cookie",
+      "state": {
+        "kind": "expired",
+        "label": "expirée",
+        "at": null,
+        "requestedBy": null
+      },
+      "services": [
+        {
+          "environment": "dev",
+          "mcp": "k8s-admin"
+        },
+        {
+          "environment": "dev",
+          "mcp": "kibana-logs"
+        }
+      ]
+    },
+    {
+      "id": "sso-int",
+      "label": "SSO INT",
+      "environment": "int",
+      "method": "cookie",
+      "state": {
+        "kind": "loginRequested",
+        "label": "connexion demandée",
+        "at": 1795355995000,
+        "requestedBy": null
+      },
+      "services": [
+        {
+          "environment": "int",
+          "mcp": "k8s-admin"
+        },
+        {
+          "environment": "int",
+          "mcp": "kibana-logs"
+        }
+      ]
+    },
+    {
+      "id": "sso-qua",
+      "label": "SSO QUA",
+      "environment": "qua",
+      "method": "cookie",
+      "state": {
+        "kind": "neverConnected",
+        "label": "jamais connectée",
+        "at": null,
+        "requestedBy": null
+      },
+      "services": [
+        {
+          "environment": "qua",
+          "mcp": "kibana-logs"
+        }
+      ]
+    },
+    {
+      "id": "sso-rec",
+      "label": "SSO REC",
+      "environment": "rec",
+      "method": "cookie",
+      "state": {
+        "kind": "neverConnected",
+        "label": "jamais connectée",
+        "at": null,
+        "requestedBy": null
+      },
+      "services": [
+        {
+          "environment": "rec",
+          "mcp": "k8s-admin"
+        },
+        {
+          "environment": "rec",
+          "mcp": "kibana-logs"
+        }
+      ]
+    },
+    {
+      "id": "sso-perf",
+      "label": "SSO PERF",
+      "environment": "perf",
+      "method": "cookie",
+      "state": {
+        "kind": "neverConnected",
+        "label": "jamais connectée",
+        "at": null,
+        "requestedBy": null
+      },
+      "services": [
+        {
+          "environment": "perf",
+          "mcp": "k8s-admin"
+        },
+        {
+          "environment": "perf",
+          "mcp": "kibana-logs"
+        }
+      ]
+    },
+    {
+      "id": "sso-pprod",
+      "label": "SSO PPROD",
+      "environment": "pprod",
+      "method": "cookie",
+      "state": {
+        "kind": "neverConnected",
+        "label": "jamais connectée",
+        "at": null,
+        "requestedBy": null
+      },
+      "services": [
+        {
+          "environment": "pprod",
+          "mcp": "k8s-admin"
+        },
+        {
+          "environment": "pprod",
+          "mcp": "kibana-logs"
+        }
+      ]
+    },
+    {
+      "id": "sso-prod",
+      "label": "SSO PROD",
+      "environment": "prod",
+      "method": "cookie",
+      "state": {
+        "kind": "neverConnected",
+        "label": "jamais connectée",
+        "at": null,
+        "requestedBy": null
+      },
+      "services": [
+        {
+          "environment": "prod",
+          "mcp": "k8s-admin"
+        },
+        {
+          "environment": "prod",
+          "mcp": "kibana-logs"
+        }
+      ]
+    },
+    {
+      "id": "sso-pra",
+      "label": "SSO PRA",
+      "environment": "pra",
+      "method": "cookie",
+      "state": {
+        "kind": "neverConnected",
+        "label": "jamais connectée",
+        "at": null,
+        "requestedBy": null
+      },
+      "services": [
+        {
+          "environment": "pra",
+          "mcp": "k8s-admin"
+        },
+        {
+          "environment": "pra",
+          "mcp": "kibana-logs"
+        }
+      ]
+    }
+  ],
+  "mcps": [
+    {
+      "id": "kibana-logs",
+      "alias": "kibana",
+      "label": "Kibana Logs",
+      "local": false,
+      "disabled": false,
+      "instances": [
+        {
+          "environment": "dev",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "dev_kibana_delete_index",
+              "name": "delete_index",
+              "title": "DEV · Kibana Logs · delete_index",
+              "category": "destructive",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "dev_kibana_get_log_entry",
+              "name": "get_log_entry",
+              "title": "DEV · Kibana Logs · get_log_entry",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "dev_kibana_list_indices",
+              "name": "list_indices",
+              "title": "DEV · Kibana Logs · list_indices",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "dev_kibana_search_logs",
+              "name": "search_logs",
+              "title": "DEV · Kibana Logs · search_logs",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "int",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "int_kibana_delete_index",
+              "name": "delete_index",
+              "title": "INT · Kibana Logs · delete_index",
+              "category": "destructive",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "int_kibana_get_log_entry",
+              "name": "get_log_entry",
+              "title": "INT · Kibana Logs · get_log_entry",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "int_kibana_list_indices",
+              "name": "list_indices",
+              "title": "INT · Kibana Logs · list_indices",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "int_kibana_search_logs",
+              "name": "search_logs",
+              "title": "INT · Kibana Logs · search_logs",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "qua",
+          "exposed": false,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "qua_kibana_delete_index",
+              "name": "delete_index",
+              "title": "QUA · Kibana Logs · delete_index",
+              "category": "destructive",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "qua_kibana_get_log_entry",
+              "name": "get_log_entry",
+              "title": "QUA · Kibana Logs · get_log_entry",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "qua_kibana_list_indices",
+              "name": "list_indices",
+              "title": "QUA · Kibana Logs · list_indices",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "qua_kibana_search_logs",
+              "name": "search_logs",
+              "title": "QUA · Kibana Logs · search_logs",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "rec",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "rec_kibana_delete_index",
+              "name": "delete_index",
+              "title": "REC · Kibana Logs · delete_index",
+              "category": "destructive",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_kibana_get_log_entry",
+              "name": "get_log_entry",
+              "title": "REC · Kibana Logs · get_log_entry",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_kibana_list_indices",
+              "name": "list_indices",
+              "title": "REC · Kibana Logs · list_indices",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_kibana_search_logs",
+              "name": "search_logs",
+              "title": "REC · Kibana Logs · search_logs",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "perf",
+          "exposed": false,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "perf_kibana_delete_index",
+              "name": "delete_index",
+              "title": "PERF · Kibana Logs · delete_index",
+              "category": "destructive",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "perf_kibana_get_log_entry",
+              "name": "get_log_entry",
+              "title": "PERF · Kibana Logs · get_log_entry",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "perf_kibana_list_indices",
+              "name": "list_indices",
+              "title": "PERF · Kibana Logs · list_indices",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "perf_kibana_search_logs",
+              "name": "search_logs",
+              "title": "PERF · Kibana Logs · search_logs",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "pprod",
+          "exposed": false,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "pprod_kibana_delete_index",
+              "name": "delete_index",
+              "title": "PPROD · Kibana Logs · delete_index",
+              "category": "destructive",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pprod_kibana_get_log_entry",
+              "name": "get_log_entry",
+              "title": "PPROD · Kibana Logs · get_log_entry",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pprod_kibana_list_indices",
+              "name": "list_indices",
+              "title": "PPROD · Kibana Logs · list_indices",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pprod_kibana_search_logs",
+              "name": "search_logs",
+              "title": "PPROD · Kibana Logs · search_logs",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "prod",
+          "exposed": true,
+          "state": "unreachable",
+          "stateLabel": "injoignable",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": "serveur injoignable (délai dépassé)",
+          "tools": [
+            {
+              "exposedName": "prod_kibana_delete_index",
+              "name": "delete_index",
+              "title": "PROD · Kibana Logs · delete_index",
+              "category": "destructive",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_kibana_get_log_entry",
+              "name": "get_log_entry",
+              "title": "PROD · Kibana Logs · get_log_entry",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_kibana_list_indices",
+              "name": "list_indices",
+              "title": "PROD · Kibana Logs · list_indices",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_kibana_search_logs",
+              "name": "search_logs",
+              "title": "PROD · Kibana Logs · search_logs",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "pra",
+          "exposed": false,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "pra_kibana_delete_index",
+              "name": "delete_index",
+              "title": "PRA · Kibana Logs · delete_index",
+              "category": "destructive",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pra_kibana_get_log_entry",
+              "name": "get_log_entry",
+              "title": "PRA · Kibana Logs · get_log_entry",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pra_kibana_list_indices",
+              "name": "list_indices",
+              "title": "PRA · Kibana Logs · list_indices",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pra_kibana_search_logs",
+              "name": "search_logs",
+              "title": "PRA · Kibana Logs · search_logs",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            }
+          ],
+          "update": null
+        }
+      ]
+    },
+    {
+      "id": "gitlab-ops",
+      "alias": "gitlab",
+      "label": "GitLab Ops",
+      "local": false,
+      "disabled": false,
+      "instances": [
+        {
+          "environment": "dev",
+          "exposed": true,
+          "state": "connected",
+          "stateLabel": "connecté",
+          "source": "embedded",
+          "refreshedAt": 1795355940000,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "dev_gitlab_add_merge_request_note",
+              "name": "add_merge_request_note",
+              "title": "DEV · GitLab Ops · add_merge_request_note",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "dev_gitlab_cancel_pipeline",
+              "name": "cancel_pipeline",
+              "title": "DEV · GitLab Ops · cancel_pipeline",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "dev_gitlab_delete_branch",
+              "name": "delete_branch",
+              "title": "DEV · GitLab Ops · delete_branch",
+              "category": "destructive",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "dev_gitlab_get_job_log",
+              "name": "get_job_log",
+              "title": "DEV · GitLab Ops · get_job_log",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "dev_gitlab_get_merge_request",
+              "name": "get_merge_request",
+              "title": "DEV · GitLab Ops · get_merge_request",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "dev_gitlab_list_pipelines",
+              "name": "list_pipelines",
+              "title": "DEV · GitLab Ops · list_pipelines",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "dev_gitlab_retry_job",
+              "name": "retry_job",
+              "title": "DEV · GitLab Ops · retry_job",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": {
+            "added": [
+              "list_runners"
+            ],
+            "modified": [],
+            "removed": [
+              "retry_job"
+            ],
+            "at": 1795355940000
+          }
+        },
+        {
+          "environment": "rec",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "rec_gitlab_add_merge_request_note",
+              "name": "add_merge_request_note",
+              "title": "REC · GitLab Ops · add_merge_request_note",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_gitlab_cancel_pipeline",
+              "name": "cancel_pipeline",
+              "title": "REC · GitLab Ops · cancel_pipeline",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_gitlab_delete_branch",
+              "name": "delete_branch",
+              "title": "REC · GitLab Ops · delete_branch",
+              "category": "destructive",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_gitlab_get_job_log",
+              "name": "get_job_log",
+              "title": "REC · GitLab Ops · get_job_log",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_gitlab_get_merge_request",
+              "name": "get_merge_request",
+              "title": "REC · GitLab Ops · get_merge_request",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_gitlab_list_pipelines",
+              "name": "list_pipelines",
+              "title": "REC · GitLab Ops · list_pipelines",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_gitlab_retry_job",
+              "name": "retry_job",
+              "title": "REC · GitLab Ops · retry_job",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "prod",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "prod_gitlab_add_merge_request_note",
+              "name": "add_merge_request_note",
+              "title": "PROD · GitLab Ops · add_merge_request_note",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_gitlab_cancel_pipeline",
+              "name": "cancel_pipeline",
+              "title": "PROD · GitLab Ops · cancel_pipeline",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_gitlab_delete_branch",
+              "name": "delete_branch",
+              "title": "PROD · GitLab Ops · delete_branch",
+              "category": "destructive",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_gitlab_get_job_log",
+              "name": "get_job_log",
+              "title": "PROD · GitLab Ops · get_job_log",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_gitlab_get_merge_request",
+              "name": "get_merge_request",
+              "title": "PROD · GitLab Ops · get_merge_request",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_gitlab_list_pipelines",
+              "name": "list_pipelines",
+              "title": "PROD · GitLab Ops · list_pipelines",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_gitlab_retry_job",
+              "name": "retry_job",
+              "title": "PROD · GitLab Ops · retry_job",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        }
+      ]
+    },
+    {
+      "id": "k8s-admin",
+      "alias": "k8s",
+      "label": "Kubernetes Admin",
+      "local": false,
+      "disabled": false,
+      "instances": [
+        {
+          "environment": "dev",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "dev_k8s_delete_pod",
+              "name": "delete_pod",
+              "title": "DEV · Kubernetes Admin · delete_pod",
+              "category": "destructive",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "dev_k8s_get_pod_logs",
+              "name": "get_pod_logs",
+              "title": "DEV · Kubernetes Admin · get_pod_logs",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "dev_k8s_list_pods",
+              "name": "list_pods",
+              "title": "DEV · Kubernetes Admin · list_pods",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "dev_k8s_restart_deployment",
+              "name": "restart_deployment",
+              "title": "DEV · Kubernetes Admin · restart_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "dev_k8s_scale_deployment",
+              "name": "scale_deployment",
+              "title": "DEV · Kubernetes Admin · scale_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "int",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "int_k8s_delete_pod",
+              "name": "delete_pod",
+              "title": "INT · Kubernetes Admin · delete_pod",
+              "category": "destructive",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "int_k8s_get_pod_logs",
+              "name": "get_pod_logs",
+              "title": "INT · Kubernetes Admin · get_pod_logs",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "int_k8s_list_pods",
+              "name": "list_pods",
+              "title": "INT · Kubernetes Admin · list_pods",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "int_k8s_restart_deployment",
+              "name": "restart_deployment",
+              "title": "INT · Kubernetes Admin · restart_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "int_k8s_scale_deployment",
+              "name": "scale_deployment",
+              "title": "INT · Kubernetes Admin · scale_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "rec",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "rec_k8s_delete_pod",
+              "name": "delete_pod",
+              "title": "REC · Kubernetes Admin · delete_pod",
+              "category": "destructive",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_k8s_get_pod_logs",
+              "name": "get_pod_logs",
+              "title": "REC · Kubernetes Admin · get_pod_logs",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_k8s_list_pods",
+              "name": "list_pods",
+              "title": "REC · Kubernetes Admin · list_pods",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_k8s_restart_deployment",
+              "name": "restart_deployment",
+              "title": "REC · Kubernetes Admin · restart_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_k8s_scale_deployment",
+              "name": "scale_deployment",
+              "title": "REC · Kubernetes Admin · scale_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "perf",
+          "exposed": false,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "perf_k8s_delete_pod",
+              "name": "delete_pod",
+              "title": "PERF · Kubernetes Admin · delete_pod",
+              "category": "destructive",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "perf_k8s_get_pod_logs",
+              "name": "get_pod_logs",
+              "title": "PERF · Kubernetes Admin · get_pod_logs",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "perf_k8s_list_pods",
+              "name": "list_pods",
+              "title": "PERF · Kubernetes Admin · list_pods",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "perf_k8s_restart_deployment",
+              "name": "restart_deployment",
+              "title": "PERF · Kubernetes Admin · restart_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "perf_k8s_scale_deployment",
+              "name": "scale_deployment",
+              "title": "PERF · Kubernetes Admin · scale_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": false
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "pprod",
+          "exposed": false,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "pprod_k8s_delete_pod",
+              "name": "delete_pod",
+              "title": "PPROD · Kubernetes Admin · delete_pod",
+              "category": "destructive",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pprod_k8s_get_pod_logs",
+              "name": "get_pod_logs",
+              "title": "PPROD · Kubernetes Admin · get_pod_logs",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pprod_k8s_list_pods",
+              "name": "list_pods",
+              "title": "PPROD · Kubernetes Admin · list_pods",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pprod_k8s_restart_deployment",
+              "name": "restart_deployment",
+              "title": "PPROD · Kubernetes Admin · restart_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pprod_k8s_scale_deployment",
+              "name": "scale_deployment",
+              "title": "PPROD · Kubernetes Admin · scale_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": false
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "prod",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "prod_k8s_delete_pod",
+              "name": "delete_pod",
+              "title": "PROD · Kubernetes Admin · delete_pod",
+              "category": "destructive",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_k8s_get_pod_logs",
+              "name": "get_pod_logs",
+              "title": "PROD · Kubernetes Admin · get_pod_logs",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_k8s_list_pods",
+              "name": "list_pods",
+              "title": "PROD · Kubernetes Admin · list_pods",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_k8s_restart_deployment",
+              "name": "restart_deployment",
+              "title": "PROD · Kubernetes Admin · restart_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_k8s_scale_deployment",
+              "name": "scale_deployment",
+              "title": "PROD · Kubernetes Admin · scale_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "pra",
+          "exposed": false,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "pra_k8s_delete_pod",
+              "name": "delete_pod",
+              "title": "PRA · Kubernetes Admin · delete_pod",
+              "category": "destructive",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pra_k8s_get_pod_logs",
+              "name": "get_pod_logs",
+              "title": "PRA · Kubernetes Admin · get_pod_logs",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pra_k8s_list_pods",
+              "name": "list_pods",
+              "title": "PRA · Kubernetes Admin · list_pods",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pra_k8s_restart_deployment",
+              "name": "restart_deployment",
+              "title": "PRA · Kubernetes Admin · restart_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pra_k8s_scale_deployment",
+              "name": "scale_deployment",
+              "title": "PRA · Kubernetes Admin · scale_deployment",
+              "category": "write",
+              "known": true,
+              "exposed": false
+            }
+          ],
+          "update": null
+        }
+      ]
+    },
+    {
+      "id": "db-readonly",
+      "alias": "db",
+      "label": "Base de données (lecture)",
+      "local": false,
+      "disabled": false,
+      "instances": [
+        {
+          "environment": "int",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "int_db_describe_table",
+              "name": "describe_table",
+              "title": "INT · Base de données (lecture) · describe_table",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "int_db_list_tables",
+              "name": "list_tables",
+              "title": "INT · Base de données (lecture) · list_tables",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "int_db_run_select",
+              "name": "run_select",
+              "title": "INT · Base de données (lecture) · run_select",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "rec",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "rec_db_describe_table",
+              "name": "describe_table",
+              "title": "REC · Base de données (lecture) · describe_table",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_db_list_tables",
+              "name": "list_tables",
+              "title": "REC · Base de données (lecture) · list_tables",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_db_run_select",
+              "name": "run_select",
+              "title": "REC · Base de données (lecture) · run_select",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "pprod",
+          "exposed": false,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "pprod_db_describe_table",
+              "name": "describe_table",
+              "title": "PPROD · Base de données (lecture) · describe_table",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pprod_db_list_tables",
+              "name": "list_tables",
+              "title": "PPROD · Base de données (lecture) · list_tables",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            },
+            {
+              "exposedName": "pprod_db_run_select",
+              "name": "run_select",
+              "title": "PPROD · Base de données (lecture) · run_select",
+              "category": "read",
+              "known": true,
+              "exposed": false
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "prod",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "prod_db_describe_table",
+              "name": "describe_table",
+              "title": "PROD · Base de données (lecture) · describe_table",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_db_list_tables",
+              "name": "list_tables",
+              "title": "PROD · Base de données (lecture) · list_tables",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_db_run_select",
+              "name": "run_select",
+              "title": "PROD · Base de données (lecture) · run_select",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        }
+      ]
+    },
+    {
+      "id": "jira",
+      "alias": "jira",
+      "label": "Jira",
+      "local": true,
+      "disabled": false,
+      "instances": [
+        {
+          "environment": "rec",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "rec_jira_add_comment",
+              "name": "add_comment",
+              "title": "REC · Jira · add_comment",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_jira_get_issue",
+              "name": "get_issue",
+              "title": "REC · Jira · get_issue",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "rec_jira_search_issues",
+              "name": "search_issues",
+              "title": "REC · Jira · search_issues",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        },
+        {
+          "environment": "prod",
+          "exposed": true,
+          "state": "catalogue",
+          "stateLabel": "catalogue",
+          "source": "embedded",
+          "refreshedAt": null,
+          "lastError": null,
+          "tools": [
+            {
+              "exposedName": "prod_jira_add_comment",
+              "name": "add_comment",
+              "title": "PROD · Jira · add_comment",
+              "category": "write",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_jira_get_issue",
+              "name": "get_issue",
+              "title": "PROD · Jira · get_issue",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            },
+            {
+              "exposedName": "prod_jira_search_issues",
+              "name": "search_issues",
+              "title": "PROD · Jira · search_issues",
+              "category": "read",
+              "known": true,
+              "exposed": true
+            }
+          ],
+          "update": null
+        }
+      ]
+    }
+  ],
+  "exposedTools": 72,
+  "exposedToolsThreshold": 100,
+  "gatewaySuspended": false,
+  "pendingConfirmations": 1,
+  "alerts": [
+    {
+      "level": "error",
+      "kind": "startupHardening",
+      "message": "Le dossier des fenêtres de connexion n'a pas pu être vidé (accès refusé) : aucune connexion par fenêtre n'est possible jusqu'au prochain démarrage de MCP Proxy."
+    }
+  ],
+  "update": null
+}

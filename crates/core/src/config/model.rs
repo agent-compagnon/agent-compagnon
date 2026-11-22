@@ -194,6 +194,8 @@ pub struct Mcp {
 pub struct Profile {
     pub id: ProfileId,
     pub label: String,
+    /// One sentence shown when the profile is chosen; may be empty.
+    pub description: String,
     pub strictest: bool,
     pub default_environments: Vec<EnvId>,
     /// `Confirm(Notification)` or `Deny`.

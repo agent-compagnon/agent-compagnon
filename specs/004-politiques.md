@@ -110,7 +110,8 @@ journal et l'infobulle « politique » de l'onglet MCP. Prévoir un rendu texte 
 
 ## Profils et réglages
 
-- Profils issus de la config : `label`, `default_environments`, `unknown_tools`, `strictest`, arbre de règles.
+- Profils issus de la config : `label`, `description` (une phrase pour le choix du profil, facultative, spec 016),
+  `default_environments`, `unknown_tools`, `strictest`, arbre de règles.
 - `core::settings::UserSettings` : profil choisi (absent au premier lancement), environnements exposés, MCP coupés,
   arbre de durcissement, options (`autostart`, `beta_channel`, `gateway_suspended`), `schema_version`.
   Les options sont des champs directs (`UserSettings::autostart`…), comme les citent les specs 015, 019 et 020.
@@ -207,3 +208,6 @@ Exécution des confirmations (3c et 5c). Scellement des réglages (5d).
   "confirm"` ne servait jamais. Le profil Développeur reçoit, en DEV, INT et REC, `default = allow` et
   `destructive = confirm` par elicitation ; la base et les verrous de PPROD et PROD sont inchangés. Nouveau critère
   `EX-004-13`, qui fixe par une table les décisions attendues sur la config embarquée (I004.14).
+- **2026-11-22** — Spec 016 : champ facultatif `description` des profils (une phrase montrée au choix du profil,
+  chaîne vide par défaut), renseigné dans la config d'exemple pour les trois profils. Aucun effet sur les
+  décisions ; critères inchangés.

@@ -182,3 +182,7 @@ Fenêtres WebView2 réelles (5b). Notifications réelles (5c).
   `EX-011-13`.
 - **2026-11-22** — Spec 015 : ajout de `OnDemandAuthenticator::disconnect_all`, de `SessionError::Disconnected` et
   de la méthode `AuthUi::clear_all_site_data`. Comportement et critères de la 010 inchangés.
+- **2026-11-22** — Spec 016 : `OnDemandAuthenticator::login_requesters` donne, pour chaque connexion en cours
+  demandée par un appel, le client LLM qui l'attend (`clientInfo.name` déjà filtré, vide pour une liste d'outils) ;
+  une connexion lancée par le bouton « Se connecter » n'en a pas, jusqu'à ce qu'un appel la rejoigne. L'interface en
+  tire le bandeau « Claude Desktop attend une connexion à SSO PROD ». Comportement et critères de la 010 inchangés.

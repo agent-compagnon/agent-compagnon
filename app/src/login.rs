@@ -393,8 +393,9 @@ impl AuthUi for WebviewAuthUi {
     }
 }
 
-/// A click on the login notification: the login or Basic window of `session` comes to the front, if still open.
-fn front_window_of(app: &AppHandle, session: &SessionId) {
+/// A click on the login notification, or « Se connecter » on a card whose login runs (spec 016): the login or Basic
+/// window of `session` comes to the front, if still open.
+pub(crate) fn front_window_of(app: &AppHandle, session: &SessionId) {
     let Some(state) = app.try_state::<Arc<LoginState>>() else {
         return;
     };

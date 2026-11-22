@@ -262,3 +262,8 @@ Fenêtres de login (5b), notifications (5c), contenu de l'interface (6).
   cache, il les reçoit par `RuntimeDeps::persistence` (`SealedSettingsStore` et `SealedCatalog` dans l'appli). Un
   `settings.json` écrit à la main n'est plus accepté : la recette choisit le profil par le menu « Profil » de
   l'icône. Comportement et critères de la 011 inchangés.
+- **2026-11-22** — Spec 016 : la capacité `main` donne aussi les commandes de l'interface (`connect_session`,
+  `disconnect_session`, `set_profile`, `resume_gateway`, `show_confirmations`), déclarées dans `build.rs` et
+  réservées à la fenêtre `main`. La recette choisit le profil dans la fenêtre : le menu « Profil » de l'icône n'existe
+  plus. `SessionStateView` gagne `requestedBy` (client LLM qui attend une connexion) et `ProfileChoice` gagne
+  `description`. Comportement et critères de la 011 inchangés.

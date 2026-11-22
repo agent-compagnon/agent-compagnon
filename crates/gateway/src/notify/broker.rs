@@ -126,6 +126,15 @@ impl NotificationBroker {
         }
     }
 
+    /// « Voir » in the banner of the interface (spec 016): the detail window of every waiting request, oldest first.
+    /// Nothing is answered from the banner: the window, the only one to show the full arguments, is where the user
+    /// approves or refuses.
+    pub async fn show_waiting_details(&self) {
+        for id in self.pending.waiting() {
+            self.show_detail(id).await;
+        }
+    }
+
     /// Windows reported that the toast of `id` could not be shown: the detail window replaces it.
     pub async fn toast_failed(&self, id: ConfirmationId) {
         tracing::warn!(

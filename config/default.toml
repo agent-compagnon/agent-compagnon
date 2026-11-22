@@ -350,6 +350,7 @@ rule = { decision = "confirm", channel = "notification" }
 
 [profiles.developpeur]
 label = "Développeur"
+description = "Pour développer et tester hors production ; toute action destructive est confirmée."
 default_environments = ["dev", "int", "rec"]
 unknown_tools = "confirm"           # confirm (notification obligatoire) | deny
 
@@ -370,6 +371,7 @@ destructive = { decision = "confirm", channel = "elicitation" }
 
 [profiles.support]
 label = "Support"
+description = "Pour diagnostiquer jusqu'en production ; chaque écriture en production est confirmée."
 default_environments = ["rec", "pprod", "prod"]
 unknown_tools = "confirm"
 
@@ -378,6 +380,7 @@ write = { decision = "deny" }
 
 [profiles.lecture-seule]
 label = "Lecture seule"
+description = "Pour consulter sans risque : aucune écriture, aucune suppression."
 strictest = true                    # profil de repli quand les réglages sont invalides
 default_environments = ["rec"]
 unknown_tools = "deny"

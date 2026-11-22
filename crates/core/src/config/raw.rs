@@ -163,6 +163,9 @@ pub struct RawPolicyTool {
 #[serde(deny_unknown_fields)]
 pub struct RawProfile {
     pub label: String,
+    /// One sentence for the profile choice of the interface (spec 016).
+    #[serde(default)]
+    pub description: String,
     #[serde(default)]
     pub strictest: bool,
     #[serde(default)]

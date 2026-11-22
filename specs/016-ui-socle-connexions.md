@@ -60,6 +60,25 @@ attend une action. L'onglet Connexions est l'écran par défaut, le seul utile �
   demandée.
 - Commandes : `connect_session`, `disconnect_session`, `set_profile`.
 
+### Commandes de la fenêtre (réalisation)
+
+- Câblage mince dans `app/src/interface.rs`, logique dans `mcp_proxy_gateway::interface` (testée sous Linux) :
+  `connect_session(session)` (ramène devant la fenêtre de connexion déjà ouverte, sinon lance la connexion et
+  répond aussitôt), `disconnect_session(session)` (la carte passe à « expirée »), `set_profile(profile)`,
+  `resume_gateway` (`GatewayControl::resume`), `show_confirmations` (« Voir » : la fenêtre de détail de chaque
+  demande en attente, spec 013 ; aucune réponse n'est donnée depuis le bandeau).
+- Chaque commande est déclarée dans `build.rs` et donnée par la seule capacité `main` (fenêtre `main`) ; elle
+  revérifie que la fenêtre appelante est `main`. Les identifiants reçus sont vérifiés contre la config ; une erreur
+  est un texte français sans secret, montré par la fenêtre.
+- `set_profile` applique `UserSettings::choose_profile` (environnements exposés ramenés aux valeurs par défaut du
+  profil, durcissements conservés), journalise « profil « X » choisi par l'utilisateur » et retire le bandeau
+  « réglages réinitialisés » ; un échec d'enregistrement laisse le profil appliqué et ajoute une alerte
+  `settingsNotSaved`.
+- L'instantané gagne `sessions[].state.requestedBy` (client LLM qui attend la connexion, vide s'il est inconnu,
+  `null` si seul l'utilisateur l'a demandée) et `profile.choices[].description` (phrase du profil, champ facultatif
+  `description` des profils de la config).
+- Le sous-menu provisoire « Profil » du menu de l'icône (spec 014) est retiré.
+
 ### Fenêtres annexes
 
 - Page de saisie Basic (5b) et page de détail d'une confirmation (5c), dans le même bundle, sur des routes dédiées,
@@ -72,6 +91,14 @@ attend une action. L'onglet Connexions est l'écran par défaut, le seul utile �
 - **EX-016-02** — Playwright sur `vite preview` avec le backend simulé : captures de l'onglet Connexions, en clair et en sombre,
   pour chaque scénario. Vérifier visuellement que l'orange n'apparaît que sur les éléments en attente.
 - **EX-016-03** — Accessibilité de base : navigation au clavier, libellés, contrastes.
+- **EX-016-06** — Instantané pour l'interface : le client LLM qui attend une connexion y figure (et seulement tant
+  qu'il attend) ; l'instantané sérialisé de la config d'exemple, dans un état qui remplit chaque champ facultatif,
+  est le fichier `ui/src/api/snapshot.example.json`, que les tests de `ui/` valident strictement contre
+  `types.ts`.
+- **EX-016-07** — Commandes de la fenêtre, sur l'assemblage réel : « Se connecter » puis « Déconnecter » (état
+  « expirée », données des sites effacées) ; choix du profil (environnements par défaut du profil, durcissements
+  conservés, bandeau de réinitialisation retiré, choix scellé) ; « Voir » ouvre les fenêtres de détail sans rien
+  approuver ; « Reprendre » lève la suspension ; un identifiant inconnu est refusé.
 
 ## Vérification
 

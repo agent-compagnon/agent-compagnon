@@ -421,6 +421,50 @@ async fn connect_and_disconnect() {
     );
 }
 
+// Exigence : EX-016-06
+#[tokio::test(start_paused = true)]
+async fn the_client_waiting_for_a_login_is_known_until_the_login_ends() {
+    let h = harness();
+    let corp = sid("sso-corp");
+    assert!(h.auth.login_requesters().is_empty());
+
+    // Asked from the interface only: nobody waits, no requester.
+    let auth = Arc::clone(&h.auth);
+    let connect = tokio::spawn({
+        let corp = corp.clone();
+        async move { auth.connect(&corp).await }
+    });
+    let _window = h.ui.window(0).await;
+    assert!(h.auth.login_requesters().is_empty());
+    // A call that joins the login makes its client known.
+    let call = ensure(&h.auth, &corp, 50);
+    settle().await;
+    assert_eq!(h.auth.login_requesters(), [(corp.clone(), "Claude Desktop".to_owned())]);
+    log_in_corp(&h, 0, 3600).await;
+    call.await.unwrap().unwrap();
+    connect.await.unwrap().unwrap();
+    assert!(h.auth.login_requesters().is_empty(), "the login is over");
+
+    // A tool list names no client.
+    let dev = sid("sso-dev");
+    let list = {
+        let auth = Arc::clone(&h.auth);
+        let dev = dev.clone();
+        tokio::spawn(async move {
+            let reason = mcp_proxy_core::session::AccessReason::ListTools {
+                env: mcp_proxy_core::config::EnvId::new("dev").unwrap(),
+                mcp: mcp_proxy_core::config::McpId::new("gitlab-ops").unwrap(),
+            };
+            auth.ensure(&dev, deadline(50), &reason).await
+        })
+    };
+    let window = h.ui.window(1).await;
+    assert_eq!(h.auth.login_requesters(), [(dev.clone(), String::new())]);
+    window.close_by_user();
+    assert_eq!(list.await.unwrap(), Err(SessionError::Cancelled(dev.clone())));
+    assert!(h.auth.login_requesters().is_empty());
+}
+
 // Exigence : EX-015-04
 #[tokio::test(start_paused = true)]
 async fn disconnect_all_wipes_every_secret_and_releases_the_waiting_calls() {

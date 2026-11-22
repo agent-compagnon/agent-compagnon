@@ -10,6 +10,7 @@ mod bridge;
 mod confirm;
 pub mod dialog;
 mod dpapi;
+mod interface;
 pub mod login;
 mod notify;
 mod pipe;

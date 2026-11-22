@@ -22,8 +22,8 @@ critère : `cargo xtask trace` vérifie que tous les critères manuels d'une spe
 Préparation : sur le poste Windows, `cd ui && npm ci && npm run build`, puis `cargo build -p mcp-proxy --release` ;
 l'exe est `target\release\mcp-proxy.exe`. Le journal est dans `%LOCALAPPDATA%\MCP Proxy\logs\`. Pour repartir
 d'un premier lancement : quitter l'appli et supprimer `%LOCALAPPDATA%\MCP Proxy\settings.json`. Depuis la spec 014,
-les réglages sont scellés : un `settings.json` écrit à la main est refusé, le profil se choisit par le sous-menu
-« Profil » du menu de l'icône (clic droit), en répondant « Oui » à la question. Vérifier d'abord
+les réglages sont scellés : un `settings.json` écrit à la main est refusé ; depuis la spec 016, le profil se choisit
+dans la fenêtre (dialogue du premier lancement, puis sélecteur de l'en-tête). Vérifier d'abord
 que l'exe porte son icône dans l'Explorateur (ressources compilées seulement sous Windows, I011.14).
 
 - [ ] **EX-011-04** — Lancer `mcp-proxy.exe` (double clic) : aucune fenêtre de console ; l'icône apparaît dans la
@@ -33,9 +33,9 @@ que l'exe porte son icône dans l'Explorateur (ressources compilées seulement s
   (Gestionnaire des tâches), aucune boîte « canal occupé », la fenêtre de la première instance passe au premier
   plan.
 - [ ] **EX-011-06** — Configurer un client MCP (Claude Desktop ou VS Code) avec la commande
-  `C:\…\mcp-proxy.exe` et l'argument `stdio`. Choisir le profil « Développeur » : tant que l'interface de la
-  spec 016 n'existe pas, menu de l'icône, « Profil », « Développeur », « Oui » (avant la spec 014, on écrivait
-  `settings.json` à la main ; ce fichier est désormais refusé). Le client liste les outils du
+  `C:\…\mcp-proxy.exe` et l'argument `stdio`. Choisir le profil « Développeur » dans la fenêtre (dialogue du
+  premier lancement ou sélecteur de l'en-tête, spec 016 ; `settings.json` écrit à la main est refusé depuis la
+  spec 014). Le client liste les outils du
   catalogue des environnements DEV, INT et REC (par exemple `rec_jira_search_issues`). Appeler un outil qui demande
   une connexion : le client affiche « connexion à « … » impossible pour le moment, appel refusé. » (fenêtres de
   login à la spec 012 ; depuis, la fenêtre de connexion s'ouvre : voir la section 012).
@@ -109,9 +109,8 @@ la config embarquée sont fictifs) : la compiler dans l'exe (`config/default.tom
 
 ## 013 — app — notifications Windows et confirmations
 
-Préparation : comme pour la 011 (`cd ui && npm ci && npm run build`, puis compiler), profil « Support » choisi par le
-menu « Profil » de l'icône (il expose REC, PPROD et PROD ; avant la spec 014 : « Développeur » plus `"prod"` écrit à
-la main dans `settings.json`, désormais refusé). `prod_jira_add_comment` (écriture en PROD)
+Préparation : comme pour la 011 (`cd ui && npm ci && npm run build`, puis compiler), profil « Support » choisi dans la
+fenêtre (sélecteur de l'en-tête, spec 016 ; il expose REC, PPROD et PROD). `prod_jira_add_comment` (écriture en PROD)
 demande une confirmation par notification ; tant que `sso-tools` n'a pas de `probe_url` réelle, l'appel autorisé
 échoue ensuite à la connexion, ce qui suffit à distinguer « autorisé » (« connexion … ») de « refusé » (« appel refusé
 par l'utilisateur »). Notifications de Windows activées, « Ne pas déranger » désactivé, sauf mention contraire. Le
@@ -163,22 +162,24 @@ une ligne `MCP-PROXY-SEAL v1 hmac-sha256=…`, suivie du JSON des réglages ; `s
 par DPAPI. Avant tout, `cargo test -p mcp-proxy-core sealed` sur le poste Windows : tous les tests passent, dont
 les deux du module `dpapi` (critère automatique `EX-014-04`, compilé seulement sous Linux).
 
-- [ ] **EX-014-08** — À faire en premier, avec un `settings.json` de la version précédente (sans ligne
+- [ ] **EX-014-09** — À faire en premier, avec un `settings.json` de la version précédente (sans ligne
   `MCP-PROXY-SEAL`), par exemple
   `{"schema_version":1,"profile":"developpeur","exposed_environments":["dev","int","rec"],"disabled_mcp":[],`
   `"hardening":{},"autostart":false,"beta_channel":false,"gateway_suspended":false}` sur une ligne. Lancer la
   nouvelle version : la notification « Réglages réinitialisés » s'affiche, l'icône est rouge (« 1 erreur »), aucun
   outil n'est listé par le client LLM, le journal du jour contient une ligne `mcp.event` « réglages remplacés par
-  les plus stricts : réglages refusés : fichier sans sceau … ». Menu de l'icône, « Profil », « Développeur » : la
-  question cite « DEV, INT, REC » ; « Non » ne change rien (la coche ne bouge pas) ; « Oui » coche « Développeur »
-  et le client liste les outils de DEV, INT et REC. `settings.json` commence alors par `MCP-PROXY-SEAL`, et
-  `settings.key` existe.
-- [ ] **EX-014-06** — Profil « Support » choisi par le menu (« Oui » ; la question cite « Environnements
-  sensibles : PPROD, PROD »), quitter, relancer : « Support » est coché, aucune alerte, aucune notification, le
-  client liste les outils de REC, PPROD et PROD.
+  les plus stricts : réglages refusés : fichier sans sceau … ». La fenêtre s'ouvre sur le dialogue du choix du
+  profil, au-dessus du bandeau rouge « Vos réglages n'ont pas pu être vérifiés… ». Choisir « Développeur »,
+  « Continuer » : le bandeau disparaît, l'en-tête dit « Développeur », le client liste les outils de DEV, INT et
+  REC. `settings.json` commence alors par `MCP-PROXY-SEAL`, et `settings.key` existe. Quitter, relancer : toujours
+  « Développeur », aucun bandeau ni notification.
+- [ ] **EX-014-06** — Profil « Support » choisi par le sélecteur de l'en-tête (le dialogue cite « REC, PPROD,
+  PROD », sensibles « PPROD, PROD » ; « Annuler » ne change rien, « Changer de profil » applique), quitter,
+  relancer : l'en-tête dit « Support », aucune alerte, aucune notification, le client liste les outils de REC,
+  PPROD et PROD.
 - [ ] **EX-014-05** — Appli arrêtée, ouvrir `settings.json` dans le Bloc-notes, remplacer `"support"` par
   `"developpeur"` (ou ajouter `"dev"` à `exposed_environments`), enregistrer, relancer : profil actif « Lecture
-  seule » (aucun profil coché dans le menu), aucun environnement exposé (le client ne liste aucun outil),
+  seule » (la fenêtre redemande le profil), aucun environnement exposé (le client ne liste aucun outil),
   notification « Réglages réinitialisés », bandeau d'erreur et icône rouge ; le journal dit « sceau invalide ».
   Même chose en supprimant seulement la première ligne du fichier, ou en supprimant `settings.key`.
 - [ ] **EX-014-07** — Ouvrir `settings.key` dans un éditeur hexadécimal (ou `Format-Hex`) : après l'en-tête
@@ -189,10 +190,10 @@ les deux du module `dpapi` (critère automatique `EX-014-04`, compilé seulement
 
 ## 015 — Arrêt d'urgence dans le menu de l'icône
 
-Préparation : comme pour la 011, profil « Développeur » choisi par le menu « Profil », client LLM configuré
+Préparation : comme pour la 011, profil « Développeur » choisi dans la fenêtre, client LLM configuré
 (EX-011-06), et pour EX-015-08 une config dont `sso-dev` (ou une autre session `cookie`/`jwt_header`) pointe vers un
-vrai SSO de recette (section 012). Le menu de l'icône contient, dans l'ordre : « Ouvrir », « Profil »,
-« Suspendre la passerelle », « Tout déconnecter », « Quitter ».
+vrai SSO de recette (section 012). Le menu de l'icône contient, dans l'ordre : « Ouvrir »,
+« Suspendre la passerelle », « Tout déconnecter », « Quitter » (plus de « Profil » depuis la spec 016).
 
 - [ ] **EX-015-06** — Menu de l'icône, « Suspendre la passerelle » (aucune question n'est posée) : l'icône devient
   grise avec une pause, son infobulle commence par « MCP Proxy — passerelle suspendue », l'élément du menu devient
@@ -209,8 +210,7 @@ vrai SSO de recette (section 012). Le menu de l'icône contient, dans l'ordre : 
   client reçoit « connexion à « … » interrompue, l'utilisateur a déconnecté toutes les sessions ; appel refusé… », le
   journal contient « toutes les sessions déconnectées par l'utilisateur ». Rappeler un outil de la première
   session : la fenêtre de connexion s'ouvre et la page du SSO redemande les identifiants (aucune session SSO n'a
-  survécu). Tant que l'interface de la spec 016 n'existe pas, les cartes « jamais connectée » ne se vérifient pas :
-  le faire avec elle. Noter si une boîte « les données des fenêtres de connexion n'ont pas pu être effacées »
+  survécu). Dans la fenêtre, toutes les cartes de l'onglet Connexions disent « jamais connectée ». Noter si une boîte « les données des fenêtres de connexion n'ont pas pu être effacées »
   apparaît (runtime WebView2 trop ancien pour `ClearBrowsingDataAll`, I015.4).
 
 ## 025 — Module MCP local d'exemple (`jira-local`)

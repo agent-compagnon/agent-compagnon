@@ -7,7 +7,7 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use mcp_proxy_core::config::{Category, Config, McpKind, Profile, SessionScope};
+use mcp_proxy_core::config::{Category, Config, McpKind, SessionId, SessionScope};
 use mcp_proxy_core::session::{AuthKind, SessionInfo, SessionState};
 use mcp_proxy_core::settings::UserSettings;
 use serde::Serialize;
@@ -120,6 +120,8 @@ pub struct Alert {
 pub struct ProfileChoice {
     pub id: String,
     pub label: String,
+    /// One sentence for the choice of the profile; may be empty.
+    pub description: String,
     pub strictest: bool,
     pub default_environments: Vec<String>,
 }
@@ -162,6 +164,9 @@ pub struct SessionStateView {
     pub label: String,
     /// Milliseconds since the Unix epoch: end of an active session, or when the login was asked for.
     pub at: Option<u64>,
+    /// While a login is asked: the LLM client whose call waits for it (`clientInfo.name`, filtered; empty when
+    /// unknown). `None` otherwise, and when only the user asked for the login.
+    pub requested_by: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -262,6 +267,8 @@ pub struct SnapshotInputs<'a> {
     pub pending_confirmations: usize,
     /// Alerts known outside of these inputs (settings reset, start-up hardening).
     pub alerts: &'a [Alert],
+    /// Sessions whose login was asked by an LLM client, with that client.
+    pub login_requesters: &'a [(SessionId, String)],
     /// Local offset from UTC, east positive, for the « active jusqu'à HH:MM » labels.
     pub utc_offset: i32,
 }
@@ -306,7 +313,7 @@ fn method_key(method: AuthKind) -> &'static str {
     }
 }
 
-fn session_state(state: SessionState, utc_offset: i32) -> SessionStateView {
+fn session_state(state: SessionState, utc_offset: i32, requested_by: Option<&String>) -> SessionStateView {
     let (kind, at) = match state {
         SessionState::NeverConnected => (SessionStateKind::NeverConnected, None),
         SessionState::Active { until } => (SessionStateKind::Active, millis(until)),
@@ -317,6 +324,11 @@ fn session_state(state: SessionState, utc_offset: i32) -> SessionStateView {
         kind,
         label: state.label(utc_offset),
         at,
+        requested_by: if kind == SessionStateKind::LoginRequested {
+            requested_by.cloned()
+        } else {
+            None
+        },
     }
 }
 
@@ -337,6 +349,7 @@ impl AppSnapshot {
                 .map(|p| ProfileChoice {
                     id: p.id.to_string(),
                     label: p.label.clone(),
+                    description: p.description.clone(),
                     strictest: p.strictest,
                     default_environments: p.default_environments.iter().map(ToString::to_string).collect(),
                 })
@@ -368,7 +381,15 @@ impl AppSnapshot {
                     SessionScope::Env(env) => Some(env.to_string()),
                 },
                 method: method_key(info.method).to_owned(),
-                state: session_state(*state, inputs.utc_offset),
+                state: session_state(
+                    *state,
+                    inputs.utc_offset,
+                    inputs
+                        .login_requesters
+                        .iter()
+                        .find(|(id, _)| *id == info.id)
+                        .map(|(_, client)| client),
+                ),
                 services: info
                     .services
                     .iter()
@@ -482,58 +503,9 @@ impl AppSnapshot {
     }
 }
 
-/// What choosing `profile` does, asked before it applies: the environments it exposes, sensitive ones named. For
-/// the « Profil » menu of the icon (spec 014) until the profile selector of the interface (spec 016).
-pub fn profile_change_question(config: &Config, profile: &Profile) -> String {
-    let label = |id: &mcp_proxy_core::config::EnvId| {
-        config
-            .environment(id)
-            .map_or_else(|| id.to_string(), |e| e.label.clone())
-    };
-    let exposed: Vec<String> = profile.default_environments.iter().map(label).collect();
-    let sensitive: Vec<String> = profile
-        .default_environments
-        .iter()
-        .filter(|id| config.environment(id).is_some_and(|e| e.sensitive))
-        .map(label)
-        .collect();
-    let mut text = format!(
-        "Passer au profil « {} » ?\n\nEnvironnements exposés aux clients LLM : {}.",
-        profile.label,
-        if exposed.is_empty() {
-            "aucun".to_owned()
-        } else {
-            exposed.join(", ")
-        }
-    );
-    if !sensitive.is_empty() {
-        text.push_str(&format!(" Environnements sensibles : {}.", sensitive.join(", ")));
-    }
-    text.push_str(" Vos durcissements sont conservés.");
-    text
-}
-
 #[cfg(test)]
 mod tests {
-    use mcp_proxy_core::config::ProfileId;
-
     use super::*;
-
-    #[test]
-    fn the_profile_question_names_what_gets_exposed() {
-        let config = crate::modules::embedded_config().unwrap();
-        let question = |id: &str| profile_change_question(&config, &config.profiles[&ProfileId::new(id).unwrap()]);
-        assert_eq!(
-            question("developpeur"),
-            "Passer au profil « Développeur » ?\n\nEnvironnements exposés aux clients LLM : DEV, INT, REC. Vos \
-             durcissements sont conservés."
-        );
-        assert!(
-            question("support").contains("Environnements sensibles : PPROD, PROD."),
-            "{}",
-            question("support")
-        );
-    }
 
     // Exigence : EX-011-01
     #[test]

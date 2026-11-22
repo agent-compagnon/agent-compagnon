@@ -1060,6 +1060,7 @@ impl Validator {
                     Profile {
                         id,
                         label: p.label.clone(),
+                        description: p.description.clone(),
                         strictest: p.strictest,
                         default_environments,
                         unknown_tools,

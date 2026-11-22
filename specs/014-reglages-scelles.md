@@ -58,10 +58,11 @@ accès au disque, qui changerait le profil ou exposerait PROD.
 - `SealedSettingsStore` implémente `SettingsStore` et remplace le fichier JSON simple dans l'appli ;
   `SealedCatalog` implémente `CacheSeal` (spec 005) avec le même `Sealer`. `Gateway::start` les reçoit par
   `RuntimeDeps::persistence` (`Persistence::sealed(&dirs, wrapper)` dans l'appli et les tests de l'assemblage).
-- Choix du profil sans l'interface : tant que la spec 016 n'existe pas, le menu de l'icône a un sous-menu
-  « Profil » (un élément coché par profil de la config). Un clic pose une question Oui/Non qui nomme les
-  environnements exposés par le profil, sensibles compris ; seul « Oui » change les réglages, qui sont alors
-  scellés. C'est le seul moyen de rétablir un profil après un retour aux réglages stricts (I014.6).
+- Choix du profil : par le sélecteur de profil de la fenêtre (spec 016), dont le dialogue de confirmation nomme les
+  environnements exposés par le profil, sensibles compris ; seule la confirmation change les réglages, qui sont
+  alors scellés. Après un retour aux réglages stricts, la fenêtre redemande le profil comme au premier lancement.
+  Le sous-menu provisoire « Profil » du menu de l'icône (I014.6), qui tenait ce rôle tant que la spec 016
+  n'existait pas, est retiré (amendement du 2026-11-22).
 - Limite à écrire dans `DECISIONS.md` : un programme qui tourne sous le compte de l'utilisateur peut lui aussi
   appeler DPAPI. Le scellement relève la barre, il ne la rend pas infranchissable.
 
@@ -84,9 +85,13 @@ accès au disque, qui changerait le profil ou exposerait PROD.
 - **EX-014-06** (manuel) — Un usage normal (changer de profil dans l'appli, relancer) conserve les réglages.
 - **EX-014-07** (manuel) — `settings.key` ne contient pas la clé en clair ; copié avec `settings.json` dans le
   profil d'un autre utilisateur Windows, il ne s'ouvre pas : réglages stricts et notification.
-- **EX-014-08** (manuel) — Mise à niveau : un `settings.json` écrit par une version sans scellement (ou à la main)
+- ~~**EX-014-08** (manuel) — Mise à niveau : un `settings.json` écrit par une version sans scellement (ou à la main)
   donne au premier lancement les réglages stricts, le bandeau, la notification « Réglages réinitialisés » et une
-  ligne `mcp.event` dans le journal ; un profil choisi par le menu « Profil » de l'icône tient au redémarrage.
+  ligne `mcp.event` dans le journal ; un profil choisi par le menu « Profil » de l'icône tient au redémarrage.~~
+  (retiré le 2026-11-22 : le menu « Profil » de l'icône n'existe plus, voir `EX-014-09`)
+- **EX-014-09** (manuel) — Mise à niveau : un `settings.json` écrit par une version sans scellement (ou à la main)
+  donne au premier lancement les réglages stricts, le bandeau, la notification « Réglages réinitialisés » et une
+  ligne `mcp.event` dans le journal ; un profil choisi dans la fenêtre (spec 016) tient au redémarrage.
 
 ## Amendements
 
@@ -99,3 +104,9 @@ accès au disque, qui changerait le profil ou exposerait PROD.
   exécution après mise à niveau, sans migration (I014.4) ; injection par `RuntimeDeps::persistence`. Ajoutés :
   l'entrée de journal `event` (I014.5), le sous-menu provisoire « Profil » de l'icône, faute duquel aucun profil ne
   pourrait être rétabli avant la spec 016 (I014.6), et le critère `EX-014-08`. Aucun critère retiré.
+- **2026-11-22** — Spec 016 : le profil se choisit dans la fenêtre (dialogue du premier lancement, sélecteur de
+  l'en-tête et son dialogue de confirmation). Le sous-menu provisoire « Profil » du menu de l'icône est retiré, avec
+  la question Oui/Non qui l'accompagnait (`view::profile_change_question`, `dialog::confirm`) ; le dialogue de la
+  fenêtre en reprend le contenu (environnements exposés, sensibles nommés, durcissements conservés). Choisir un
+  profil retire le bandeau « réglages réinitialisés », qui le demandait (I016.8). Critère retiré : `EX-014-08` (il
+  citait le menu) ; ajouté : `EX-014-09`, le même par la fenêtre.

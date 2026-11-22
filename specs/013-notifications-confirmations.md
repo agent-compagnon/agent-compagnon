@@ -148,3 +148,8 @@ afficher les arguments complets avant d'offrir l'autorisation.
   remplacé par `EX-013-12`. Ajoutés : `EX-013-13` (instantané), `EX-013-14` (page de la fenêtre de détail),
   `EX-013-15` (manuel : toast balayé, clic sur le corps, centre de notifications, information).
   `AccessReason::ToolCall` porte le nom du client ; `UnavailableConfirmation` est supprimé.
+- **2026-11-22** — Spec 016 : « Voir » dans le bandeau de l'interface (`show_confirmations`) ouvre, par
+  `NotificationBroker::show_waiting_details`, la fenêtre de détail de chaque demande en attente, la plus ancienne
+  d'abord. Aucune réponse n'est donnée depuis le bandeau : la fenêtre de détail reste le seul endroit qui montre les
+  arguments complets et le seul où une demande s'autorise (aucune `AnswerSource` nouvelle). Comportement et critères
+  de la 013 inchangés.

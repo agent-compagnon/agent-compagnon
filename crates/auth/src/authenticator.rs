@@ -49,6 +49,8 @@ struct Login {
     cancel: CancellationToken,
     /// Restored when the login is cancelled or fails.
     previous: SessionState,
+    /// The LLM client whose call waits for this login (empty when unknown); `None` when only the user asked.
+    requested_by: Option<String>,
 }
 
 struct ActiveSecret {
@@ -131,6 +133,20 @@ impl OnDemandAuthenticator {
         }
     }
 
+    /// The sessions whose login in progress was asked by an LLM client, with that client (`clientInfo.name`,
+    /// already filtered; empty when unknown). A login asked from the interface only is not listed: no call waits
+    /// for it. For the banner of the interface (spec 016).
+    pub fn login_requesters(&self) -> Vec<(SessionId, String)> {
+        self.inner
+            .slots()
+            .iter()
+            .filter_map(|(id, slot)| {
+                let client = slot.login.as_ref()?.requested_by.clone()?;
+                Some((id.clone(), client))
+            })
+            .collect()
+    }
+
     /// « Tout déconnecter » (spec 015), without confirmation: every login in progress is stopped (its waiting calls
     /// get `Disconnected`), every secret is wiped (their variants stay masked for their grace period), every session
     /// goes back to « jamais connectée », then the whole profile of the login windows is cleared and its windows
@@ -160,6 +176,14 @@ impl OnDemandAuthenticator {
         {
             tracing::warn!(session = session.as_str(), %error, "déconnexion : données des sites non effacées");
         }
+    }
+}
+
+/// Who waits for a login asked by `reason`: the client of a tool call, empty for a tool list (no client known).
+fn requester(reason: &AccessReason) -> String {
+    match reason {
+        AccessReason::ToolCall { client, .. } => client.clone(),
+        AccessReason::ListTools { .. } => String::new(),
     }
 }
 
@@ -252,7 +276,10 @@ impl Inner {
         if slot.active.is_some() && self.store.has(session) {
             return Ok(None);
         }
-        if let Some(login) = &slot.login {
+        if let Some(login) = &mut slot.login {
+            if login.requested_by.is_none() {
+                login.requested_by = reason.map(requester);
+            }
             return Ok(Some(login.done.clone()));
         }
         let id = self.next_login.fetch_add(1, Ordering::Relaxed);
@@ -264,6 +291,7 @@ impl Inner {
             done: done.clone(),
             cancel: cancel.clone(),
             previous,
+            requested_by: reason.map(requester),
         });
         self.registry.set(
             session,

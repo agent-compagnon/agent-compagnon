@@ -8,7 +8,6 @@ use std::time::SystemTime;
 
 use mcp_proxy_auth::AuthUi;
 use mcp_proxy_auth::webview::reset_profile_dir;
-use mcp_proxy_core::config::ProfileId;
 use mcp_proxy_core::secrets::{SecretStore, platform_key_wrapper};
 use mcp_proxy_core::trace::SystemWallClock;
 use mcp_proxy_gateway::bridge::{PeerProof, pipe_name};
@@ -18,9 +17,9 @@ use mcp_proxy_gateway::runtime::{
     DataDirs, Gateway, Logging, Persistence, RuntimeDeps, StartupFailure, check_webview, record_startup_failure,
 };
 use mcp_proxy_gateway::updates::UpdateEvent;
-use mcp_proxy_gateway::view::{Alert, AlertKind, AlertLevel, AppStatus, profile_change_question};
+use mcp_proxy_gateway::view::{Alert, AlertKind, AlertLevel, AppStatus};
 use tauri::image::Image;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tokio::sync::broadcast::error::RecvError;
@@ -28,18 +27,17 @@ use tokio::sync::broadcast::error::RecvError;
 use crate::confirm::{self, WindowsPresenter};
 use crate::dialog;
 use crate::dpapi::DpapiProof;
+use crate::interface;
 use crate::login::{self, WebviewAuthUi};
 use crate::notify::{ToastEvent, Toaster};
 use crate::{pipe, wer};
 
-const MAIN_WINDOW: &str = "main";
+pub(crate) const MAIN_WINDOW: &str = "main";
 const TRAY: &str = "main";
 const MENU_OPEN: &str = "open";
 const MENU_QUIT: &str = "quit";
 const MENU_SUSPEND: &str = "suspend";
 const MENU_DISCONNECT_ALL: &str = "disconnect-all";
-/// `profile:<id>`: the provisional profile choice (spec 014), until the selector of the interface (spec 016).
-const MENU_PROFILE: &str = "profile:";
 const SNAPSHOT_CHANGED: &str = "snapshot-changed";
 
 /// The four icons of the notification area, drawn by `cargo xtask icons`.
@@ -123,7 +121,12 @@ pub fn run() -> ExitCode {
             get_snapshot,
             login::deposit_login_header,
             login::submit_basic_credentials,
-            confirm::answer_confirmation
+            confirm::answer_confirmation,
+            interface::connect_session,
+            interface::disconnect_session,
+            interface::set_profile,
+            interface::resume_gateway,
+            interface::show_confirmations
         ])
         .setup(|app| {
             // Tauri panics on a setup error: a failure here is explained, then the application exits.
@@ -293,22 +296,8 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
 
     let icons = Arc::new(TrayIcons::load()?);
     let open = MenuItem::with_id(app, MENU_OPEN, "Ouvrir", true, None::<&str>)?;
+    // The profile is chosen in the window (spec 016): the provisional « Profil » menu of spec 014 is gone.
     let settings = gateway.settings();
-    let profiles = gateway
-        .config()
-        .profiles
-        .values()
-        .map(|p| {
-            let checked = settings.profile.as_ref() == Some(&p.id);
-            let id = format!("{MENU_PROFILE}{}", p.id);
-            CheckMenuItem::with_id(app, id, &p.label, true, checked, None::<&str>).map(|item| (p.id.clone(), item))
-        })
-        .collect::<tauri::Result<Vec<_>>>()?;
-    let profile_items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = profiles
-        .iter()
-        .map(|(_, item)| item as &dyn tauri::menu::IsMenuItem<tauri::Wry>)
-        .collect();
-    let profile_menu = Submenu::with_items(app, "Profil", true, &profile_items)?;
     let suspend = MenuItem::with_id(
         app,
         MENU_SUSPEND,
@@ -322,7 +311,6 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
         app,
         &[
             &open,
-            &profile_menu,
             &PredefinedMenuItem::separator(app)?,
             &suspend,
             &disconnect_all,
@@ -330,7 +318,7 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
             &quit,
         ],
     )?;
-    let tray_menu = Arc::new(TrayMenu { suspend, profiles });
+    let tray_menu = Arc::new(TrayMenu { suspend });
     let menu_gateway = Arc::clone(&gateway);
     let menu_items = Arc::clone(&tray_menu);
     TrayIconBuilder::with_id(TRAY)
@@ -348,13 +336,7 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
             MENU_DISCONNECT_ALL => {
                 tauri::async_runtime::spawn(disconnect_everything(Arc::clone(&menu_gateway)));
             }
-            id => {
-                if let Some(profile) = id.strip_prefix(MENU_PROFILE).and_then(|p| ProfileId::new(p).ok()) {
-                    let gateway = Arc::clone(&menu_gateway);
-                    let items = Arc::clone(&menu_items);
-                    tauri::async_runtime::spawn(choose_profile(gateway, items, profile));
-                }
-            }
+            _ => {}
         })
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
@@ -389,11 +371,10 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
-/// The items of the icon menu that follow the settings.
+/// The item of the icon menu that follows the settings.
 struct TrayMenu {
     /// « Suspendre la passerelle » or « Reprendre ».
     suspend: MenuItem<tauri::Wry>,
-    profiles: Vec<(ProfileId, CheckMenuItem<tauri::Wry>)>,
 }
 
 fn suspend_label(suspended: bool) -> &'static str {
@@ -404,14 +385,11 @@ fn suspend_label(suspended: bool) -> &'static str {
     }
 }
 
-/// The check marks of the « Profil » menu follow the chosen profile, whatever was clicked; the suspension item
-/// names what it would do.
+/// The suspension item names what it would do, whether the change came from the menu or from the window.
 fn sync_menu(menu: &TrayMenu, gateway: &Gateway) {
-    let settings = gateway.settings();
-    for (id, item) in &menu.profiles {
-        let _ = item.set_checked(settings.profile.as_ref() == Some(id));
-    }
-    let _ = menu.suspend.set_text(suspend_label(settings.gateway_suspended));
+    let _ = menu
+        .suspend
+        .set_text(suspend_label(gateway.settings().gateway_suspended));
 }
 
 /// « Suspendre la passerelle » / « Reprendre ».
@@ -437,29 +415,6 @@ async fn disconnect_everything(gateway: Arc<Gateway>) {
         );
         let _ = tauri::async_runtime::spawn_blocking(move || dialog::error("MCP Proxy", &message)).await;
     }
-}
-
-/// A click in the « Profil » menu: the question names what gets exposed; only « Oui » changes the settings, which
-/// are then sealed (spec 014).
-async fn choose_profile(gateway: Arc<Gateway>, menu: Arc<TrayMenu>, profile: ProfileId) {
-    let config = Arc::clone(gateway.config());
-    let Some(chosen) = config.profiles.get(&profile) else {
-        return;
-    };
-    let question = profile_change_question(&config, chosen);
-    let yes = tauri::async_runtime::spawn_blocking(move || dialog::confirm("MCP Proxy — profil", &question))
-        .await
-        .unwrap_or(false);
-    if yes {
-        if let Err(error) = gateway.change_settings(|s| s.choose_profile(chosen)).await {
-            tracing::error!(%error, "profil appliqué mais non enregistré");
-            let message = format!("Le profil s'applique jusqu'à l'arrêt de MCP Proxy, mais {error}.");
-            let _ = tauri::async_runtime::spawn_blocking(move || dialog::error("MCP Proxy", &message)).await;
-        } else {
-            tracing::info!(profile = profile.as_str(), "profil choisi depuis le menu de l'icône");
-        }
-    }
-    sync_menu(&menu, &gateway);
 }
 
 /// Keeps the icon, its menu and the window in step with the gateway.
