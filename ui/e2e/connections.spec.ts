@@ -209,3 +209,43 @@ test('the profile menu, open, in both themes', async ({ page }) => {
     await page.screenshot({ path: `${CAPTURES}/menu-profil-${scheme}.png` })
   }
 })
+
+// The windows of specs 012 and 013 share the theme; their data comes from the application, simulated here.
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`Basic and detail windows, ${colorScheme}`, async ({ page }) => {
+    const errors: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'error') errors.push(message.text())
+    })
+    await page.emulateMedia({ colorScheme })
+    await page.setViewportSize({ width: 420, height: 360 })
+    await page.addInitScript(() => {
+      Object.assign(window, {
+        __MCP_PROXY_BASIC__: {
+          title: 'Connexion — SSO Outils',
+          login: 'alice',
+          error: 'identifiants refusés',
+          attempt: 2,
+          maxAttempts: 3,
+          command: 'submit_basic_credentials',
+        },
+        __MCP_PROXY_CONFIRM__: {
+          path: 'PROD / Jira / add_comment',
+          client: 'Claude Desktop',
+          explanation: 'écriture en PROD : confirmation demandée',
+          arguments: JSON.stringify({ key: 'DEMO-1', body: 'Analyse terminée, voir le ticket lié.' }, null, 2),
+          remainingMs: 30_000,
+          command: 'answer_confirmation',
+        },
+      })
+    })
+    await page.goto('/basic.html')
+    await expect(page.getByRole('heading', { name: 'Connexion — SSO Outils' })).toBeVisible()
+    if (CAPTURES) await page.screenshot({ path: `${CAPTURES}/fenetre-basic-${colorScheme}.png` })
+    await page.setViewportSize({ width: 560, height: 600 })
+    await page.goto('/confirm.html')
+    await expect(page.getByRole('heading', { name: 'Confirmation demandée' })).toBeVisible()
+    if (CAPTURES) await page.screenshot({ path: `${CAPTURES}/fenetre-detail-${colorScheme}.png` })
+    expect(errors).toEqual([])
+  })
+}

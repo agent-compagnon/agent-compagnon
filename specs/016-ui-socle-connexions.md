@@ -2,7 +2,7 @@
 id: "016"
 titre: "ui — socle Vue/shadcn-vue, en-tête et profil, onglet Connexions"
 etape: "6a"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["011"]
 suivi: "github#17"
 ---
