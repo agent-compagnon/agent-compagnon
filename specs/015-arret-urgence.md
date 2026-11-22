@@ -2,7 +2,7 @@
 id: "015"
 titre: "Arrêt d'urgence dans le menu de l'icône"
 etape: "5e"
-statut: "prévue"
+statut: "en cours"
 depend_de: ["007", "010", "011", "012"]
 suivi: "github#16"
 ---
