@@ -1,0 +1,102 @@
+[
+  {
+    "name": "list_pipelines",
+    "title": "List pipelines",
+    "description": "Lists the latest pipelines of a project, optionally filtered by ref and status.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": { "type": "string", "description": "Project path, e.g. group/app" },
+        "ref": { "type": "string" },
+        "status": { "type": "string", "enum": ["running", "pending", "success", "failed", "canceled"] }
+      },
+      "required": ["project"]
+    },
+    "annotations": { "readOnlyHint": true }
+  },
+  {
+    "name": "get_job_log",
+    "title": "Get job log",
+    "description": "Returns the trace of a CI job.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": { "type": "string" },
+        "job_id": { "type": "integer" }
+      },
+      "required": ["project", "job_id"]
+    },
+    "annotations": { "readOnlyHint": true }
+  },
+  {
+    "name": "retry_job",
+    "title": "Retry job",
+    "description": "Retries a failed or canceled CI job.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": { "type": "string" },
+        "job_id": { "type": "integer" }
+      },
+      "required": ["project", "job_id"]
+    },
+    "annotations": { "readOnlyHint": false, "destructiveHint": false }
+  },
+  {
+    "name": "cancel_pipeline",
+    "title": "Cancel pipeline",
+    "description": "Cancels a running pipeline.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": { "type": "string" },
+        "pipeline_id": { "type": "integer" }
+      },
+      "required": ["project", "pipeline_id"]
+    },
+    "annotations": { "readOnlyHint": false, "destructiveHint": false }
+  },
+  {
+    "name": "delete_branch",
+    "title": "Delete branch",
+    "description": "Deletes a branch of a project.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": { "type": "string" },
+        "branch": { "type": "string" }
+      },
+      "required": ["project", "branch"]
+    },
+    "annotations": { "readOnlyHint": false, "destructiveHint": true }
+  },
+  {
+    "name": "get_merge_request",
+    "title": "Get merge request",
+    "description": "Returns a merge request with its description, approvals and pipeline status.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": { "type": "string" },
+        "iid": { "type": "integer" }
+      },
+      "required": ["project", "iid"]
+    },
+    "annotations": { "readOnlyHint": true }
+  },
+  {
+    "name": "add_merge_request_note",
+    "title": "Add merge request note",
+    "description": "Adds a comment to a merge request.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": { "type": "string" },
+        "iid": { "type": "integer" },
+        "body": { "type": "string" }
+      },
+      "required": ["project", "iid", "body"]
+    },
+    "annotations": { "readOnlyHint": false, "destructiveHint": false }
+  }
+]

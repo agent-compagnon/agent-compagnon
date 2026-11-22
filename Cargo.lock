@@ -680,6 +680,16 @@ version = "0.1.0"
 [[package]]
 name = "mcp-proxy-gateway"
 version = "0.1.0"
+dependencies = [
+ "mcp-proxy-core",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "zeroize",
+]
 
 [[package]]
 name = "mcp-proxy-module-jira-local"

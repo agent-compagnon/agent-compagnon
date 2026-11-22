@@ -1,0 +1,41 @@
+[
+  {
+    "name": "list_tables",
+    "title": "List tables",
+    "description": "Lists the tables of a schema.",
+    "inputSchema": {
+      "type": "object",
+      "properties": { "schema": { "type": "string" } },
+      "required": ["schema"]
+    },
+    "annotations": { "readOnlyHint": true }
+  },
+  {
+    "name": "describe_table",
+    "title": "Describe table",
+    "description": "Returns the columns, types and indexes of a table.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "schema": { "type": "string" },
+        "table": { "type": "string" }
+      },
+      "required": ["schema", "table"]
+    },
+    "annotations": { "readOnlyHint": true }
+  },
+  {
+    "name": "run_select",
+    "title": "Run SELECT",
+    "description": "Runs a read-only SELECT statement and returns at most 500 rows.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "sql": { "type": "string", "description": "A single SELECT statement" },
+        "max_rows": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 }
+      },
+      "required": ["sql"]
+    },
+    "annotations": { "readOnlyHint": true }
+  }
+]

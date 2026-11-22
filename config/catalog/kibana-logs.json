@@ -1,0 +1,69 @@
+[
+  {
+    "name": "search_logs",
+    "title": "Search logs",
+    "description": "Searches log entries matching a Lucene query over a time range.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "index": { "type": "string", "description": "Index pattern, e.g. app-*" },
+        "query": { "type": "string", "description": "Lucene query" },
+        "from": { "type": "string", "format": "date-time" },
+        "to": { "type": "string", "format": "date-time" },
+        "size": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 }
+      },
+      "required": ["index", "query"]
+    },
+    "annotations": { "readOnlyHint": true, "openWorldHint": false }
+  },
+  {
+    "name": "get_log_entry",
+    "title": "Get log entry",
+    "description": "Returns one log entry by index and identifier.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "index": { "type": "string" },
+        "id": { "type": "string" }
+      },
+      "required": ["index", "id"]
+    },
+    "annotations": { "readOnlyHint": true }
+  },
+  {
+    "name": "list_indices",
+    "title": "List indices",
+    "description": "Lists the log indices with their size and document count.",
+    "inputSchema": { "type": "object", "properties": {} },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "indices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "documents": { "type": "integer" },
+              "bytes": { "type": "integer" }
+            },
+            "required": ["name"]
+          }
+        }
+      },
+      "required": ["indices"]
+    },
+    "annotations": { "readOnlyHint": true }
+  },
+  {
+    "name": "delete_index",
+    "title": "Delete index",
+    "description": "Deletes a log index and all its documents.",
+    "inputSchema": {
+      "type": "object",
+      "properties": { "index": { "type": "string" } },
+      "required": ["index"]
+    },
+    "annotations": { "readOnlyHint": false, "destructiveHint": true }
+  }
+]

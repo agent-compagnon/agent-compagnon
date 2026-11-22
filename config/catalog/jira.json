@@ -1,0 +1,41 @@
+[
+  {
+    "name": "search_issues",
+    "title": "Search issues",
+    "description": "Searches issues with a JQL query.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "jql": { "type": "string" },
+        "max_results": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+      },
+      "required": ["jql"]
+    },
+    "annotations": { "readOnlyHint": true }
+  },
+  {
+    "name": "get_issue",
+    "title": "Get issue",
+    "description": "Returns an issue with its fields and last comments.",
+    "inputSchema": {
+      "type": "object",
+      "properties": { "key": { "type": "string", "description": "Issue key, e.g. OPS-123" } },
+      "required": ["key"]
+    },
+    "annotations": { "readOnlyHint": true }
+  },
+  {
+    "name": "add_comment",
+    "title": "Add comment",
+    "description": "Adds a comment to an issue.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "body": { "type": "string" }
+      },
+      "required": ["key", "body"]
+    },
+    "annotations": { "readOnlyHint": false, "destructiveHint": false }
+  }
+]
