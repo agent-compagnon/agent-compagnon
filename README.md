@@ -10,18 +10,21 @@ Décisions : [`DECISIONS.md`](DECISIONS.md). Consignes pour les agents : [`CLAUD
 
 - Rust 1.97.0, installé automatiquement par `rustup` d'après `rust-toolchain.toml` (composants `clippy`, `rustfmt`,
   cible `x86_64-pc-windows-msvc`).
-- Node 22 et npm 10, seulement quand `ui/` existera (étape 6).
+- Node 22 et npm 10, pour `ui/` (squelette depuis la spec 011, interface à l'étape 6).
 
 Le développement se fait sous Linux. Le code Windows y est contrôlé à la compilation (`cargo clippy --target
-x86_64-pc-windows-msvc`) mais jamais exécuté ni lié.
+x86_64-pc-windows-msvc`) mais jamais exécuté ni lié. `app/` (l'appli Tauri) n'est compilé que pour cette cible et
+lit `ui/dist` : construire `ui/` d'abord (`cargo xtask ci` le fait). Sous Windows : `cd ui && npm ci && npm run
+build`, puis `cargo build -p mcp-proxy --release`.
 
 ## Commandes
 
 | Commande | Effet |
 |---|---|
-| `cargo xtask ci` | Toutes les vérifications : `fmt --check`, clippy hôte, tests, clippy cible Windows, traçabilité, puis `ui/` s'il existe |
-| `cargo xtask ci lint` | `fmt --check` et les deux passes clippy |
-| `cargo xtask ci test` | Tests hôte, traçabilité et vérifications `ui/` |
+| `cargo xtask ci` | Toutes les vérifications : `fmt --check`, clippy hôte, tests, `ui/` (`npm ci`, lint, typecheck, tests, build), clippy cible Windows, traçabilité |
+| `cargo xtask ci lint` | `fmt --check`, les deux passes clippy, lint et typecheck de `ui/` (construit avant la passe Windows) |
+| `cargo xtask ci test` | Tests hôte, tests et build de `ui/`, traçabilité |
+| `cargo xtask icons` | Redessine les icônes de `app/icons/` (appli, zone de notification) |
 | `cargo xtask trace` | Alignement specs ↔ tests ↔ `docs/recette.md` (voir `specs/README.md`) ; `--write-index` régénère l'index des specs, `--report` affiche la matrice critère → fichiers |
 | `cargo test -p mcp-proxy-core` | Tests du core, dont la validation de la config embarquée |
 
@@ -32,10 +35,12 @@ x86_64-pc-windows-msvc`) mais jamais exécuté ni lié.
 ```
 crates/core              mcp-proxy-core       config (étape 1), secrets en mémoire (2a) ; filtre, politiques… à venir
 crates/auth              mcp-proxy-auth       méthodes d'authentification (étape 4)
-crates/gateway           mcp-proxy-gateway    registre, amont, middlewares, serveur MCP, pont (étape 3)
+crates/gateway           mcp-proxy-gateway    registre, amont, middlewares, serveur MCP, pont, vue, assemblage
 crates/deploy            mcp-proxy-deploy     installation, désinstallation, updater (étape 7)
 crates/testkit           mcp-proxy-testkit    faux MCP, faux SSO, faux Artifactory (étape 3b)
 crates/modules/jira-local                     module MCP local Jira (étape 8)
+app/                     mcp-proxy            appli Tauri et pont stdio, Windows uniquement, câblage seulement (5a)
+ui/                                           interface Vue (squelette à 5a, contenu à l'étape 6)
 config/default.toml                           config embarquée dans l'exe, validée au démarrage
 xtask/                                        cargo xtask
 ```

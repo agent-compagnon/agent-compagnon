@@ -2,7 +2,7 @@
 id: "011"
 titre: "app — squelette Tauri, pont stdio (named pipe), instance unique, tray, réglages"
 etape: "5a"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"]
 suivi: "github#12"
 ---
@@ -134,9 +134,10 @@ Les boîtes de message passent par une API sûre (dialogue de Tauri ou crate éq
 jamais par `MessageBoxW`. Réalisation : crate `rfd` 0.18 (`MessageDialog`), utilisable avant que Tauri ne démarre.
 
 Ordre réel (amendement du 2026-11-22) : dossier des données (`%LOCALAPPDATA%\MCP Proxy\`), config, runtime
-WebView2, puis Tauri (instance unique d'abord : un second lancement s'arrête avant toute autre étape), puis dans
-le `setup` de Tauri : store de secrets, `Gateway::start` (filtre, journal, hook de panic, réglages, registre,
-sessions, authentification, amonts, suivi des listes, chaîne), exclusion WER, pipe, fenêtre, icône. Le journal
+WebView2, puis construction de Tauri (instance unique d'abord : un second lancement s'arrête là), puis store de
+secrets, `Gateway::start` (filtre, journal, hook de panic, réglages, registre, sessions, authentification, amonts,
+suivi des listes, chaîne), exclusion WER et pipe, avant la boucle d'événements ; enfin, au démarrage de la boucle
+(`setup` de Tauri), fenêtre et icône. Le journal
 ne pouvant exister sans le filtre ni le filtre sans le store, un échec qui précède le journal (config, WebView2,
 DPAPI, filtre) est écrit par `runtime::record_startup_failure` : une ligne à texte fixe dans le fichier du jour
 (`logs\mcp-proxy-AAAA-MM-JJ.log`) ; les suivants passent par le journal. Dans tous les cas : boîte de message,
@@ -244,7 +245,7 @@ Fenêtres de login (5b), notifications (5c), contenu de l'interface (6).
   démarrage : échec fermé. Exclusion WER par le registre au lieu de `WerAddExcludedApplication`, détection du
   runtime WebView2 par `tauri::webview_version()`, boîtes de message par une API sûre, arrêt si
   `SecretStore::for_platform` échoue. Critère retiré : `EX-011-08` ; ajoutés : `EX-011-09` à `EX-011-12`.
-- **2026-11-22** — Réalisation (I011.1 à I011.15). Ajouts : précisions de réalisation dans chaque section ;
+- **2026-11-22** — Réalisation (I011.1 à I011.16). Ajouts : précisions de réalisation dans chaque section ;
   critères `EX-011-13` à `EX-011-16` (tests sous Linux) et `EX-011-17`, `EX-011-18` (recette). Écarts :
   l'assemblage vit dans `gateway::runtime` (testé sous Linux) et non dans `app/` ; l'ordre de démarrage suit les
   dépendances réelles (store et filtre avant le journal) et les échecs qui précèdent le journal sont écrits par une

@@ -97,22 +97,41 @@ pub fn run() -> ExitCode {
     tauri::async_runtime::set(runtime.handle().clone());
 
     let app = tauri::Builder::default()
-        // Registered first: a second launch exits here, before anything below runs, and shows the first window.
+        // Registered first: its setup runs inside `build`, where a second launch hands over to the first instance
+        // and exits, before anything below runs.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main_window(app)
         }))
         .invoke_handler(tauri::generate_handler![get_snapshot])
-        .setup(move |app| setup(app, config, dirs))
+        .setup(|app| {
+            // Tauri panics on a setup error: a failure here is explained, then the application exits.
+            let gateway = app.try_state::<Arc<Gateway>>().map(|g| Arc::clone(g.inner()));
+            let built = match gateway {
+                Some(gateway) => setup_ui(app, gateway).map_err(|e| e.to_string()),
+                None => Err("passerelle absente".to_owned()),
+            };
+            if let Err(error) = built {
+                refuse(&StartupFailure::Gateway(format!(
+                    "interface impossible à créer ({error})"
+                )));
+                app.handle().exit(1);
+            }
+            Ok(())
+        })
         .build(tauri::generate_context!());
     let app = match app {
         Ok(app) => app,
-        // The setup already explained its failure.
-        Err(tauri::Error::Setup(_)) => return ExitCode::FAILURE,
         Err(error) => {
-            refuse(&StartupFailure::Gateway(error.to_string()));
-            return ExitCode::FAILURE;
+            return refuse_early(Some(&dirs), &StartupFailure::Gateway(error.to_string()));
         }
     };
+
+    // First instance: the gateway, then its pipe.
+    let gateway = match start_gateway(config, dirs) {
+        Ok(gateway) => gateway,
+        Err(code) => return code,
+    };
+    app.manage(gateway);
 
     let code = app.run_return(|app, event| match event {
         // Closing the window hides it; only « Quitter » (explicit code) stops the application.
@@ -129,13 +148,13 @@ pub fn run() -> ExitCode {
     ExitCode::from(u8::try_from(code).unwrap_or(1))
 }
 
-fn setup(app: &mut tauri::App, config: Arc<mcp_proxy_core::config::Config>, dirs: DataDirs) -> SetupResult {
+/// Store, gateway, exclusion from error reports, pipe. Every failure is explained before the exit code is returned.
+fn start_gateway(config: Arc<mcp_proxy_core::config::Config>, dirs: DataDirs) -> Result<Arc<Gateway>, ExitCode> {
     let store = match SecretStore::for_platform() {
         Ok(store) => store,
         Err(error) => {
             let failure = StartupFailure::ProtectionUnavailable(error.to_string());
-            let _ = refuse_early(Some(&dirs), &failure);
-            return Err(failure.log_line().into());
+            return Err(refuse_early(Some(&dirs), &failure));
         }
     };
     let logs = dirs.logs.clone();
@@ -155,7 +174,7 @@ fn setup(app: &mut tauri::App, config: Arc<mcp_proxy_core::config::Config>, dirs
             let failure = StartupFailure::Gateway(error.to_string());
             let _ = record_startup_failure(&logs, SystemTime::now(), &failure);
             dialog::error(failure.title(), &failure.message());
-            return Err(failure.log_line().into());
+            return Err(ExitCode::FAILURE);
         }
     };
 
@@ -173,21 +192,25 @@ fn setup(app: &mut tauri::App, config: Arc<mcp_proxy_core::config::Config>, dirs
 
     let domain = std::env::var("USERDOMAIN").ok();
     let user = std::env::var("USERNAME").ok();
-    let Some(name) = pipe_name(domain.as_deref(), user.as_deref()) else {
-        refuse(&StartupFailure::NoUser);
-        return Err(StartupFailure::NoUser.log_line().into());
+    let refused = |failure: StartupFailure| {
+        refuse(&failure);
+        let _ = gateway.journal().flush();
+        ExitCode::FAILURE
     };
-    let server = tauri::async_runtime::block_on(async { pipe::create_first(&name) });
-    let server = match server {
+    let Some(name) = pipe_name(domain.as_deref(), user.as_deref()) else {
+        return Err(refused(StartupFailure::NoUser));
+    };
+    let server = match tauri::async_runtime::block_on(async { pipe::create_first(&name) }) {
         Ok(server) => server,
-        Err(failure) => {
-            refuse(&failure);
-            return Err(failure.log_line().into());
-        }
+        Err(failure) => return Err(refused(failure)),
     };
     let proof: Arc<dyn PeerProof> = Arc::new(DpapiProof);
     tauri::async_runtime::spawn(pipe::accept(server, name, Arc::clone(&gateway), proof));
+    Ok(gateway)
+}
 
+/// Hidden main window, notification icon, and the task that keeps both in step with the gateway.
+fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
     let window = WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::App("index.html".into()))
         .title("MCP Proxy")
         .inner_size(960.0, 680.0)
@@ -227,7 +250,6 @@ fn setup(app: &mut tauri::App, config: Arc<mcp_proxy_core::config::Config>, dirs
         })
         .build(app)?;
 
-    app.manage(Arc::clone(&gateway));
     let handle = app.handle().clone();
     tauri::async_runtime::spawn(follow_snapshot(handle.clone(), Arc::clone(&gateway), icons));
 
@@ -237,8 +259,6 @@ fn setup(app: &mut tauri::App, config: Arc<mcp_proxy_core::config::Config>, dirs
     }
     Ok(())
 }
-
-type SetupResult = Result<(), Box<dyn std::error::Error>>;
 
 fn show_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW) {
