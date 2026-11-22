@@ -19,7 +19,10 @@ commands:
   ci test               tests, traceability and ui/ checks only
   trace                 check that specs, tests and docs/recette.md agree
   trace --write-index   regenerate the index of specs/README.md, then check
-  trace --report        print the criterion -> citing files matrix, then check";
+  trace --report        print the criterion -> citing files matrix, then check
+  snapshot-catalog --url <url> --out config/catalog/<mcp>.json [--header-env NAME]
+                        write the tools of an MCP server as an embedded catalogue snapshot; the bearer token, if
+                        any, is read from the environment variable NAME and never printed";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Group {
@@ -163,6 +166,32 @@ fn print_summary(done: &[(String, Duration)], total: Duration) {
     println!("  total                {}", format_duration(total));
 }
 
+/// Delegates to the `snapshot-catalog` binary of the gateway crate, which has the MCP client: xtask stays light.
+fn snapshot_catalog(args: &[&str]) -> ExitCode {
+    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
+    let status = Command::new(cargo)
+        .args([
+            "run",
+            "--quiet",
+            "--package",
+            "mcp-proxy-gateway",
+            "--bin",
+            "snapshot-catalog",
+            "--",
+        ])
+        .args(args)
+        .current_dir(workspace_root())
+        .status();
+    match status {
+        Ok(status) if status.success() => ExitCode::SUCCESS,
+        Ok(_) => ExitCode::FAILURE,
+        Err(e) => {
+            eprintln!("lancement impossible : {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -173,6 +202,7 @@ fn main() -> ExitCode {
         ["trace"] => trace::run(&workspace_root(), trace::Mode::Check),
         ["trace", "--write-index"] => trace::run(&workspace_root(), trace::Mode::WriteIndex),
         ["trace", "--report"] => trace::run(&workspace_root(), trace::Mode::Report),
+        ["snapshot-catalog", rest @ ..] => snapshot_catalog(rest),
         ["help" | "--help" | "-h"] => {
             println!("{USAGE}");
             ExitCode::SUCCESS

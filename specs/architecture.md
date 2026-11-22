@@ -81,15 +81,30 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
 - Versions gérées : 2024-11-05 à 2025-11-25 (handshake `initialize`) et 2026-07-28 (sans session, version et
   capacités du client dans le `_meta` de chaque requête, `server/discover`).
 - Côté serveur, `serve` accepte les deux générations sur le même transport. Identité du client par requête :
-  `RequestContext::protocol_version()`, `client_info()`, `client_capabilities()`.
+  `RequestContext::protocol_version()`, `client_info()`, `client_capabilities()`. **Vérifié à l'exécution** :
+  `serve` ne rend la main qu'après `initialize` ou, pour un client 2026-07-28, après sa première requête autre que
+  `server/discover` (il répond aux `server/discover` en attendant) : ne pas l'attendre avant de laisser le client
+  avancer.
 - Côté client, `serve_with_lifecycle(transport, ClientLifecycleMode::Auto { .. })` sonde `server/discover` puis
-  retombe sur `initialize`.
+  retombe sur `initialize` **si le serveur ne connaît pas la méthode** (`-32601`, 4xx hors 401/403, ou pas de réponse
+  en 10 s). Un serveur rmcp dont `supported_protocol_versions` exclut 2026-07-28 répond au contraire par la liste de
+  ses versions, et le client échoue (« no compatible protocol version ») au lieu de se replier.
+- Le client attache un `progressToken` à chaque requête (`Peer::send_request_with_option`) ; il n'est connu qu'une
+  fois la requête mise en file. `Peer::list_tools` met les listes en cache selon `ttl_ms`, cache invalidé par
+  `list_changed`.
 - Client HTTP streamable : pas de crochet d'en-têtes dynamiques. Il faut un type qui implémente le trait
-  `StreamableHttpClient` en enveloppant `reqwest::Client` (comme `AuthClient<C>` du crate), sans oublier les
-  méthodes `*_with_response_limits`. Avec son propre client, la politique de redirection est à fournir.
-- Erreurs HTTP : `AuthRequired` (401 avec `WWW-Authenticate`), `InsufficientScope`, `HttpStatus`, `SessionExpired`,
-  `UnexpectedServerResponse("HTTP {status}: body")`. Ce dernier **contient le corps de la réponse** : toute erreur
-  passe par le filtre.
+  `StreamableHttpClient` en enveloppant `reqwest::Client` (comme `AuthClient<C>` du crate). Les limites passent par
+  `post_message_with_response_limits` et les deux `*_with_max_sse_event_size` (il n'existe pas de
+  `get_stream_with_response_limits`). **Vérifié à la compilation** : l'implémentation du SDK pour `reqwest::Client`
+  peut être réutilisée en lui passant l'en-tête d'authentification dans `custom_headers` (seuls `Accept`,
+  `Mcp-Session-Id`, `Last-Event-Id` y sont réservés), ce qui garde ses limites et son analyse SSE. Le type `Sse` des
+  flux vient du crate `sse-stream` 0.2, non réexporté. Avec son propre client, la politique de redirection est à
+  fournir (le client par défaut suit les 307/308 de même origine).
+- Erreurs HTTP : `AuthRequired` (401 **avec** `WWW-Authenticate`), `InsufficientScope` (403 avec défi), `HttpStatus`
+  (429 et 5xx, sans corps), `SessionExpired`, `UnexpectedServerResponse("HTTP {status}: body")`. Ce dernier
+  **contient le corps de la réponse** : toute erreur passe par le filtre. Un 401 ou 403 **sans** défi arrive sous
+  cette dernière forme (`HTTP 401 Unauthorized: …`) : aucune variante ne le distingue. Les erreurs de requête
+  arrivent en `ServiceError::TransportSend` sans source exploitable pour retrouver le statut.
 - Elicitation : `peer.create_elicitation(..)` en ancien protocole seulement. En 2026-07-28, `call_tool` renvoie
   `CallToolResponse::InputRequired(InputRequiredResult { input_requests, request_state, .. })` et le client rejoue
   l'appel avec `input_responses` + `request_state`. `RequestStateCodec` (feature `request-state`) signe l'état
@@ -157,3 +172,9 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
   fenêtres de login ont une seule commande, le dépôt d'en-tête (exception à INV-8). Faits techniques : les faits sur
   le crochet natif et l'environnement WebView2 restent vrais mais ne sont plus utilisés ; ajout des API sûres
   vérifiées.
+- **2026-11-22** — Faits sur rmcp 3.11 corrigés après compilation et tests de la spec 006 : `serve` côté serveur ne
+  rend la main qu'à la première requête d'un client 2026-07-28 ; repli d'`Auto` conditionné à un refus de
+  `server/discover` ; méthodes de limites réelles du trait `StreamableHttpClient` (pas de
+  `get_stream_with_response_limits`), réutilisation de l'implémentation reqwest du SDK par `custom_headers`, type
+  `Sse` du crate `sse-stream` ; 401/403 sans défi en `UnexpectedServerResponse` ; jeton de progression et cache des
+  listes du client. Les features `elicitation` et `request-state` ne sont pas encore activées (spec 007).

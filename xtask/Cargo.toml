@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-description = "Project automation: `cargo xtask ci`."
+description = "Project automation: `cargo xtask ci`, `trace`, `snapshot-catalog`."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

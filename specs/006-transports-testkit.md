@@ -2,7 +2,7 @@
 id: "006"
 titre: "gateway — transports MCP (côté clients, côté serveurs) et testkit"
 etape: "3b"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["002", "003", "005"]
 suivi: "github#7"
 ---
@@ -107,7 +107,8 @@ pub trait SessionGate: Send + Sync {
 - `cargo xtask snapshot-catalog --url <url> --out config/catalog/<mcp>.json [--header-env NOM]` : interroge un
   serveur MCP (`tools/list`, toutes les pages) et écrit l'instantané au format du catalogue embarqué de la spec 005
   (tableau de `ToolDefinition`). L'en-tête d'authentification vient d'une variable d'environnement et n'est jamais
-  affiché, ni dans la sortie, ni dans une erreur.
+  affiché, ni dans la sortie, ni dans une erreur. La variable contient un jeton, envoyé en `Authorization: Bearer …`
+  vers la seule origine de `--url` ; messages et fichier passent par le filtre de sortie, qui connaît ce jeton.
 - `xtask` reste sans dépendance lourde : le travail est fait par un exécutable du crate `gateway` (qui a déjà le
   client MCP), que `xtask` lance avec `cargo run`.
 
@@ -159,3 +160,8 @@ Politiques, confirmations, limite de débit (3c). Rechargement des listes (3d).
   autre que `server/discover` (rmcp 3.11 choisit le cycle de vie à ce moment) ; ajout de `GatewayServer::run`.
   Critères `EX-006-09` à `EX-006-13` ajoutés pour le refiltrage des listes, les changements de liste, les capacités,
   la progression et l'identité du client, décrits dans « À faire » sans critère jusqu'ici.
+- **2026-11-22** — `snapshot-catalog` : la variable de `--header-env` contient un jeton porteur
+  (`Authorization: Bearer …`), et non un en-tête complet. Raison : l'injection passe par le `SecretStore` et le
+  filtre de sortie le masque ainsi dans tout message ; le format des autres méthodes d'authentification n'est pas
+  nécessaire pour des instantanés. Matrice des générations : les quatre cases sont testées de bout en bout
+  (`EX-006-01`).
