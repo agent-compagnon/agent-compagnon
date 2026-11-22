@@ -173,3 +173,8 @@ Fenêtres WebView2 réelles (5b). Notifications réelles (5c).
   accepte, une sonde en échec arrête la connexion sans nouvelle saisie ; `disconnect` laisse la session `Expired`.
   Côté passerelle : rechargement des listes après connexion (spec 008 amendée) et pas de temporisation de
   reconnexion après un refus d'identifiant (spec 006 amendée). Raisons : `DECISIONS.md`, I010.4 à I010.12.
+- **2026-11-22** — Spec 011 : un `AuthUiError::Unavailable` (aucune interface de connexion, comme l'`AuthUi`
+  provisoire de l'appli avant la spec 012) termine la connexion par `SessionError::Unavailable` au lieu de
+  `LoginFailed` : le LLM lit « connexion à « X » impossible pour le moment », et non une invitation à relancer une
+  connexion qui ne peut pas s'ouvrir. L'état revient à ce qu'il était, l'événement reste `LoginFailed`. Prouvé par
+  `EX-011-13`.

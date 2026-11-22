@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Main window of MCP Proxy: reads the snapshot and listens to its changes. No remote URL.",
+  "windows": ["main"],
+  "permissions": ["allow-get-snapshot", "core:event:allow-listen", "core:event:allow-unlisten"]
+}

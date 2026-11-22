@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "MCP Proxy",
+  "mainBinaryName": "mcp-proxy",
+  "identifier": "com.mcpproxy.app",
+  "build": {
+    "frontendDist": "../ui/dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self'",
+        "img-src": "'self' data:",
+        "font-src": "'self'",
+        "connect-src": "ipc: http://ipc.localhost",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'none'",
+        "frame-ancestors": "'none'"
+      },
+      "freezePrototype": true
+    }
+  },
+  "bundle": {
+    "active": false,
+    "icon": ["icons/icon.png", "icons/icon.ico"]
+  }
+}

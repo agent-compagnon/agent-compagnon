@@ -225,3 +225,26 @@ pub trait LoginWindow: Send {
     /// Closes the window. Dropping a window without calling `close` must close it too.
     async fn close(self: Box<Self>);
 }
+
+/// The interface until the login windows exist (spec 012): every login fails closed with
+/// [`AuthUiError::Unavailable`], which the authenticator reports to the call as « connexion impossible ». Nothing
+/// is shown and nothing is attempted.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct UnavailableAuthUi;
+
+#[async_trait]
+impl AuthUi for UnavailableAuthUi {
+    async fn login_window(&self, _spec: LoginWindowSpec) -> Result<Box<dyn LoginWindow>, AuthUiError> {
+        Err(AuthUiError::Unavailable)
+    }
+
+    async fn basic_prompt(&self, _spec: BasicPromptSpec) -> Result<Option<BasicInput>, AuthUiError> {
+        Err(AuthUiError::Unavailable)
+    }
+
+    async fn notify_login_needed(&self, _session: &SessionInfo, _reason: &AccessReason) {}
+
+    async fn clear_site_data(&self, _hosts: &[String]) -> Result<(), AuthUiError> {
+        Ok(())
+    }
+}

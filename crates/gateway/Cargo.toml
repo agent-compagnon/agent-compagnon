@@ -15,6 +15,7 @@ path = "src/bin/snapshot_catalog.rs"
 async-trait.workspace = true
 futures.workspace = true
 getrandom.workspace = true
+mcp-proxy-auth = { path = "../auth" }
 mcp-proxy-core = { path = "../core" }
 mcp-proxy-module-jira-local = { path = "../modules/jira-local" }
 reqwest.workspace = true
@@ -37,15 +38,14 @@ tokio = { workspace = true, features = ["io-std", "io-util", "macros", "rt-multi
 tokio-util.workspace = true
 tracing.workspace = true
 url.workspace = true
+zeroize.workspace = true
 
 [dev-dependencies]
 base64.workspace = true
 http.workspace = true
-mcp-proxy-auth = { path = "../auth" }
 mcp-proxy-testkit = { path = "../testkit" }
 tokio = { workspace = true, features = ["test-util"] }
 tracing-subscriber.workspace = true
-zeroize.workspace = true
 zip.workspace = true
 
 [lints]

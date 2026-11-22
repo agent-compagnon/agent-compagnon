@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::time::{Duration, Instant};
 
+mod icons;
 mod trace;
 
 const WINDOWS_TARGET: &str = "x86_64-pc-windows-msvc";
@@ -14,12 +15,14 @@ const USAGE: &str = "\
 usage: cargo xtask <command>
 
 commands:
-  ci                    run every check: fmt, clippy (host), tests, clippy (Windows target), traceability, ui/
-  ci lint               fmt and both clippy runs only
-  ci test               tests, traceability and ui/ checks only
+  ci                    run every check: fmt, clippy (host), tests, ui/ (install, lint, typecheck, tests, build),
+                        clippy (Windows target, which reads ui/dist), traceability
+  ci lint               fmt, both clippy runs, ui/ lint and typecheck (ui/ is built before the Windows run)
+  ci test               tests, ui/ tests and build, traceability
   trace                 check that specs, tests and docs/recette.md agree
   trace --write-index   regenerate the index of specs/README.md, then check
   trace --report        print the criterion -> citing files matrix, then check
+  icons                 draw the icons of app/icons/ (application, notification area)
   snapshot-catalog --url <url> --out config/catalog/<mcp>.json [--header-env NAME]
                         write the tools of an MCP server as an embedded catalogue snapshot; the bearer token, if
                         any, is read from the environment variable NAME and never printed";
@@ -32,17 +35,17 @@ enum Group {
 
 struct Step {
     name: String,
-    group: Group,
+    groups: Vec<Group>,
     program: String,
     args: Vec<String>,
     dir: PathBuf,
 }
 
 impl Step {
-    fn new(name: &str, group: Group, program: &str, args: &[&str], dir: &Path) -> Self {
+    fn new(name: &str, groups: &[Group], program: &str, args: &[&str], dir: &Path) -> Self {
         Self {
             name: name.to_owned(),
-            group,
+            groups: groups.to_vec(),
             program: program.to_owned(),
             args: args.iter().map(|a| (*a).to_owned()).collect(),
             dir: dir.to_owned(),
@@ -58,57 +61,59 @@ fn workspace_root() -> PathBuf {
 /// Runs this very binary, already built, rather than going through cargo again.
 fn trace_step(root: &Path) -> Step {
     match std::env::current_exe() {
-        Ok(exe) => Step::new("traçabilité", Group::Test, &exe.to_string_lossy(), &["trace"], root),
+        Ok(exe) => Step::new("traçabilité", &[Group::Test], &exe.to_string_lossy(), &["trace"], root),
         Err(_) => {
             let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
-            Step::new("traçabilité", Group::Test, &cargo, &["xtask", "trace"], root)
+            Step::new("traçabilité", &[Group::Test], &cargo, &["xtask", "trace"], root)
         }
     }
 }
 
 fn ci_steps(root: &Path) -> Vec<Step> {
+    use Group::{Lint, Test};
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
     let mut steps = vec![
-        Step::new("fmt", Group::Lint, &cargo, &["fmt", "--all", "--check"], root),
+        Step::new("fmt", &[Lint], &cargo, &["fmt", "--all", "--check"], root),
         Step::new(
             "clippy (hôte)",
-            Group::Lint,
+            &[Lint],
             &cargo,
             &["clippy", "--all-targets", "--", "-D", "warnings"],
             root,
         ),
-        Step::new("tests (hôte)", Group::Test, &cargo, &["test"], root),
-        Step::new(
-            "clippy (Windows)",
-            Group::Lint,
-            &cargo,
-            &[
-                "clippy",
-                "--workspace",
-                "--all-targets",
-                "--target",
-                WINDOWS_TARGET,
-                "--",
-                "-D",
-                "warnings",
-            ],
-            root,
-        ),
-        trace_step(root),
+        Step::new("tests (hôte)", &[Test], &cargo, &["test"], root),
     ];
+    // `tauri::generate_context!` reads `ui/dist` when `app/` is compiled: ui/ is built before the Windows run.
     let ui = root.join("ui");
     if ui.join("package.json").is_file() {
         let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
-        for (name, args) in [
-            ("ui: npm ci", &["ci"][..]),
-            ("ui: lint", &["run", "lint"][..]),
-            ("ui: typecheck", &["run", "typecheck"][..]),
-            ("ui: test", &["test"][..]),
-            ("ui: build", &["run", "build"][..]),
+        for (name, groups, args) in [
+            ("ui: npm ci", &[Lint, Test][..], &["ci", "--no-audit", "--no-fund"][..]),
+            ("ui: lint", &[Lint][..], &["run", "lint"][..]),
+            ("ui: typecheck", &[Lint][..], &["run", "typecheck"][..]),
+            ("ui: test", &[Test][..], &["test"][..]),
+            ("ui: build", &[Lint, Test][..], &["run", "build"][..]),
         ] {
-            steps.push(Step::new(name, Group::Test, npm, args, &ui));
+            steps.push(Step::new(name, groups, npm, args, &ui));
         }
     }
+    steps.push(Step::new(
+        "clippy (Windows)",
+        &[Lint],
+        &cargo,
+        &[
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--target",
+            WINDOWS_TARGET,
+            "--",
+            "-D",
+            "warnings",
+        ],
+        root,
+    ));
+    steps.push(trace_step(root));
     steps
 }
 
@@ -120,7 +125,7 @@ fn run_ci(groups: &[Group]) -> ExitCode {
     let root = workspace_root();
     let steps: Vec<Step> = ci_steps(&root)
         .into_iter()
-        .filter(|s| groups.contains(&s.group))
+        .filter(|s| s.groups.iter().any(|g| groups.contains(g)))
         .collect();
     let started = Instant::now();
     let mut done: Vec<(String, Duration)> = Vec::new();
@@ -203,6 +208,16 @@ fn main() -> ExitCode {
         ["trace", "--write-index"] => trace::run(&workspace_root(), trace::Mode::WriteIndex),
         ["trace", "--report"] => trace::run(&workspace_root(), trace::Mode::Report),
         ["snapshot-catalog", rest @ ..] => snapshot_catalog(rest),
+        ["icons"] => match icons::write_all(&workspace_root().join("app").join("icons")) {
+            Ok(names) => {
+                println!("app/icons : {}", names.join(", "));
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("icônes non écrites : {e}");
+                ExitCode::FAILURE
+            }
+        },
         ["help" | "--help" | "-h"] => {
             println!("{USAGE}");
             ExitCode::SUCCESS

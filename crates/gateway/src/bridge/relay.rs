@@ -1,5 +1,5 @@
-//! Byte relay of the `stdio` mode (spec 011): what the LLM client writes goes to the application's pipe, what the
-//! pipe answers goes back to the client. No secret and no MCP logic go through here, only bytes.
+//! Byte relay of the `stdio` mode: what the LLM client writes goes to the application's pipe, what the pipe answers
+//! goes back to the client. No secret and no MCP logic go through here, only bytes.
 
 use std::io;
 

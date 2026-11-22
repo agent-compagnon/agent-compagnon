@@ -19,5 +19,5 @@ pub use method::{AuthMethod, LoginContext, LoginFailure, Obtained, methods_from_
 pub use probe::{BasicProbe, HttpProbe, ProbeFailure, ProbeOutcome};
 pub use ui::{
     AuthUi, AuthUiError, BasicInput, BasicPromptSpec, CookiePair, HeaderCapture, LoginEvent, LoginWindow,
-    LoginWindowSpec,
+    LoginWindowSpec, UnavailableAuthUi,
 };

@@ -23,7 +23,7 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 |---|---|
 | Rust | 1.97.0 épinglé, édition 2024, workspace Cargo |
 | MCP | `rmcp` 3.11 — features `server`, `client`, `transport-io`, `transport-streamable-http-client-reqwest`, `reqwest-native-tls`, `elicitation`, `request-state` ; `transport-streamable-http-server` pour les tests |
-| Appli | Tauri 2.12 (`tray-icon`, `wry`), `windows` 0.62 (projection WinRT seulement), `winreg` 0.56 |
+| Appli | Tauri 2.12 (`tray-icon`, `wry`), `tauri-plugin-single-instance` 2.5, `windows` 0.62 (projection WinRT seulement), `winreg` 0.56, `rfd` 0.18 (boîtes de message) |
 | HTTP/TLS | `reqwest` 0.13 en `native-tls` : SChannel et magasin de certificats Windows, aucune chaîne d'outils C |
 | Secrets | `secrecy` 0.10, `zeroize` 1.9, enveloppe : `chacha20poly1305` 0.11 (XChaCha20-Poly1305), `getrandom` 0.4, clé de session enveloppée par DPAPI utilisateur (WinRT `DataProtectionProvider`) |
 | Mises à jour | `ed25519-dalek` 3, `self-replace` 1.5, `semver` |
@@ -49,7 +49,7 @@ Client LLM ──stdio──▶ mcp-proxy.exe stdio          (pont : aucun secre
 ```
 crates/core            mcp-proxy-core       config, sessions, secrets, filtre, politiques, réglages, traces
 crates/auth            mcp-proxy-auth       trait AuthMethod + implémentations, authentification à la demande
-crates/gateway         mcp-proxy-gateway    registre, amont, middlewares, serveur MCP, pont
+crates/gateway         mcp-proxy-gateway    registre, amont, middlewares, serveur MCP, pont, vue, assemblage
 crates/deploy          mcp-proxy-deploy     installation, désinstallation, updater        (ajout)
 crates/testkit         mcp-proxy-testkit    faux MCP, faux SSO, faux Artifactory          (ajout, dev)
 crates/modules/*       un crate par module MCP local
@@ -197,3 +197,8 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` ; d
   dans `mcp_proxy_gateway::modules` (la passerelle dépend de `crates/modules/*`, le core d'aucun), `LocalUpstream` à
   côté de `HttpUpstream`. Le client authentifié des modules injecte par le `SessionGate` et ne joint que l'origine
   de `base_url`.
+- **2026-11-22** — Spec 011 : l'assemblage de la passerelle vit dans `mcp_proxy_gateway::runtime` (testé sous
+  Linux), la vue de l'interface dans `gateway::view`, le nom du pipe et la preuve mutuelle dans `gateway::bridge` ;
+  le crate `gateway` dépend du crate `auth`. Ajout de `tauri-plugin-single-instance` et de `rfd` (boîtes de message
+  sans appel Win32 direct). Fait constaté : le contrôle Windows depuis Linux ne compile pas les ressources de l'exe
+  (icône, manifeste), ce qui ne se vérifie que par une compilation sous Windows.

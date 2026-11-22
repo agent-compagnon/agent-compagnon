@@ -25,7 +25,7 @@ use tokio_util::sync::CancellationToken;
 use url::Url;
 
 use crate::method::{AuthMethod, LoginContext, LoginFailure, Obtained};
-use crate::ui::AuthUi;
+use crate::ui::{AuthUi, AuthUiError};
 
 /// What the authenticator is built from.
 pub struct AuthenticatorDeps {
@@ -292,6 +292,14 @@ impl Inner {
                 .set(session, login.previous, SessionChange::LoginCancelled);
             tracing::info!(session = session.as_str(), "connexion annulée par l'utilisateur");
             Err(SessionError::Cancelled(session.clone()))
+        } else if failure == LoginFailure::Ui(AuthUiError::Unavailable) {
+            // No interface to log in with: nothing was attempted, the call is told so plainly.
+            self.registry.set(session, login.previous, SessionChange::LoginFailed);
+            tracing::warn!(
+                session = session.as_str(),
+                "connexion impossible : interface de connexion indisponible"
+            );
+            Err(SessionError::Unavailable(session.clone()))
         } else {
             self.registry.set(session, login.previous, SessionChange::LoginFailed);
             tracing::warn!(session = session.as_str(), error = %failure, "connexion échouée");
