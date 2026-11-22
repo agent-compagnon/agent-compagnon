@@ -253,3 +253,6 @@ du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
   Les notifications et confirmations sont décidées dans `mcp_proxy_gateway::notify`.
 - **2026-11-22** — Spec 014 : `settings.key` ajouté aux données locales ; dépendance `hmac` 0.13 (déjà tirée par
   rmcp). Le scellement vit dans `mcp_proxy_core::sealed`.
+- **2026-11-22** — Spec 015 : constaté dans les sources de Tauri 2.12.7 et wry 0.57.3, `clear_all_browsing_data`
+  passe par `ICoreWebView2Profile2::ClearBrowsingDataAll` sans attendre sa fin ni rendre d'erreur (elle n'est que
+  journalisée par la boucle d'événements). Les gestes d'urgence vivent dans `mcp_proxy_gateway::control`.

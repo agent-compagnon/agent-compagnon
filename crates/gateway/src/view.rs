@@ -15,7 +15,7 @@ use serde::Serialize;
 use crate::registry::{CatalogSource, InstanceId, Registry};
 use crate::updates::{InstanceState, InstanceStatus, McpUpdate};
 
-/// The three states of the notification icon.
+/// The four states of the notification icon.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AppStatus {
@@ -23,11 +23,15 @@ pub enum AppStatus {
     /// Orange: a session or a confirmation waits for the user.
     Attention,
     Error,
+    /// The user suspended the gateway (spec 015): every call is refused until « Reprendre ».
+    Suspended,
 }
 
 /// What the state of the icon depends on.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct StatusInputs {
+    /// `UserSettings::gateway_suspended`.
+    pub suspended: bool,
     /// Sessions whose login was asked for and is not finished.
     pub sessions_waiting: usize,
     pub confirmations_waiting: usize,
@@ -36,9 +40,12 @@ pub struct StatusInputs {
 }
 
 impl AppStatus {
-    /// Attention first: a waiting call has a deadline, an error stays shown in the window until it is dealt with.
+    /// Suspended first: it lasts until the user lifts it, and no call waits while it holds (they are refused). Then
+    /// attention: a waiting call has a deadline; an error stays shown in the window until it is dealt with.
     pub fn of(inputs: &StatusInputs) -> Self {
-        if inputs.sessions_waiting > 0 || inputs.confirmations_waiting > 0 {
+        if inputs.suspended {
+            Self::Suspended
+        } else if inputs.sessions_waiting > 0 || inputs.confirmations_waiting > 0 {
             Self::Attention
         } else if inputs.errors > 0 {
             Self::Error
@@ -50,6 +57,9 @@ impl AppStatus {
     /// Tooltip of the icon: `MCP Proxy — …`, every waiting item and error counted.
     pub fn tooltip(inputs: &StatusInputs) -> String {
         let mut parts = Vec::new();
+        if inputs.suspended {
+            parts.push("passerelle suspendue".to_owned());
+        }
         match inputs.sessions_waiting {
             0 => {}
             1 => parts.push("1 connexion attend".to_owned()),
@@ -92,6 +102,8 @@ pub enum AlertKind {
     CatalogCache,
     /// Hardening that could not be applied at start (exclusion from Windows error reports).
     StartupHardening,
+    /// A change asked by the user applies but could not be saved (suspension of the gateway, spec 015).
+    SettingsNotSaved,
 }
 
 /// A global banner of the interface. French, holds no secret.
@@ -442,6 +454,7 @@ impl AppSnapshot {
         }));
 
         let status_inputs = StatusInputs {
+            suspended: inputs.settings.gateway_suspended,
             sessions_waiting: inputs
                 .sessions
                 .iter()
@@ -554,6 +567,7 @@ mod tests {
             sessions_waiting: 3,
             confirmations_waiting: 1,
             errors: 2,
+            ..none
         };
         assert_eq!(AppStatus::of(&all), AppStatus::Attention, "a waiting call comes first");
         assert_eq!(
@@ -561,5 +575,28 @@ mod tests {
             "MCP Proxy — 3 connexions attendent, 1 confirmation attend, 2 erreurs"
         );
         assert_eq!(serde_json::to_value(AppStatus::Attention).unwrap(), "attention");
+    }
+
+    // Exigence : EX-015-09
+    #[test]
+    fn a_suspended_gateway_has_its_own_icon_state_first() {
+        let suspended = StatusInputs {
+            suspended: true,
+            ..StatusInputs::default()
+        };
+        assert_eq!(AppStatus::of(&suspended), AppStatus::Suspended);
+        assert_eq!(AppStatus::tooltip(&suspended), "MCP Proxy — passerelle suspendue");
+        let everything = StatusInputs {
+            suspended: true,
+            sessions_waiting: 1,
+            confirmations_waiting: 0,
+            errors: 1,
+        };
+        assert_eq!(AppStatus::of(&everything), AppStatus::Suspended);
+        assert_eq!(
+            AppStatus::tooltip(&everything),
+            "MCP Proxy — passerelle suspendue, 1 connexion attend, 1 erreur"
+        );
+        assert_eq!(serde_json::to_value(AppStatus::Suspended).unwrap(), "suspended");
     }
 }

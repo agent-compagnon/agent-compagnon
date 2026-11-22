@@ -44,6 +44,8 @@ pub const KEEPER: &str = "login-keeper";
 const LOGIN_PREFIX: &str = "login";
 const BASIC_PREFIX: &str = "basic";
 const DEPOSIT_PERMISSION: &str = "allow-deposit-login-header";
+/// Left to WebView2 to finish clearing the profile (asynchronous on its side) before the keeper is destroyed.
+const CLEAR_ALL_DELAY: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// What the commands of the windows reach, managed by Tauri.
 #[derive(Debug, Default)]
@@ -342,6 +344,49 @@ impl AuthUi for WebviewAuthUi {
                 }
             }
             Ok(())
+        })
+        .await
+        .unwrap_or(Err(AuthUiError::ClearSiteData))
+    }
+
+    /// « Tout déconnecter » (spec 015): every login and Basic window closed, then the whole profile cleared through
+    /// the keeper (`clear_all_browsing_data`, then every cookie deleted), then the keeper destroyed. The next login
+    /// creates a new keeper.
+    async fn clear_all_site_data(&self) -> Result<(), AuthUiError> {
+        // No keeper nor login window is created meanwhile.
+        let _keeper = self.keeper.lock().await;
+        let app = self.app.clone();
+        tokio::task::spawn_blocking(move || {
+            for (label, window) in app.webview_windows() {
+                let login =
+                    label.starts_with(&format!("{LOGIN_PREFIX}-")) || label.starts_with(&format!("{BASIC_PREFIX}-"));
+                if login && label != KEEPER {
+                    let _ = window.destroy();
+                }
+            }
+            let Some(keeper) = app.get_webview_window(KEEPER) else {
+                // No login since the start: the profile directory was emptied, nothing to remove.
+                return Ok(());
+            };
+            let cleared = keeper.clear_all_browsing_data().map_err(|error| {
+                tracing::warn!(%error, "données de navigation non effacées");
+                AuthUiError::ClearSiteData
+            });
+            // Through the event loop, after the clearing it was handed: whatever cookie is left goes too.
+            let deleted = keeper
+                .cookies()
+                .and_then(|cookies| cookies.into_iter().try_for_each(|cookie| keeper.delete_cookie(cookie)))
+                .map_err(|error| {
+                    tracing::warn!(%error, "cookies du profil non supprimés");
+                    AuthUiError::ClearSiteData
+                });
+            std::thread::sleep(CLEAR_ALL_DELAY);
+            let destroyed = keeper.destroy().map_err(|error| {
+                tracing::warn!(%error, "fenêtre gardienne non détruite");
+                AuthUiError::ClearSiteData
+            });
+            tracing::info!("profil des fenêtres de connexion effacé, fenêtres fermées");
+            cleared.and(deleted).and(destroyed)
         })
         .await
         .unwrap_or(Err(AuthUiError::ClearSiteData))

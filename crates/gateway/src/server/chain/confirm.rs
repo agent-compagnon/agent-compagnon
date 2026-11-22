@@ -23,7 +23,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::stages::{cancelled, whole_seconds};
 use super::ticket::TicketError;
-use super::{CallContext, Halt, Middleware, Refusal, Shared};
+use super::{CallContext, Halt, Middleware, Refusal, Shared, suspended};
 use crate::server::ClientIdentity;
 
 /// Key of the one input request of a confirmation asked in the chat (2026-07-28).
@@ -241,29 +241,38 @@ impl Middleware for Confirmation {
             deadline: window.deadline,
         };
 
-        let verdict = if modern {
-            match shared
-                .tickets
-                .issue(context.connection, &context.exposed_name, context.args.as_ref())
-            {
-                Ok(state) => {
-                    let elicitation = ElicitRequest::new(elicitation_params(message(&request)));
-                    let requests =
-                        InputRequests::from([(INPUT_KEY.to_owned(), InputRequest::Elicitation(elicitation))]);
-                    return Err(Halt::InputRequired(InputRequiredResult::new(
-                        Some(requests),
-                        Some(state),
-                    )));
+        let asking = async {
+            if modern {
+                match shared
+                    .tickets
+                    .issue(context.connection, &context.exposed_name, context.args.as_ref())
+                {
+                    Ok(state) => {
+                        let elicitation = ElicitRequest::new(elicitation_params(message(&request)));
+                        let requests =
+                            InputRequests::from([(INPUT_KEY.to_owned(), InputRequest::Elicitation(elicitation))]);
+                        Err(Halt::InputRequired(InputRequiredResult::new(
+                            Some(requests),
+                            Some(state),
+                        )))
+                    }
+                    Err(_) => Ok(ask_broker(shared, request, window, &context.cancel).await),
                 }
-                Err(_) => ask_broker(shared, request, window, &context.cancel).await,
+            } else if let (true, Some(peer)) = (in_chat, &context.peer) {
+                match ask_legacy(shared, peer, &request, window, &context.cancel).await {
+                    Ok(verdict) => Ok(verdict),
+                    Err(Technical) => Ok(ask_broker(shared, request, window, &context.cancel).await),
+                }
+            } else {
+                Ok(ask_broker(shared, request, window, &context.cancel).await)
             }
-        } else if let (true, Some(peer)) = (in_chat, &context.peer) {
-            match ask_legacy(shared, peer, &request, window, &context.cancel).await {
-                Ok(verdict) => verdict,
-                Err(Technical) => ask_broker(shared, request, window, &context.cancel).await,
-            }
-        } else {
-            ask_broker(shared, request, window, &context.cancel).await
+        };
+        // Suspending the gateway refuses a confirmation still waiting (spec 015); dropping the question withdraws
+        // its toast and its window.
+        let verdict = tokio::select! {
+            biased;
+            () = shared.suspended() => return Err(suspended()),
+            verdict = asking => verdict?,
         };
 
         match verdict {

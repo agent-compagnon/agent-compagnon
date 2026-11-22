@@ -1,7 +1,8 @@
 //! The chain every `tools/call` goes through (spec 007), in this order:
 //!
 //! 1. resolution of the exposed name (only exposed tools resolve);
-//! 2. suspension of the gateway by the user;
+//! 2. suspension of the gateway by the user (a call already waiting for a confirmation or a login is refused as
+//!    soon as the gateway is suspended, and no upstream call starts while it is);
 //! 3. policy (`Deny` stops here);
 //! 4. scan of the arguments for known secrets;
 //! 5. rate limit of the instance;
@@ -239,6 +240,27 @@ struct Shared {
     output: OutputGate,
     limiter: RateLimiter,
     tickets: Tickets,
+}
+
+impl Shared {
+    /// Ends once the gateway is suspended, at once if it already is: what a call waiting for a login or a
+    /// confirmation is raced against (spec 015).
+    async fn suspended(&self) {
+        let mut settings = self.settings.clone();
+        if settings.wait_for(|s| s.gateway_suspended).await.is_err() {
+            // No settings any more: the gateway is stopping, the call ends at its own deadline.
+            std::future::pending::<()>().await;
+        }
+    }
+
+    fn is_suspended(&self) -> bool {
+        self.settings.borrow().gateway_suspended
+    }
+}
+
+/// Refusal of every call while the gateway is suspended, those already waiting included.
+fn suspended() -> Halt {
+    Refusal::new(CallStatus::Suspended, "passerelle suspendue par l'utilisateur.").into()
 }
 
 /// Built once, shared by every connection.

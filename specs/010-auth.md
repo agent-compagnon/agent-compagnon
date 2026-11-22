@@ -129,6 +129,8 @@ d'en-tête pour `jwt_header` seulement) n'a aucun réglage de visibilité et ne 
 - Un échec de connexion amont dû à l'identifiant n'arme pas la temporisation de reconnexion (spec 006).
 - La chaîne répond à `LoginFailed` : « connexion à « X » échouée, appel refusé. Relancez la connexion depuis MCP
   Proxy, puis réessayez. » (statut `auth_required`).
+- Spec 015 : `OnDemandAuthenticator::disconnect_all` (« Tout déconnecter ») ; ses appels en attente reçoivent
+  `SessionError::Disconnected`, et l'interface doit savoir tout effacer (`AuthUi::clear_all_site_data`).
 
 ## Tests
 
@@ -178,3 +180,5 @@ Fenêtres WebView2 réelles (5b). Notifications réelles (5c).
   `LoginFailed` : le LLM lit « connexion à « X » impossible pour le moment », et non une invitation à relancer une
   connexion qui ne peut pas s'ouvrir. L'état revient à ce qu'il était, l'événement reste `LoginFailed`. Prouvé par
   `EX-011-13`.
+- **2026-11-22** — Spec 015 : ajout de `OnDemandAuthenticator::disconnect_all`, de `SessionError::Disconnected` et
+  de la méthode `AuthUi::clear_all_site_data`. Comportement et critères de la 010 inchangés.

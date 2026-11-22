@@ -187,6 +187,32 @@ les deux du module `dpapi` (critère automatique `EX-014-04`, compilé seulement
   notification « Réglages réinitialisés », journal « clé de scellement illisible ». Vérifier aussi qu'un cache de
   catalogue copié avec eux (`cache\catalog\*.json`) est ignoré (alerte d'information « scellement invalide »).
 
+## 015 — Arrêt d'urgence dans le menu de l'icône
+
+Préparation : comme pour la 011, profil « Développeur » choisi par le menu « Profil », client LLM configuré
+(EX-011-06), et pour EX-015-08 une config dont `sso-dev` (ou une autre session `cookie`/`jwt_header`) pointe vers un
+vrai SSO de recette (section 012). Le menu de l'icône contient, dans l'ordre : « Ouvrir », « Profil »,
+« Suspendre la passerelle », « Tout déconnecter », « Quitter ».
+
+- [ ] **EX-015-06** — Menu de l'icône, « Suspendre la passerelle » (aucune question n'est posée) : l'icône devient
+  grise avec une pause, son infobulle commence par « MCP Proxy — passerelle suspendue », l'élément du menu devient
+  « Reprendre ». Le client liste toujours les mêmes outils ; tout appel, y compris une lecture en DEV, répond
+  « MCP Proxy : passerelle suspendue par l'utilisateur. » ; le journal du jour contient une ligne `mcp.event`
+  « passerelle suspendue par l'utilisateur » et des appels au statut `suspended`. Avec une confirmation en attente
+  (profil « Support », `prod_jira_add_comment`, section 013) puis « Suspendre » : le toast ou la fenêtre de détail
+  disparaît et le client reçoit aussitôt le message de suspension. « Reprendre » : l'icône redevient neutre, les
+  appels passent de nouveau.
+- [ ] **EX-015-07** — Suspendre, « Quitter », relancer l'appli : l'icône est grise, le menu dit « Reprendre » et les
+  appels sont refusés. « Reprendre », quitter, relancer : l'icône est neutre.
+- [ ] **EX-015-08** — Se connecter à une session (EX-012-04), puis lancer un appel d'une autre session et laisser sa
+  fenêtre de connexion ouverte. Menu, « Tout déconnecter » (aucune question) : la fenêtre de connexion se ferme, le
+  client reçoit « connexion à « … » interrompue, l'utilisateur a déconnecté toutes les sessions ; appel refusé… », le
+  journal contient « toutes les sessions déconnectées par l'utilisateur ». Rappeler un outil de la première
+  session : la fenêtre de connexion s'ouvre et la page du SSO redemande les identifiants (aucune session SSO n'a
+  survécu). Tant que l'interface de la spec 016 n'existe pas, les cartes « jamais connectée » ne se vérifient pas :
+  le faire avec elle. Noter si une boîte « les données des fenêtres de connexion n'ont pas pu être effacées »
+  apparaît (runtime WebView2 trop ancien pour `ClearBrowsingDataAll`, I015.4).
+
 ## 025 — Module MCP local d'exemple (`jira-local`)
 
 À dérouler quand l'appli (spec 011) et les fenêtres de saisie Basic (spec 012) existent, avec une config dont

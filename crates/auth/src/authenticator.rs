@@ -61,6 +61,8 @@ struct Slot {
     active: Option<ActiveSecret>,
     login: Option<Login>,
     timer: Option<AbortHandle>,
+    /// A login taken away by « Tout déconnecter », and what its waiting calls get when it ends.
+    interrupted: Option<(u64, SessionError)>,
 }
 
 struct Inner {
@@ -127,6 +129,20 @@ impl OnDemandAuthenticator {
             None => Ok(()),
             Some(done) => wait(session, done, None).await,
         }
+    }
+
+    /// « Tout déconnecter » (spec 015), without confirmation: every login in progress is stopped (its waiting calls
+    /// get `Disconnected`), every secret is wiped (their variants stay masked for their grace period), every session
+    /// goes back to « jamais connectée », then the whole profile of the login windows is cleared and its windows
+    /// closed. The secrets are gone before the profile is touched: a failure there is returned, logged, and changes
+    /// nothing to them.
+    pub async fn disconnect_all(&self) -> Result<(), AuthUiError> {
+        self.inner.disconnect_all();
+        let cleared = self.inner.ui.clear_all_site_data().await;
+        if let Err(error) = &cleared {
+            tracing::warn!(%error, "tout déconnecter : données de navigation non effacées");
+        }
+        cleared
     }
 
     /// « Déconnecter » button: stops a login in progress (its waiting calls get `Cancelled`), wipes the secret and
@@ -278,6 +294,9 @@ impl Inner {
         let slot = slots.entry(session.clone()).or_default();
         let Some(login) = slot.login.take_if(|l| l.id == id) else {
             // Disconnected meanwhile: whatever the login obtained is dropped.
+            if let Some((_, error)) = slot.interrupted.take_if(|(interrupted, _)| *interrupted == id) {
+                return Err(error);
+            }
             return Err(SessionError::Cancelled(session.clone()));
         };
         let failure = match outcome {
@@ -386,6 +405,29 @@ impl Inner {
                 .set(session, SessionState::Expired, SessionChange::Disconnected);
         }
         tracing::info!(session = session.as_str(), "session déconnectée");
+    }
+
+    fn disconnect_all(&self) {
+        let mut slots = self.slots();
+        for info in self.registry.infos() {
+            let slot = slots.entry(info.id.clone()).or_default();
+            if let Some(login) = slot.login.take() {
+                login.cancel.cancel();
+                slot.interrupted = Some((login.id, SessionError::Disconnected(info.id.clone())));
+            }
+            slot.active = None;
+            if let Some(timer) = slot.timer.take() {
+                timer.abort();
+            }
+        }
+        self.store.wipe_all();
+        for info in self.registry.infos() {
+            if self.registry.state(&info.id) != Some(SessionState::NeverConnected) {
+                self.registry
+                    .set(&info.id, SessionState::NeverConnected, SessionChange::Disconnected);
+            }
+        }
+        tracing::info!("toutes les sessions déconnectées");
     }
 
     fn mark_rejected(&self, session: &SessionId, version: SecretVersion) {

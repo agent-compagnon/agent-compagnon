@@ -1,6 +1,7 @@
 //! Tool registry, upstream clients, middleware chain, MCP server, bridge, and the assembly the application runs.
 
 pub mod bridge;
+pub mod control;
 mod convert;
 pub mod journal;
 pub mod launch;

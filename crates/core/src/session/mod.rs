@@ -59,6 +59,9 @@ pub enum SessionError {
     /// error. The detail is in the log, never here.
     #[error("connexion à la session « {0} » échouée")]
     LoginFailed(SessionId),
+    /// The user disconnected every session (« Tout déconnecter », spec 015) while this login was waited for.
+    #[error("connexion à la session « {0} » interrompue : toutes les sessions ont été déconnectées par l'utilisateur")]
+    Disconnected(SessionId),
     /// The credential could not be injected: unknown session, no secret, destination outside the session's origins.
     #[error("{0}")]
     Injection(#[from] SecretError),

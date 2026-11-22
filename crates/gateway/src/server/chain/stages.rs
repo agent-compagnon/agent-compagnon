@@ -10,7 +10,7 @@ use mcp_proxy_core::trace::CallStatus;
 use rmcp::model::CallToolResult;
 use serde_json::Value;
 
-use super::{CallContext, Halt, Middleware, Refusal, ResolvedTool, Shared};
+use super::{CallContext, Halt, Middleware, Refusal, ResolvedTool, Shared, suspended};
 use crate::registry::ToolHints;
 use crate::upstream::{Upstream, UpstreamCall, UpstreamError};
 
@@ -85,8 +85,8 @@ impl Middleware for Suspension {
     }
 
     async fn handle(&self, _: &mut CallContext) -> Result<(), Halt> {
-        if self.0.settings.borrow().gateway_suspended {
-            return refuse(CallStatus::Suspended, "passerelle suspendue par l'utilisateur.");
+        if self.0.is_suspended() {
+            return Err(suspended());
         }
         Ok(())
     }
@@ -203,6 +203,8 @@ async fn ensure_session(shared: &Shared, context: &CallContext, session: &Sessio
         client: shared.output.text(&context.client.name).unwrap_or_default(),
     };
     let ensured = tokio::select! {
+        biased;
+        () = shared.suspended() => return Err(suspended()),
         ensured = tokio::time::timeout_at(
             tokio::time::Instant::from_std(deadline),
             shared.gate.ensure(session, deadline, &reason),
@@ -221,6 +223,10 @@ async fn ensure_session(shared: &Shared, context: &CallContext, session: &Sessio
         }
         Ok(Err(SessionError::LoginFailed(_))) => format!(
             "connexion à « {label} » échouée, appel refusé. Relancez la connexion depuis MCP Proxy, puis réessayez."
+        ),
+        Ok(Err(SessionError::Disconnected(_))) => format!(
+            "connexion à « {label} » interrompue, l'utilisateur a déconnecté toutes les sessions ; appel refusé. \
+             Réessayez : une nouvelle connexion sera demandée."
         ),
         Ok(Err(SessionError::Unavailable(_))) => {
             format!("connexion à « {label} » impossible pour le moment, appel refusé.")
@@ -271,6 +277,10 @@ impl Middleware for UpstreamCallStage {
 
     async fn handle(&self, context: &mut CallContext) -> Result<(), Halt> {
         let tool = context.resolved()?.clone();
+        // Suspended while the call was confirmed or connected: nothing leaves.
+        if self.0.is_suspended() {
+            return Err(suspended());
+        }
         let Some(upstream) = self.0.upstreams.get(&tool.instance).cloned() else {
             return refuse(
                 CallStatus::Error,

@@ -221,6 +221,10 @@ pub trait AuthUi: Send + Sync {
 
     /// Removes the cookies and site data of `hosts` from the login windows' profile.
     async fn clear_site_data(&self, hosts: &[String]) -> Result<(), AuthUiError>;
+
+    /// « Tout déconnecter » (spec 015): every browsing data of the login windows' profile is cleared, then every
+    /// login window and the keeper of the profile are closed.
+    async fn clear_all_site_data(&self) -> Result<(), AuthUiError>;
 }
 
 #[async_trait]
@@ -254,6 +258,10 @@ impl AuthUi for UnavailableAuthUi {
     async fn notify_login_needed(&self, _session: &SessionInfo, _reason: &AccessReason) {}
 
     async fn clear_site_data(&self, _hosts: &[String]) -> Result<(), AuthUiError> {
+        Ok(())
+    }
+
+    async fn clear_all_site_data(&self) -> Result<(), AuthUiError> {
         Ok(())
     }
 }

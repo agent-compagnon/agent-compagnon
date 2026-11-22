@@ -50,6 +50,8 @@ struct UiState {
     prompts: Vec<BasicPromptSpec>,
     notifications: Vec<(SessionId, AccessReason)>,
     cleared: Vec<Vec<String>>,
+    /// Calls to `clear_all_site_data`.
+    cleared_all: usize,
     /// Windows and Basic prompts open right now, and the most ever open together.
     open: usize,
     max_open: usize,
@@ -203,6 +205,11 @@ impl FakeAuthUi {
     /// Hosts of every `clear_site_data` call.
     pub fn cleared(&self) -> Vec<Vec<String>> {
         lock(&self.shared.state).cleared.clone()
+    }
+
+    /// Calls to `clear_all_site_data` (« Tout déconnecter »).
+    pub fn cleared_all(&self) -> usize {
+        lock(&self.shared.state).cleared_all
     }
 
     pub fn open_now(&self) -> usize {
@@ -361,6 +368,15 @@ impl AuthUi for FakeAuthUi {
 
     async fn clear_site_data(&self, hosts: &[String]) -> Result<(), AuthUiError> {
         self.shared.update(|s| s.cleared.push(hosts.to_vec()));
+        Ok(())
+    }
+
+    /// The whole profile is emptied: no cookie is left for the next window.
+    async fn clear_all_site_data(&self) -> Result<(), AuthUiError> {
+        self.shared.update(|s| {
+            s.cookies.clear();
+            s.cleared_all += 1;
+        });
         Ok(())
     }
 }

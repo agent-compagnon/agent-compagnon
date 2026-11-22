@@ -250,11 +250,11 @@ impl PendingConfirmations {
         self.count.subscribe()
     }
 
-    /// The application stops: every waiting request is refused, and any later one is refused at once.
-    pub fn shutdown(&self) {
+    /// Every waiting request is refused; later ones are asked as usual. For the suspension of the gateway (spec 015),
+    /// which can be lifted.
+    pub fn refuse_all(&self) {
         let entries = {
             let mut state = self.lock();
-            state.closed = true;
             let entries = std::mem::take(&mut state.entries);
             self.publish(&state);
             entries
@@ -262,6 +262,12 @@ impl PendingConfirmations {
         for entry in entries.into_values() {
             let _ = entry.settle.send(Resolution::Refused);
         }
+    }
+
+    /// The application stops: every waiting request is refused, and any later one is refused at once.
+    pub fn shutdown(&self) {
+        self.lock().closed = true;
+        self.refuse_all();
     }
 }
 
@@ -428,6 +434,22 @@ mod tests {
         assert_eq!(first.outcome().await, ConfirmationOutcome::Refused);
         assert_eq!(second.outcome().await, ConfirmationOutcome::Refused);
         assert_eq!(pending.register(request(30), true).err(), Some(Closed));
+    }
+
+    // Exigence : EX-015-02
+    #[tokio::test(start_paused = true)]
+    async fn refusing_everything_waiting_can_be_lifted() {
+        let pending = PendingConfirmations::new();
+        let first = pending.register(request(30), true).unwrap();
+        let second = pending.register(request(30), false).unwrap();
+        pending.refuse_all();
+        assert_eq!(pending.count(), 0);
+        assert_eq!(first.outcome().await, ConfirmationOutcome::Refused);
+        assert_eq!(second.outcome().await, ConfirmationOutcome::Refused);
+        // Unlike a shutdown, the next request is asked and can be approved.
+        let next = pending.register(request(30), true).unwrap();
+        assert!(pending.answer(next.id(), AnswerSource::Toast, Answer::Approve));
+        assert_eq!(next.outcome().await, ConfirmationOutcome::Approved);
     }
 
     // Exigence : EX-013-01

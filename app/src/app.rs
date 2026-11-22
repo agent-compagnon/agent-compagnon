@@ -12,6 +12,7 @@ use mcp_proxy_core::config::ProfileId;
 use mcp_proxy_core::secrets::{SecretStore, platform_key_wrapper};
 use mcp_proxy_core::trace::SystemWallClock;
 use mcp_proxy_gateway::bridge::{PeerProof, pipe_name};
+use mcp_proxy_gateway::control::GatewayControl;
 use mcp_proxy_gateway::notify::{ConfirmationPresenter, Information, ToastAction, ToastState, information_toast};
 use mcp_proxy_gateway::runtime::{
     DataDirs, Gateway, Logging, Persistence, RuntimeDeps, StartupFailure, check_webview, record_startup_failure,
@@ -35,15 +36,18 @@ const MAIN_WINDOW: &str = "main";
 const TRAY: &str = "main";
 const MENU_OPEN: &str = "open";
 const MENU_QUIT: &str = "quit";
+const MENU_SUSPEND: &str = "suspend";
+const MENU_DISCONNECT_ALL: &str = "disconnect-all";
 /// `profile:<id>`: the provisional profile choice (spec 014), until the selector of the interface (spec 016).
 const MENU_PROFILE: &str = "profile:";
 const SNAPSHOT_CHANGED: &str = "snapshot-changed";
 
-/// The three icons of the notification area, drawn by `cargo xtask icons`.
+/// The four icons of the notification area, drawn by `cargo xtask icons`.
 struct TrayIcons {
     neutral: Image<'static>,
     attention: Image<'static>,
     error: Image<'static>,
+    suspended: Image<'static>,
 }
 
 impl TrayIcons {
@@ -52,6 +56,7 @@ impl TrayIcons {
             neutral: Image::from_bytes(include_bytes!("../icons/tray-neutral.png"))?,
             attention: Image::from_bytes(include_bytes!("../icons/tray-attention.png"))?,
             error: Image::from_bytes(include_bytes!("../icons/tray-error.png"))?,
+            suspended: Image::from_bytes(include_bytes!("../icons/tray-suspended.png"))?,
         })
     }
 
@@ -60,6 +65,7 @@ impl TrayIcons {
             AppStatus::Neutral => self.neutral.clone(),
             AppStatus::Attention => self.attention.clone(),
             AppStatus::Error => self.error.clone(),
+            AppStatus::Suspended => self.suspended.clone(),
         }
     }
 }
@@ -287,29 +293,46 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
 
     let icons = Arc::new(TrayIcons::load()?);
     let open = MenuItem::with_id(app, MENU_OPEN, "Ouvrir", true, None::<&str>)?;
-    let chosen = gateway.settings().profile;
-    let profiles = Arc::new(
-        gateway
-            .config()
-            .profiles
-            .values()
-            .map(|p| {
-                let checked = chosen.as_ref() == Some(&p.id);
-                let id = format!("{MENU_PROFILE}{}", p.id);
-                CheckMenuItem::with_id(app, id, &p.label, true, checked, None::<&str>).map(|item| (p.id.clone(), item))
-            })
-            .collect::<tauri::Result<Vec<_>>>()?,
-    );
+    let settings = gateway.settings();
+    let profiles = gateway
+        .config()
+        .profiles
+        .values()
+        .map(|p| {
+            let checked = settings.profile.as_ref() == Some(&p.id);
+            let id = format!("{MENU_PROFILE}{}", p.id);
+            CheckMenuItem::with_id(app, id, &p.label, true, checked, None::<&str>).map(|item| (p.id.clone(), item))
+        })
+        .collect::<tauri::Result<Vec<_>>>()?;
     let profile_items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = profiles
         .iter()
         .map(|(_, item)| item as &dyn tauri::menu::IsMenuItem<tauri::Wry>)
         .collect();
     let profile_menu = Submenu::with_items(app, "Profil", true, &profile_items)?;
+    let suspend = MenuItem::with_id(
+        app,
+        MENU_SUSPEND,
+        suspend_label(settings.gateway_suspended),
+        true,
+        None::<&str>,
+    )?;
+    let disconnect_all = MenuItem::with_id(app, MENU_DISCONNECT_ALL, "Tout déconnecter", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, MENU_QUIT, "Quitter", true, None::<&str>)?;
-    let separator = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&open, &profile_menu, &separator, &quit])?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &open,
+            &profile_menu,
+            &PredefinedMenuItem::separator(app)?,
+            &suspend,
+            &disconnect_all,
+            &PredefinedMenuItem::separator(app)?,
+            &quit,
+        ],
+    )?;
+    let tray_menu = Arc::new(TrayMenu { suspend, profiles });
     let menu_gateway = Arc::clone(&gateway);
-    let menu_profiles = Arc::clone(&profiles);
+    let menu_items = Arc::clone(&tray_menu);
     TrayIconBuilder::with_id(TRAY)
         .icon(icons.neutral.clone())
         .tooltip("MCP Proxy")
@@ -318,11 +341,18 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
         .on_menu_event(move |app, event| match event.id().as_ref() {
             MENU_OPEN => show_main_window(app),
             MENU_QUIT => app.exit(0),
+            // Immediate, without confirmation (spec 015).
+            MENU_SUSPEND => {
+                tauri::async_runtime::spawn(toggle_suspension(Arc::clone(&menu_gateway), Arc::clone(&menu_items)));
+            }
+            MENU_DISCONNECT_ALL => {
+                tauri::async_runtime::spawn(disconnect_everything(Arc::clone(&menu_gateway)));
+            }
             id => {
                 if let Some(profile) = id.strip_prefix(MENU_PROFILE).and_then(|p| ProfileId::new(p).ok()) {
                     let gateway = Arc::clone(&menu_gateway);
-                    let profiles = Arc::clone(&menu_profiles);
-                    tauri::async_runtime::spawn(choose_profile(gateway, profiles, profile));
+                    let items = Arc::clone(&menu_items);
+                    tauri::async_runtime::spawn(choose_profile(gateway, items, profile));
                 }
             }
         })
@@ -339,7 +369,7 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
         .build(app)?;
 
     let handle = app.handle().clone();
-    tauri::async_runtime::spawn(follow_snapshot(handle.clone(), Arc::clone(&gateway), icons, profiles));
+    tauri::async_runtime::spawn(follow_snapshot(handle.clone(), Arc::clone(&gateway), icons, tray_menu));
     if let Some(toaster) = app.try_state::<Arc<Toaster>>().map(|t| Arc::clone(t.inner())) {
         tauri::async_runtime::spawn(follow_information(handle.clone(), Arc::clone(&gateway), toaster));
     }
@@ -359,18 +389,59 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
-type ProfileItems = Arc<Vec<(ProfileId, CheckMenuItem<tauri::Wry>)>>;
+/// The items of the icon menu that follow the settings.
+struct TrayMenu {
+    /// « Suspendre la passerelle » or « Reprendre ».
+    suspend: MenuItem<tauri::Wry>,
+    profiles: Vec<(ProfileId, CheckMenuItem<tauri::Wry>)>,
+}
 
-/// The check marks of the « Profil » menu follow the chosen profile, whatever was clicked.
-fn check_chosen(profiles: &ProfileItems, chosen: Option<&ProfileId>) {
-    for (id, item) in profiles.iter() {
-        let _ = item.set_checked(chosen == Some(id));
+fn suspend_label(suspended: bool) -> &'static str {
+    if suspended {
+        "Reprendre"
+    } else {
+        "Suspendre la passerelle"
+    }
+}
+
+/// The check marks of the « Profil » menu follow the chosen profile, whatever was clicked; the suspension item
+/// names what it would do.
+fn sync_menu(menu: &TrayMenu, gateway: &Gateway) {
+    let settings = gateway.settings();
+    for (id, item) in &menu.profiles {
+        let _ = item.set_checked(settings.profile.as_ref() == Some(id));
+    }
+    let _ = menu.suspend.set_text(suspend_label(settings.gateway_suspended));
+}
+
+/// « Suspendre la passerelle » / « Reprendre ».
+async fn toggle_suspension(gateway: Arc<Gateway>, menu: Arc<TrayMenu>) {
+    let saved = if gateway.is_suspended() {
+        gateway.resume().await
+    } else {
+        gateway.suspend().await
+    };
+    // A save failure is an alert of the snapshot (red icon); the change itself applies.
+    if let Err(error) = saved {
+        tracing::error!(%error, "suspension non enregistrée");
+    }
+    sync_menu(&menu, &gateway);
+}
+
+/// « Tout déconnecter ».
+async fn disconnect_everything(gateway: Arc<Gateway>) {
+    if let Err(error) = gateway.disconnect_all().await {
+        let message = format!(
+            "Toutes les sessions sont déconnectées et aucun secret n'est gardé, mais les données des fenêtres de \
+             connexion n'ont pas pu être effacées ({error}). Elles le seront au prochain démarrage de MCP Proxy."
+        );
+        let _ = tauri::async_runtime::spawn_blocking(move || dialog::error("MCP Proxy", &message)).await;
     }
 }
 
 /// A click in the « Profil » menu: the question names what gets exposed; only « Oui » changes the settings, which
 /// are then sealed (spec 014).
-async fn choose_profile(gateway: Arc<Gateway>, profiles: ProfileItems, profile: ProfileId) {
+async fn choose_profile(gateway: Arc<Gateway>, menu: Arc<TrayMenu>, profile: ProfileId) {
     let config = Arc::clone(gateway.config());
     let Some(chosen) = config.profiles.get(&profile) else {
         return;
@@ -388,11 +459,11 @@ async fn choose_profile(gateway: Arc<Gateway>, profiles: ProfileItems, profile: 
             tracing::info!(profile = profile.as_str(), "profil choisi depuis le menu de l'icône");
         }
     }
-    check_chosen(&profiles, gateway.settings().profile.as_ref());
+    sync_menu(&menu, &gateway);
 }
 
 /// Keeps the icon, its menu and the window in step with the gateway.
-async fn follow_snapshot(app: AppHandle, gateway: Arc<Gateway>, icons: Arc<TrayIcons>, profiles: ProfileItems) {
+async fn follow_snapshot(app: AppHandle, gateway: Arc<Gateway>, icons: Arc<TrayIcons>, menu: Arc<TrayMenu>) {
     let mut changes = gateway.changes();
     loop {
         let snapshot = gateway.snapshot().await;
@@ -400,7 +471,7 @@ async fn follow_snapshot(app: AppHandle, gateway: Arc<Gateway>, icons: Arc<TrayI
             let _ = tray.set_icon(Some(icons.for_status(snapshot.status)));
             let _ = tray.set_tooltip(Some(&snapshot.tooltip));
         }
-        check_chosen(&profiles, gateway.settings().profile.as_ref());
+        sync_menu(&menu, &gateway);
         if let Some(json) = gateway.snapshot_json().await {
             let _ = app.emit_to(MAIN_WINDOW, SNAPSHOT_CHANGED, json);
         }

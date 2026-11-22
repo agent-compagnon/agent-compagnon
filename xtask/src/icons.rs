@@ -14,6 +14,7 @@ const WHITE: Rgba = [255, 255, 255, 255];
 const NEUTRAL: Rgba = [38, 38, 38, 255];
 const ATTENTION: Rgba = [242, 140, 0, 255];
 const ERROR: Rgba = [217, 45, 32, 255];
+const SUSPENDED: Rgba = [128, 128, 128, 255];
 const INK: Rgba = [26, 26, 26, 255];
 
 #[derive(Clone, Copy)]
@@ -22,6 +23,8 @@ enum Mark {
     Dot(Rgba),
     /// A cross.
     Cross(Rgba),
+    /// Two vertical bars: paused.
+    Pause(Rgba),
 }
 
 struct Badge {
@@ -29,7 +32,7 @@ struct Badge {
     mark: Mark,
 }
 
-const BADGES: [(&str, Badge); 3] = [
+const BADGES: [(&str, Badge); 4] = [
     (
         "tray-neutral.png",
         Badge {
@@ -49,6 +52,13 @@ const BADGES: [(&str, Badge); 3] = [
         Badge {
             fill: ERROR,
             mark: Mark::Cross(WHITE),
+        },
+    ),
+    (
+        "tray-suspended.png",
+        Badge {
+            fill: SUSPENDED,
+            mark: Mark::Pause(WHITE),
         },
     ),
 ];
@@ -84,6 +94,10 @@ fn sample(badge: &Badge, x: f64, y: f64) -> Option<Rgba> {
                 (arm, -arm),
             ));
             (d <= 0.13).then_some(colour)
+        }
+        Mark::Pause(colour) => {
+            let bar = |centre: f64| (x - centre).abs() <= 0.1 && y.abs() <= 0.38;
+            (bar(-0.19) || bar(0.19)).then_some(colour)
         }
     };
     Some(inside.unwrap_or(badge.fill))

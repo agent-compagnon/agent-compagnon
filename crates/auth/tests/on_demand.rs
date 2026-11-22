@@ -421,6 +421,79 @@ async fn connect_and_disconnect() {
     );
 }
 
+// Exigence : EX-015-04
+#[tokio::test(start_paused = true)]
+async fn disconnect_all_wipes_every_secret_and_releases_the_waiting_calls() {
+    let mut h = harness();
+    let corp = sid("sso-corp");
+    let dev = sid("sso-dev");
+    let int = sid("sso-int");
+    let call = ensure(&h.auth, &corp, 50);
+    let token = log_in_corp(&h, 0, 3600).await;
+    call.await.unwrap().unwrap();
+    let call = ensure(&h.auth, &dev, 50);
+    let window = h.ui.window(1).await;
+    h.ui.set_cookie("SESSION", "cookie-dev-91c3", None);
+    window.navigate(DEV_SUCCESS);
+    call.await.unwrap().unwrap();
+    assert!(h.store.has(&corp) && h.store.has(&dev));
+    // A login in progress, with its window open and a call waiting for it.
+    let waiting = ensure(&h.auth, &int, 50);
+    let login = h.ui.window(2).await;
+    h.drain_events();
+
+    h.auth.disconnect_all().await.unwrap();
+    assert_eq!(waiting.await.unwrap(), Err(SessionError::Disconnected(int.clone())));
+    assert!(
+        SessionError::Disconnected(int.clone())
+            .to_string()
+            .contains("toutes les sessions ont été déconnectées par l'utilisateur")
+    );
+    login.wait_closed().await;
+    for info in h.registry.infos() {
+        assert!(!h.store.has(&info.id), "{}", info.id);
+        assert!(!h.auth.is_active(&info.id), "{}", info.id);
+        assert_eq!(
+            h.registry.state(&info.id),
+            Some(SessionState::NeverConnected),
+            "{}",
+            info.id
+        );
+    }
+    let mut disconnected: Vec<SessionId> = h
+        .drain_events()
+        .into_iter()
+        .filter(|e| e.change == SessionChange::Disconnected)
+        .map(|e| e.session)
+        .collect();
+    disconnected.sort();
+    assert_eq!(disconnected, [corp.clone(), dev.clone(), int.clone()]);
+    assert_eq!(h.ui.cleared_all(), 1);
+    assert!(h.injected(&corp, CORP_MCP).is_none());
+    // The wiped token stays masked by the filter during its grace period (spec 002).
+    let masked = h
+        .store
+        .with_variants(|variants| variants.contains(&token.as_bytes()))
+        .unwrap();
+    assert!(masked);
+
+    // A token deposited in the closed window is not kept; the next call asks for a login again.
+    login.deposit(CORP_API, "Authorization", &format!("Bearer {}", corp_token(&h, 3600)));
+    settle().await;
+    assert!(!h.store.has(&int) && !h.store.has(&corp));
+    let call = ensure(&h.auth, &dev, 50);
+    let again = h.ui.window(3).await;
+    // The profile was emptied: the SSO cookie is gone, the user must log in again.
+    again.navigate(DEV_SUCCESS);
+    settle().await;
+    assert!(!h.store.has(&dev));
+    assert!(!again.is_closed());
+    h.ui.set_cookie("SESSION", "cookie-dev-27aa", None);
+    again.navigate(DEV_SUCCESS);
+    call.await.unwrap().unwrap();
+    assert!(h.auth.is_active(&dev));
+}
+
 /// Collects every log line written while the test runs (current-thread runtime: spawned tasks included).
 #[derive(Clone, Default)]
 struct Captured(Arc<Mutex<Vec<u8>>>);
