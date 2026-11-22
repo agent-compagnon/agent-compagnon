@@ -38,8 +38,9 @@ en lançant le même exe en mode `stdio`.
 | `mcp-proxy.exe stdio` | Pont : relaie stdin/stdout vers l'appli. Aucun secret, aucune logique |
 
 Les commandes internes (`--install`, `--uninstall`, `doctor`) arrivent aux étapes 7. Analyse stricte
-(`gateway::launch::parse_launch`) : aucun argument ou exactement `stdio` ; tout autre argument, un argument non
-Unicode ou plus d'un argument sont refusés (boîte de message, message sur stderr, code de sortie 2).
+(`gateway::launch::parse_launch`) : aucun argument, exactement `stdio`, ou l'un des arguments internes de la spec
+019 (`--autostart`, `--no-install`) ; tout autre argument, un argument non Unicode ou plus d'un argument sont refusés
+(boîte de message, message sur stderr, code de sortie 2).
 
 ### Tauri
 
@@ -267,3 +268,7 @@ Fenêtres de login (5b), notifications (5c), contenu de l'interface (6).
   réservées à la fenêtre `main`. La recette choisit le profil dans la fenêtre : le menu « Profil » de l'icône n'existe
   plus. `SessionStateView` gagne `requestedBy` (client LLM qui attend une connexion) et `ProfileChoice` gagne
   `description`. Comportement et critères de la 011 inchangés.
+- **2026-11-22** — Spec 019 : `parse_launch` accepte aussi `--autostart` et `--no-install` ; avant l'instance unique,
+  le mode appli passe par la décision d'installation ; un second lancement avec `--autostart` ne montre pas la
+  fenêtre ; le pont lance l'appli avec `--no-install` ; côté appli, la preuve mutuelle accepte aussi le rôle
+  `controle`, qui ne permet que de demander l'arrêt (`prove` rend le rôle prouvé). Critères de la 011 inchangés.

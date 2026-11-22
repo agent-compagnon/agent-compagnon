@@ -2,7 +2,7 @@
 id: "019"
 titre: "Installation au premier lancement"
 etape: "7a"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["011"]
 suivi: "github#20"
 ---
