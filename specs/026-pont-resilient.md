@@ -21,6 +21,9 @@ automatiques, cela arriverait régulièrement.
 
 - Quand le pipe se ferme, le pont **ne s'arrête pas**. Il attend le retour de l'appli (nouvelles tentatives pendant
   60 s, relance de l'appli si elle n'est pas là), puis se reconnecte.
+- **Chaque reconnexion refait la preuve mutuelle par DPAPI** de la spec 011 avant tout octet MCP, rejeu de
+  `initialize` compris : un pipe usurpé pendant que l'appli était arrêtée ne doit rien recevoir. Preuve en échec :
+  nouvelle tentative dans le délai de 60 s, sans jamais relayer.
 - **Ancien protocole** (handshake) : le pont garde en mémoire la requête `initialize` et la notification
   `initialized` du client. À la reconnexion, il les rejoue vers la nouvelle instance et absorbe la réponse, que le
   client a déjà reçue.
@@ -45,6 +48,8 @@ automatiques, cela arriverait régulièrement.
 - **EX-026-04** — Requêtes en cours à la coupure : chacune reçoit exactement une erreur.
 - **EX-026-05** — Appli absente plus de 60 s : arrêt propre.
 - **EX-026-06** — Messages volumineux et messages fragmentés correctement découpés.
+- **EX-026-09** — Reconnexion vers un serveur qui échoue à la preuve mutuelle : aucun octet MCP ne lui est envoyé,
+  ni le rejeu de `initialize`, ni les requêtes du client.
 
 ## Vérification
 
@@ -55,3 +60,10 @@ automatiques, cela arriverait régulièrement.
 - **EX-026-07** (manuel) — Client LLM connecté, puis « Quitter » et relance de l'appli : le client continue de fonctionner sans être
   redémarré.
 - **EX-026-08** (manuel) — Même essai avec une mise à jour suivie de « Redémarrer pour mettre à jour ».
+
+## Amendements
+
+- **2026-11-22** — La preuve mutuelle par DPAPI (spec 011, décision D18) est refaite à chaque reconnexion, et le
+  critère `EX-026-09` est ajouté. Raison : depuis D18, le pipe n'a plus d'ACL sur mesure ni de vérification du
+  binaire client ; c'est la preuve mutuelle qui protège le pont contre un pipe usurpé, et une reconnexion est
+  précisément le moment où l'appli n'est pas là pour tenir le nom du pipe.
