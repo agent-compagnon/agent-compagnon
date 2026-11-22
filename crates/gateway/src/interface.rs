@@ -1,15 +1,20 @@
 //! What the main window asks for: log in to a session, disconnect it, choose the profile, resume the gateway, show
 //! the waiting confirmations (spec 016); expose an environment, cut an MCP, acknowledge the update of an MCP, reload
-//! its list (spec 017). The application only passes the arguments of its commands on; every check and every effect
+//! its list (spec 017); export a diagnostic to the path the user chose in the save dialog (spec 018). The application only passes the arguments of its commands on; every check and every effect
 //! is here.
 //!
 //! The arguments come from the page: they are checked against the configuration and never echoed back. No command
 //! answers a confirmation: the detail window of spec 013 stays the only place where one is approved.
 
+use std::path::{Path, PathBuf};
+
 use mcp_proxy_core::config::{EnvId, McpId, ProfileId, SessionId};
+use mcp_proxy_core::diagnostics::{DiagnosticState, Diagnostics, archive_name};
 use mcp_proxy_core::session::SessionError;
+use serde::Serialize;
 use thiserror::Error;
 
+use crate::journal::instance_lines;
 use crate::registry::InstanceId;
 use crate::runtime::Gateway;
 use crate::view::{Alert, AlertKind, AlertLevel};
@@ -41,6 +46,61 @@ pub enum InterfaceError {
     /// The change applies, but the settings file keeps the previous settings.
     #[error("le changement s'applique jusqu'à l'arrêt de MCP Proxy, mais {0}")]
     NotSaved(String),
+    /// `DiagnosticError`, already French and without content (« export de diagnostic impossible : … »).
+    #[error("{0}")]
+    Export(String),
+}
+
+/// How « Exporter un diagnostic » ended, as the window shows it. Serialized `{ "status": "saved", "path": … }` or
+/// `{ "status": "cancelled" }`; a failure is the error of the command.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "status", rename_all = "camelCase")]
+pub enum ExportOutcome {
+    /// The archive is at `path`, the one the user chose (`.zip` added when missing).
+    Saved { path: String },
+    /// The user closed the save dialog: nothing written, nothing to say.
+    Cancelled,
+}
+
+/// The archive is a zip: a name chosen without that extension gets it, so that Windows opens it.
+pub fn archive_path(chosen: &Path) -> PathBuf {
+    let zip = chosen
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("zip"));
+    if zip {
+        chosen.to_path_buf()
+    } else {
+        let mut name = chosen.as_os_str().to_owned();
+        name.push(".zip");
+        PathBuf::from(name)
+    }
+}
+
+/// What the diagnostic archive says of the system (`systeme.txt`): `Windows 11 Pro 24H2 (build 26100.2314),
+/// WebView2 131.0.2903.70`, from the values the application reads in the registry; « inconnu » for a missing one.
+pub fn describe_system(product: Option<&str>, release: Option<&str>, build: Option<&str>, webview: &str) -> String {
+    let product = product
+        .filter(|p| !p.trim().is_empty())
+        .unwrap_or("Windows (version inconnue)");
+    let mut text = product.trim().to_owned();
+    if let Some(release) = release.filter(|r| !r.trim().is_empty()) {
+        text.push(' ');
+        text.push_str(release.trim());
+    }
+    text.push_str(&format!(
+        " (build {})",
+        build.filter(|b| !b.trim().is_empty()).unwrap_or("inconnu")
+    ));
+    text.push_str(&format!(", WebView2 {webview}"));
+    text
+}
+
+/// Where the save dialog opens: the « Téléchargements » folder of the user when it exists, else where Windows
+/// decides.
+pub fn default_export_dir(user_profile: Option<&Path>) -> Option<PathBuf> {
+    let downloads = user_profile?.join("Downloads");
+    downloads.is_dir().then_some(downloads)
 }
 
 impl Gateway {
@@ -234,6 +294,46 @@ impl Gateway {
                     message: format!("{what} s'applique jusqu'à l'arrêt de MCP Proxy, mais {error}."),
                 });
                 Err(InterfaceError::NotSaved(error.to_string()))
+            }
+        }
+    }
+
+    /// The name the save dialog proposes: `mcp-proxy-diagnostic-AAAAMMJJ-HHMM.zip`, UTC (spec 009).
+    pub fn diagnostic_file_name(&self) -> String {
+        archive_name(self.clock().now())
+    }
+
+    /// « Exporter un diagnostic », once the user chose `chosen` in the save dialog: the archive of spec 009 (logs
+    /// filtered again, settings, state of the instances, last self-diagnostic report), written there. The journal
+    /// records the export, not its path. Runs off the async threads: the export reads and compresses the logs.
+    pub async fn export_diagnostic(&self, chosen: &Path) -> Result<PathBuf, InterfaceError> {
+        let diagnostics = Diagnostics {
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            system: self.system().to_owned(),
+            config: std::sync::Arc::clone(self.config()),
+            log_dir: self.log_dir().to_path_buf(),
+            filter: std::sync::Arc::clone(self.journal().filter()),
+            clock: std::sync::Arc::clone(self.clock()),
+            log: self.journal().log().cloned(),
+        };
+        let state = DiagnosticState {
+            settings: self.settings(),
+            instances: instance_lines(self.watcher().tracker()),
+            doctor_report: None,
+        };
+        let path = archive_path(chosen);
+        let written = tokio::task::spawn_blocking(move || diagnostics.export(&path, &state))
+            .await
+            .map_err(|_| InterfaceError::Export("export de diagnostic impossible : tâche interrompue".to_owned()))?;
+        match written {
+            Ok(path) => {
+                self.journal()
+                    .record_event(tracing::Level::INFO, "diagnostic exporté par l'utilisateur");
+                Ok(path)
+            }
+            Err(error) => {
+                self.journal().record_event(tracing::Level::WARN, &error.to_string());
+                Err(InterfaceError::Export(error.to_string()))
             }
         }
     }

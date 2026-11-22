@@ -1,15 +1,17 @@
-//! Commands of the main window (specs 016 and 017), each declared in `build.rs` and granted to the window `main` alone by
+//! Commands of the main window (specs 016 to 018), each declared in `build.rs` and granted to the window `main` alone by
 //! `capabilities/main.json`. Wiring only: the checks and the effects live in `mcp_proxy_gateway::interface`. An
 //! error is a French text without any secret, shown by the window.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use mcp_proxy_gateway::control::GatewayControl;
+use mcp_proxy_gateway::interface::{ExportOutcome, default_export_dir};
 use mcp_proxy_gateway::runtime::Gateway;
 use tauri::{Manager, WebviewWindow};
 
 use crate::app::MAIN_WINDOW;
-use crate::login;
+use crate::{dialog, login};
 
 /// The gateway, for the main window only (defence in depth: the capability already restricts the commands to it).
 fn gateway_for(window: &WebviewWindow) -> Result<Arc<Gateway>, String> {
@@ -103,4 +105,37 @@ pub async fn reload_mcp(window: WebviewWindow, environment: String, mcp: String)
     let gateway = gateway_for(&window)?;
     let instance = gateway.known_instance(&environment, &mcp).map_err(|e| e.to_string())?;
     gateway.reload_mcp(&instance).await.map_err(|e| e.to_string())
+}
+
+/// The Journal tab: every entry of the buffer, oldest first, filtered once more. The later ones come by
+/// `journal-entry` (or `journal-resync`, after which the window asks again).
+#[tauri::command]
+pub async fn get_journal(window: WebviewWindow) -> Result<serde_json::Value, String> {
+    let gateway = gateway_for(&window)?;
+    gateway
+        .journal_json()
+        .ok_or_else(|| "filtre de sortie indisponible : journal non transmis".to_owned())
+}
+
+/// « Exporter un diagnostic »: the save dialog of Windows, then the archive where the user chose. The page never
+/// gives a path: it only learns where the archive went, or that the dialog was closed.
+#[tauri::command]
+pub async fn export_diagnostic(window: WebviewWindow) -> Result<ExportOutcome, String> {
+    let gateway = gateway_for(&window)?;
+    let profile = std::env::var_os("USERPROFILE").map(PathBuf::from);
+    let choose = dialog::save_archive(
+        &window,
+        &gateway.diagnostic_file_name(),
+        default_export_dir(profile.as_deref()),
+    );
+    let chosen = tauri::async_runtime::spawn_blocking(choose)
+        .await
+        .map_err(|_| "dialogue d'enregistrement interrompu".to_owned())?;
+    let Some(chosen) = chosen else {
+        return Ok(ExportOutcome::Cancelled);
+    };
+    let path = gateway.export_diagnostic(&chosen).await.map_err(|e| e.to_string())?;
+    Ok(ExportOutcome::Saved {
+        path: path.display().to_string(),
+    })
 }

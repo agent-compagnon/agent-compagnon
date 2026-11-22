@@ -12,6 +12,7 @@ use mcp_proxy_core::secrets::{SecretStore, platform_key_wrapper};
 use mcp_proxy_core::trace::SystemWallClock;
 use mcp_proxy_gateway::bridge::{PeerProof, pipe_name};
 use mcp_proxy_gateway::control::GatewayControl;
+use mcp_proxy_gateway::journal_view::FeedItem;
 use mcp_proxy_gateway::notify::{ConfirmationPresenter, Information, ToastAction, ToastState, information_toast};
 use mcp_proxy_gateway::runtime::{
     DataDirs, Gateway, Logging, Persistence, RuntimeDeps, StartupFailure, check_webview, record_startup_failure,
@@ -39,6 +40,8 @@ const MENU_QUIT: &str = "quit";
 const MENU_SUSPEND: &str = "suspend";
 const MENU_DISCONNECT_ALL: &str = "disconnect-all";
 const SNAPSHOT_CHANGED: &str = "snapshot-changed";
+const JOURNAL_ENTRY: &str = "journal-entry";
+const JOURNAL_RESYNC: &str = "journal-resync";
 
 /// The four icons of the notification area, drawn by `cargo xtask icons`.
 struct TrayIcons {
@@ -96,9 +99,10 @@ pub fn run() -> ExitCode {
             return refuse_early(Some(&dirs), &StartupFailure::InvalidConfig(lines));
         }
     };
-    if let Err(failure) = check_webview(tauri::webview_version().map_err(|e| e.to_string())) {
-        return refuse_early(Some(&dirs), &failure);
-    }
+    let webview = match check_webview(tauri::webview_version().map_err(|e| e.to_string())) {
+        Ok(version) => version,
+        Err(failure) => return refuse_early(Some(&dirs), &failure),
+    };
     // Before any webview uses it; a failure keeps the login windows closed (fail closed), reported once the
     // journal exists.
     let profile_reset = reset_profile_dir(&dirs.webview).map_err(|e| e.kind().to_string());
@@ -130,7 +134,9 @@ pub fn run() -> ExitCode {
             interface::set_environment_exposed,
             interface::set_mcp_exposed,
             interface::acknowledge_mcp_update,
-            interface::reload_mcp
+            interface::reload_mcp,
+            interface::get_journal,
+            interface::export_diagnostic
         ])
         .setup(|app| {
             // Tauri panics on a setup error: a failure here is explained, then the application exits.
@@ -173,7 +179,8 @@ pub fn run() -> ExitCode {
         Some(Arc::clone(&toaster)),
     );
     let presenter = Arc::new(WindowsPresenter::new(app.handle(), Arc::clone(&toaster)));
-    let gateway = match start_gateway(config, dirs, Arc::new(auth_ui), presenter) {
+    let system = crate::system::description(&webview);
+    let gateway = match start_gateway(config, dirs, Arc::new(auth_ui), presenter, system) {
         Ok(gateway) => gateway,
         Err(code) => return code,
     };
@@ -221,6 +228,7 @@ fn start_gateway(
     dirs: DataDirs,
     auth_ui: Arc<dyn AuthUi>,
     presenter: Arc<dyn ConfirmationPresenter>,
+    system: String,
 ) -> Result<Arc<Gateway>, ExitCode> {
     let store = match SecretStore::for_platform() {
         Ok(store) => store,
@@ -241,6 +249,7 @@ fn start_gateway(
         clock: Arc::new(SystemWallClock),
         logging: Logging::Global,
         utc_offset: 0,
+        system,
     }));
     let gateway = match started {
         Ok(gateway) => Arc::new(gateway),
@@ -356,6 +365,7 @@ fn setup_ui(app: &mut tauri::App, gateway: Arc<Gateway>) -> tauri::Result<()> {
 
     let handle = app.handle().clone();
     tauri::async_runtime::spawn(follow_snapshot(handle.clone(), Arc::clone(&gateway), icons, tray_menu));
+    tauri::async_runtime::spawn(follow_journal(handle.clone(), Arc::clone(&gateway)));
     if let Some(toaster) = app.try_state::<Arc<Toaster>>().map(|t| Arc::clone(t.inner())) {
         tauri::async_runtime::spawn(follow_information(handle.clone(), Arc::clone(&gateway), toaster));
     }
@@ -438,6 +448,18 @@ async fn follow_snapshot(app: AppHandle, gateway: Arc<Gateway>, icons: Arc<TrayI
             Ok(()) | Err(RecvError::Lagged(_)) => {}
             Err(RecvError::Closed) => return,
         }
+    }
+}
+
+/// Sends every new entry of the journal to the window (spec 018). When entries were lost on the way, the window is
+/// told to ask for the whole journal again.
+async fn follow_journal(app: AppHandle, gateway: Arc<Gateway>) {
+    let mut feed = gateway.journal_feed();
+    while let Some(item) = feed.next().await {
+        let _ = match item {
+            FeedItem::Entry(entry) => app.emit_to(MAIN_WINDOW, JOURNAL_ENTRY, entry),
+            FeedItem::Resync => app.emit_to(MAIN_WINDOW, JOURNAL_RESYNC, ()),
+        };
     }
 }
 

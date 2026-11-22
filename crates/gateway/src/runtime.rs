@@ -21,8 +21,8 @@ use mcp_proxy_core::secrets::{KeyWrapper, OriginGuard, SecretStore};
 use mcp_proxy_core::session::{SessionGate, SessionRegistry};
 use mcp_proxy_core::settings::{SealedSettingsStore, SettingsError, SettingsOrigin, SettingsStore, UserSettings};
 use mcp_proxy_core::trace::{
-    Journal, JournalConfig, LogFileOptions, LogGuard, LoggingError, WallClock, install_global, install_panic_hook,
-    log_file_name, open_log, rfc3339,
+    Journal, JournalConfig, JournalFilter, LogFileOptions, LogGuard, LoggingError, WallClock, install_global,
+    install_panic_hook, log_file_name, open_log, rfc3339,
 };
 use serde_json::Value;
 use thiserror::Error;
@@ -32,6 +32,7 @@ use tokio::task::JoinHandle;
 
 use crate::bridge::{PeerProof, ProofError, Role, prove};
 use crate::journal::follow_tool_changes;
+use crate::journal_view::{JournalFeed, JournalView, filtered_json};
 use crate::modules;
 use crate::notify::{ConfirmationPresenter, NotificationBroker, PendingConfirmations};
 use crate::registry::{
@@ -130,6 +131,8 @@ pub struct RuntimeDeps {
     pub logging: Logging,
     /// Local offset from UTC (east positive) for the labels of the snapshot.
     pub utc_offset: i32,
+    /// The operating system as the application describes it (version, WebView2), for the diagnostic export.
+    pub system: String,
 }
 
 /// Why the gateway did not start. French, without any secret: shown in a message box.
@@ -167,6 +170,9 @@ pub struct Gateway {
     alerts: Mutex<Vec<Alert>>,
     changes: broadcast::Sender<()>,
     utc_offset: i32,
+    clock: Arc<dyn WallClock>,
+    log_dir: PathBuf,
+    system: String,
     _tasks: Vec<AbortOnDrop>,
     _log_guard: LogGuard,
 }
@@ -319,6 +325,9 @@ impl Gateway {
             alerts: Mutex::new(alerts),
             changes,
             utc_offset: deps.utc_offset,
+            clock: deps.clock,
+            log_dir: deps.dirs.logs,
+            system: deps.system,
             _tasks: vec![AbortOnDrop(tool_changes), AbortOnDrop(forwarder)],
             _log_guard: log_guard,
         })
@@ -330,6 +339,30 @@ impl Gateway {
 
     pub fn journal(&self) -> &Journal {
         &self.journal
+    }
+
+    pub fn clock(&self) -> &Arc<dyn WallClock> {
+        &self.clock
+    }
+
+    pub(crate) fn log_dir(&self) -> &Path {
+        &self.log_dir
+    }
+
+    pub(crate) fn system(&self) -> &str {
+        &self.system
+    }
+
+    /// The journal as sent to the window (`get_journal`, spec 018): every entry of the buffer, oldest first,
+    /// serialized and through the output filter once more. `None` when the filter is unavailable.
+    pub fn journal_json(&self) -> Option<Value> {
+        let entries = self.journal.snapshot(&JournalFilter::default());
+        filtered_json(self.output.filter(), &JournalView::of(&entries))
+    }
+
+    /// Every new entry of the journal for the window, from now on (`journal-entry`, `journal-resync`).
+    pub fn journal_feed(&self) -> JournalFeed {
+        JournalFeed::new(self.journal.subscribe(), Arc::clone(self.output.filter()))
     }
 
     pub fn authenticator(&self) -> &Arc<OnDemandAuthenticator> {

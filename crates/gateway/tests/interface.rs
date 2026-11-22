@@ -92,6 +92,7 @@ async fn start(dir: &TempDir) -> Started {
         clock: Arc::new(SystemWallClock),
         logging: Logging::Local,
         utc_offset: 0,
+        system: "système de test".to_owned(),
     })
     .await
     .unwrap();
@@ -527,4 +528,147 @@ async fn the_mcp_tab_exposes_an_environment_cuts_an_mcp_and_refuses_unknown_iden
     let restarted = s.gateway.snapshot().await;
     assert_eq!(exposed_environments(&restarted), ["dev", "int", "rec", "prod"]);
     assert!(restarted.mcps.iter().find(|m| m.id == "kibana-logs").unwrap().disabled);
+}
+
+fn unzip_names(path: &std::path::Path) -> Vec<String> {
+    let mut archive = zip::ZipArchive::new(std::fs::File::open(path).unwrap()).unwrap();
+    (0..archive.len())
+        .map(|i| archive.by_index(i).unwrap().name().unwrap().into_owned())
+        .collect()
+}
+
+// Exigence : EX-018-04
+// Exigence : EX-018-11
+#[tokio::test]
+async fn a_diagnostic_is_exported_to_the_chosen_path_and_a_failure_leaves_nothing() {
+    use mcp_proxy_gateway::interface::{archive_path, default_export_dir};
+
+    let dir = TempDir::new();
+    let s = start(&dir).await;
+    let gateway = &s.gateway;
+
+    // A first line in today's log file.
+    gateway
+        .set_profile(&gateway.known_profile("support").unwrap())
+        .await
+        .unwrap();
+    let name = gateway.diagnostic_file_name();
+    assert!(
+        name.starts_with("mcp-proxy-diagnostic-") && name.ends_with(".zip"),
+        "{name}"
+    );
+    assert_eq!(name.len(), "mcp-proxy-diagnostic-20261122-1400.zip".len());
+
+    // The name typed without extension gets `.zip`; any case of `.zip` is kept.
+    let chosen = dir.0.join("pour-le-support");
+    let path = gateway.export_diagnostic(&chosen).await.unwrap();
+    assert_eq!(path, dir.0.join("pour-le-support.zip"));
+    let names = unzip_names(&path);
+    for expected in [
+        "LISEZMOI.txt",
+        "version.txt",
+        "systeme.txt",
+        "config.txt",
+        "reglages.json",
+        "instances.txt",
+    ] {
+        assert!(names.iter().any(|n| n == expected), "{expected} missing from {names:?}");
+    }
+    assert!(names.iter().any(|n| n.starts_with("logs/mcp-proxy-")), "{names:?}");
+    assert!(
+        events(gateway).contains(&"diagnostic exporté par l'utilisateur".to_owned()),
+        "the export is journaled, without its path"
+    );
+    assert_eq!(archive_path(&dir.0.join("A.ZIP")), dir.0.join("A.ZIP"));
+    assert_eq!(archive_path(&dir.0.join("a.zip.txt")), dir.0.join("a.zip.txt.zip"));
+
+    // A folder that does not exist: a clear error, nothing written, the failure journaled.
+    let missing = dir.0.join("absent").join("diagnostic.zip");
+    let error = gateway.export_diagnostic(&missing).await.unwrap_err();
+    assert!(matches!(error, InterfaceError::Export(_)), "{error:?}");
+    assert!(
+        error.to_string().starts_with("export de diagnostic impossible : "),
+        "{error}"
+    );
+    assert!(!dir.0.join("absent").exists());
+    assert!(
+        events(gateway)
+            .iter()
+            .any(|e| e.starts_with("export de diagnostic impossible"))
+    );
+
+    // The save dialog opens in « Téléchargements » when there is one.
+    std::fs::create_dir_all(dir.0.join("profil").join("Downloads")).unwrap();
+    assert_eq!(
+        default_export_dir(Some(&dir.0.join("profil"))),
+        Some(dir.0.join("profil").join("Downloads"))
+    );
+    assert_eq!(default_export_dir(Some(&dir.0.join("absent"))), None);
+    assert_eq!(default_export_dir(None), None);
+}
+
+// Exigence : EX-018-01
+// Exigence : EX-018-10
+#[tokio::test]
+async fn the_journal_of_the_window_shows_the_choices_of_the_user_as_they_happen() {
+    use mcp_proxy_gateway::journal_view::FeedItem;
+
+    let dir = TempDir::new();
+    let s = start(&dir).await;
+    let gateway = &s.gateway;
+    let mut feed = gateway.journal_feed();
+    gateway
+        .set_profile(&gateway.known_profile("developpeur").unwrap())
+        .await
+        .unwrap();
+    gateway
+        .set_environment_exposed(&gateway.known_environment("prod").unwrap(), true)
+        .await
+        .unwrap();
+    gateway
+        .set_mcp_exposed(&gateway.known_mcp("kibana-logs").unwrap(), false)
+        .await
+        .unwrap();
+
+    let mut live = Vec::new();
+    while live.len() < 3 {
+        match feed.next().await {
+            Some(FeedItem::Entry(entry)) => live.push(entry["summary"].as_str().unwrap().to_owned()),
+            other => panic!("{other:?}"),
+        }
+    }
+    let expected = [
+        "profil « Développeur » choisi par l'utilisateur",
+        "environnement « PROD » exposé par l'utilisateur",
+        "MCP « Kibana Logs » coupé par l'utilisateur",
+    ];
+    assert_eq!(live, expected);
+
+    let journal = gateway.journal_json().unwrap();
+    let entries = journal["entries"].as_array().unwrap();
+    let summaries: Vec<&str> = entries.iter().filter_map(|e| e["summary"].as_str()).collect();
+    assert!(summaries.ends_with(&expected), "{summaries:?}");
+    let last = entries.last().unwrap();
+    assert_eq!(
+        (last["kind"].as_str(), last["problem"].as_bool()),
+        (Some("event"), Some(false))
+    );
+}
+
+#[test]
+fn the_system_is_described_from_the_registry_values() {
+    use mcp_proxy_gateway::interface::describe_system;
+    assert_eq!(
+        describe_system(
+            Some("Windows 11 Pro"),
+            Some("24H2"),
+            Some("26100.2314"),
+            "131.0.2903.70"
+        ),
+        "Windows 11 Pro 24H2 (build 26100.2314), WebView2 131.0.2903.70"
+    );
+    assert_eq!(
+        describe_system(None, Some(" "), None, "131.0"),
+        "Windows (version inconnue) (build inconnu), WebView2 131.0"
+    );
 }

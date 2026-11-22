@@ -5,6 +5,7 @@ pub mod control;
 mod convert;
 pub mod interface;
 pub mod journal;
+pub mod journal_view;
 pub mod launch;
 pub mod modules;
 pub mod notify;

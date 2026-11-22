@@ -14,6 +14,7 @@ mod interface;
 pub mod login;
 mod notify;
 mod pipe;
+mod system;
 mod wer;
 
 use std::process::ExitCode;

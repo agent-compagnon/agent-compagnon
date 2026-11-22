@@ -84,6 +84,7 @@ async fn start_with(dir: &TempDir, store: SecretStore, presenter: Arc<dyn Confir
         clock: Arc::new(SystemWallClock),
         logging: Logging::Local,
         utc_offset: 0,
+        system: "système de test".to_owned(),
     })
     .await
     .unwrap()

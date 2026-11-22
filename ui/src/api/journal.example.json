@@ -1,0 +1,330 @@
+{
+  "exportDiagnostic": [
+    {
+      "path": "C:\\Users\\exemple\\Downloads\\mcp-proxy-diagnostic-20261122-1400.zip",
+      "status": "saved"
+    },
+    {
+      "status": "cancelled"
+    }
+  ],
+  "getJournal": {
+    "entries": [
+      {
+        "at": 1795356000000,
+        "client": "Claude Desktop",
+        "decision": "allow",
+        "details": null,
+        "durationMs": 182,
+        "environment": "dev",
+        "kind": "call",
+        "mcp": "kibana-logs",
+        "policy": false,
+        "problem": false,
+        "seq": 1,
+        "slow": false,
+        "status": "ok",
+        "statusLabel": "réussi",
+        "summary": "Claude Desktop → dev_kibana_search_logs : réussi, 182 ms",
+        "tool": "dev_kibana_search_logs"
+      },
+      {
+        "at": 1795356012000,
+        "client": "Claude Desktop",
+        "decision": "allow",
+        "details": {
+          "callId": 42,
+          "client": "Claude Desktop",
+          "masked": {
+            "exact": 0,
+            "generic": 0,
+            "kinds": []
+          },
+          "policy": {
+            "decision": "allow",
+            "explanation": "autorisé — règle « read » de la racine",
+            "label": "autorisé"
+          },
+          "request": {
+            "job": 88121,
+            "project": "paiement/api"
+          },
+          "response": {
+            "content": [
+              {
+                "text": "HTTP 502 Bad Gateway",
+                "type": "text"
+              }
+            ],
+            "isError": true
+          },
+          "session": "sso-rec"
+        },
+        "durationMs": 2310,
+        "environment": "rec",
+        "kind": "call",
+        "mcp": "gitlab-ops",
+        "policy": false,
+        "problem": true,
+        "seq": 2,
+        "slow": false,
+        "status": "error",
+        "statusLabel": "erreur",
+        "summary": "Claude Desktop → rec_gitlab_get_job_log : erreur, 2310 ms",
+        "tool": "rec_gitlab_get_job_log"
+      },
+      {
+        "at": 1795356030000,
+        "client": "Claude Desktop",
+        "decision": "allow",
+        "details": {
+          "callId": 43,
+          "client": "Claude Desktop",
+          "masked": {
+            "exact": 0,
+            "generic": 0,
+            "kinds": []
+          },
+          "policy": {
+            "decision": "allow",
+            "explanation": "autorisé — règle « read » de la racine",
+            "label": "autorisé"
+          },
+          "request": {
+            "index": "audit-*",
+            "query": "*"
+          },
+          "response": {
+            "content": [
+              {
+                "text": "5000 entrées",
+                "type": "text"
+              }
+            ]
+          },
+          "session": "sso-dev"
+        },
+        "durationMs": 7400,
+        "environment": "dev",
+        "kind": "call",
+        "mcp": "kibana-logs",
+        "policy": false,
+        "problem": true,
+        "seq": 3,
+        "slow": true,
+        "status": "ok",
+        "statusLabel": "réussi",
+        "summary": "Claude Desktop → dev_kibana_search_logs : réussi (lent), 7400 ms",
+        "tool": "dev_kibana_search_logs"
+      },
+      {
+        "at": 1795356045000,
+        "client": "Claude Desktop",
+        "decision": "deny",
+        "details": {
+          "callId": 44,
+          "client": "Claude Desktop",
+          "masked": {
+            "exact": 0,
+            "generic": 0,
+            "kinds": []
+          },
+          "policy": {
+            "decision": "deny",
+            "explanation": "refusé — règle « destructive » de Kubernetes Admin en PROD, verrouillée",
+            "label": "refusé"
+          },
+          "request": {
+            "namespace": "paiement",
+            "pod": "api-7d9f"
+          },
+          "response": {
+            "content": [
+              {
+                "text": "Appel refusé par la politique.",
+                "type": "text"
+              }
+            ],
+            "isError": true
+          },
+          "session": "sso-prod"
+        },
+        "durationMs": 3,
+        "environment": "prod",
+        "kind": "call",
+        "mcp": "kubernetes-admin",
+        "policy": true,
+        "problem": false,
+        "seq": 4,
+        "slow": false,
+        "status": "denied",
+        "statusLabel": "interdit",
+        "summary": "Claude Desktop → prod_k8s_delete_pod : interdit, 3 ms",
+        "tool": "prod_k8s_delete_pod"
+      },
+      {
+        "at": 1795356060000,
+        "client": "Claude Desktop",
+        "decision": "allow",
+        "details": {
+          "callId": 45,
+          "client": "Claude Desktop",
+          "masked": {
+            "exact": 1,
+            "generic": 1,
+            "kinds": [
+              "knownSecret",
+              "authorizationHeader"
+            ]
+          },
+          "policy": {
+            "decision": "allow",
+            "explanation": "autorisé — règle « read » de la racine",
+            "label": "autorisé"
+          },
+          "request": {
+            "id": "a1b2"
+          },
+          "response": {
+            "content": [
+              {
+                "text": "Authorization: Bearer [EN-TÊTE MASQUÉ]",
+                "type": "text"
+              }
+            ]
+          },
+          "session": "sso-rec"
+        },
+        "durationMs": 640,
+        "environment": "rec",
+        "kind": "call",
+        "mcp": "kibana-logs",
+        "policy": false,
+        "problem": true,
+        "seq": 5,
+        "slow": false,
+        "status": "leakMasked",
+        "statusLabel": "fuite masquée",
+        "summary": "Claude Desktop → rec_kibana_get_log_entry : fuite masquée, 640 ms",
+        "tool": "rec_kibana_get_log_entry"
+      },
+      {
+        "at": 1795356075000,
+        "client": "Claude Desktop",
+        "decision": "confirmNotification",
+        "details": null,
+        "durationMs": 4100,
+        "environment": "prod",
+        "kind": "call",
+        "mcp": "gitlab-ops",
+        "policy": true,
+        "problem": false,
+        "seq": 6,
+        "slow": false,
+        "status": "ok",
+        "statusLabel": "réussi",
+        "summary": "Claude Desktop → prod_gitlab_cancel_pipeline : réussi, 4100 ms",
+        "tool": "prod_gitlab_cancel_pipeline"
+      },
+      {
+        "at": 1795356090000,
+        "client": "Claude Desktop",
+        "decision": "confirmElicitation",
+        "details": {
+          "callId": 47,
+          "client": "Claude Desktop",
+          "masked": {
+            "exact": 0,
+            "generic": 0,
+            "kinds": []
+          },
+          "policy": {
+            "decision": "confirmElicitation",
+            "explanation": "confirmation (elicitation) — règle « write » de la racine",
+            "label": "confirmation (elicitation)"
+          },
+          "request": {
+            "body": "[SECRET MASQUÉ]",
+            "issue": "PAY-12"
+          },
+          "response": {
+            "content": [
+              {
+                "text": "Un secret connu figure dans les arguments.",
+                "type": "text"
+              }
+            ],
+            "isError": true
+          },
+          "session": null
+        },
+        "durationMs": 1,
+        "environment": "int",
+        "kind": "call",
+        "mcp": "jira",
+        "policy": true,
+        "problem": true,
+        "seq": 7,
+        "slow": false,
+        "status": "blocked",
+        "statusLabel": "bloqué",
+        "summary": "Claude Desktop → int_jira_add_comment : bloqué, 1 ms",
+        "tool": "int_jira_add_comment"
+      },
+      {
+        "at": 1795356000000,
+        "client": null,
+        "decision": null,
+        "details": null,
+        "durationMs": null,
+        "environment": "dev",
+        "kind": "toolsChanged",
+        "mcp": "gitlab-ops",
+        "policy": false,
+        "problem": false,
+        "seq": 8,
+        "slow": false,
+        "status": null,
+        "statusLabel": null,
+        "summary": "dev / gitlab-ops : liste d'outils changée, 1 nouveau (list_runners) ; 1 supprimé (retry_job)",
+        "tool": null
+      },
+      {
+        "at": 1795356120000,
+        "client": null,
+        "decision": null,
+        "details": null,
+        "durationMs": null,
+        "environment": null,
+        "kind": "event",
+        "mcp": null,
+        "policy": false,
+        "problem": false,
+        "seq": 9,
+        "slow": false,
+        "status": null,
+        "statusLabel": null,
+        "summary": "environnement « PROD » exposé par l'utilisateur",
+        "tool": null
+      },
+      {
+        "at": 1795356120000,
+        "client": null,
+        "decision": null,
+        "details": null,
+        "durationMs": null,
+        "environment": null,
+        "kind": "panic",
+        "mcp": null,
+        "policy": false,
+        "problem": true,
+        "seq": 10,
+        "slow": false,
+        "status": null,
+        "statusLabel": null,
+        "summary": "panic à crates/gateway/src/server/mod.rs:120:9 : index hors limites",
+        "tool": null
+      }
+    ]
+  }
+}
