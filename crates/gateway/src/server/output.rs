@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use mcp_proxy_core::filter::{FilterError, FilterReport, OutputFilter};
-use rmcp::model::{CallToolResult, ContentBlock, Tool};
+use rmcp::model::{CallToolResponse, CallToolResult, ContentBlock, InputRequiredResult, Tool};
 use serde_json::Value;
 
 use crate::registry::ToolDefinition;
@@ -12,17 +12,36 @@ use crate::registry::ToolDefinition;
 /// Sent instead of a result or an error that could not be filtered. A fixed text: it needs no filtering.
 pub const FILTER_UNAVAILABLE: &str = "MCP Proxy : filtre de sortie indisponible, réponse non transmise.";
 
-/// A tool result that went through the output filter. Only `OutputGate` builds one, so the server cannot send
-/// anything else.
-#[derive(Debug, Clone, PartialEq)]
+/// What the client receives for a `tools/call`, after the output filter. Only `OutputGate` builds one, so the server
+/// cannot send anything else.
+#[derive(Debug, Clone)]
 pub struct Filtered {
-    result: CallToolResult,
+    body: Body,
     report: FilterReport,
+    unavailable: bool,
+}
+
+#[derive(Debug, Clone)]
+enum Body {
+    Complete(CallToolResult),
+    /// 2026-07-28: the client must answer `input_requests` and call again with `request_state`.
+    InputRequired(InputRequiredResult),
 }
 
 impl Filtered {
-    pub fn result(&self) -> &CallToolResult {
-        &self.result
+    /// The tool result, or `None` for an `input_required` answer.
+    pub fn result(&self) -> Option<&CallToolResult> {
+        match &self.body {
+            Body::Complete(result) => Some(result),
+            Body::InputRequired(_) => None,
+        }
+    }
+
+    pub fn input_required(&self) -> Option<&InputRequiredResult> {
+        match &self.body {
+            Body::Complete(_) => None,
+            Body::InputRequired(result) => Some(result),
+        }
     }
 
     /// What the filter masked. Empty when the filter was unavailable: the content was replaced as a whole.
@@ -30,14 +49,40 @@ impl Filtered {
         &self.report
     }
 
-    pub fn into_result(self) -> CallToolResult {
-        self.result
+    /// The filter failed and the content was replaced by [`FILTER_UNAVAILABLE`].
+    pub fn is_unavailable(&self) -> bool {
+        self.unavailable
+    }
+
+    /// The answer as JSON, for the trace.
+    pub fn to_value(&self) -> Value {
+        let value = match &self.body {
+            Body::Complete(result) => serde_json::to_value(result),
+            Body::InputRequired(result) => serde_json::to_value(result),
+        };
+        value.unwrap_or(Value::Null)
+    }
+
+    pub fn into_response(self) -> CallToolResponse {
+        match self.body {
+            Body::Complete(result) => CallToolResponse::Complete(result),
+            Body::InputRequired(result) => CallToolResponse::InputRequired(result),
+        }
     }
 
     fn unavailable() -> Self {
         Self {
-            result: CallToolResult::error(vec![ContentBlock::text(FILTER_UNAVAILABLE)]),
+            body: Body::Complete(CallToolResult::error(vec![ContentBlock::text(FILTER_UNAVAILABLE)])),
             report: FilterReport::default(),
+            unavailable: true,
+        }
+    }
+
+    fn complete(result: CallToolResult, report: FilterReport) -> Self {
+        Self {
+            body: Body::Complete(result),
+            report,
+            unavailable: false,
         }
     }
 }
@@ -65,7 +110,26 @@ impl OutputGate {
             return Filtered::unavailable();
         };
         match serde_json::from_value(value) {
-            Ok(result) => Filtered { result, report },
+            Ok(result) => Filtered::complete(result, report),
+            Err(_) => Filtered::unavailable(),
+        }
+    }
+
+    /// An `input_required` answer, filtered as a whole: request texts and state included. A state changed by the
+    /// filter no longer opens, and the call that brings it back is refused.
+    pub fn input_required(&self, result: &InputRequiredResult) -> Filtered {
+        let Ok(mut value) = serde_json::to_value(result) else {
+            return Filtered::unavailable();
+        };
+        let Ok(report) = self.filter.filter_json(&mut value) else {
+            return Filtered::unavailable();
+        };
+        match serde_json::from_value(value) {
+            Ok(result) => Filtered {
+                body: Body::InputRequired(result),
+                report,
+                unavailable: false,
+            },
             Err(_) => Filtered::unavailable(),
         }
     }
@@ -73,12 +137,18 @@ impl OutputGate {
     /// A tool error with a French message, filtered: it may quote the server or the client.
     pub fn error(&self, message: &str) -> Filtered {
         match self.filter.filter_text(message) {
-            Ok((text, report)) => Filtered {
-                result: CallToolResult::error(vec![ContentBlock::text(text.into_owned())]),
+            Ok((text, report)) => Filtered::complete(
+                CallToolResult::error(vec![ContentBlock::text(text.into_owned())]),
                 report,
-            },
+            ),
             Err(_) => Filtered::unavailable(),
         }
+    }
+
+    /// Any JSON value (arguments shown to the user or traced), or `None` if the filter is unavailable.
+    pub fn value(&self, value: &Value) -> Option<Value> {
+        let mut value = value.clone();
+        self.filter.filter_json(&mut value).ok().map(|_| value)
     }
 
     /// A short text (progress message), or `None` if the filter is unavailable.

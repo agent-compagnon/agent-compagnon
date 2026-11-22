@@ -17,7 +17,7 @@ enum Step<'a> {
 
 /// Compact JSON with object keys sorted by their UTF-8 bytes, whatever the map implementation of `serde_json`.
 /// Iterative, so that a deeply nested schema cannot overflow the stack.
-pub(super) fn canonical_json(value: &Value) -> String {
+pub(crate) fn canonical_json(value: &Value) -> String {
     let mut out = String::new();
     let mut stack = vec![Step::Value(value)];
     while let Some(step) = stack.pop() {

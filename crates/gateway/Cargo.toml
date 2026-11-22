@@ -14,6 +14,7 @@ path = "src/bin/snapshot_catalog.rs"
 [dependencies]
 async-trait.workspace = true
 futures.workspace = true
+getrandom.workspace = true
 mcp-proxy-core = { path = "../core" }
 reqwest.workspace = true
 rmcp = { workspace = true, features = [
@@ -22,6 +23,8 @@ rmcp = { workspace = true, features = [
     "transport-io",
     "transport-streamable-http-client-reqwest",
     "reqwest-native-tls",
+    "elicitation",
+    "request-state",
 ] }
 secrecy.workspace = true
 serde.workspace = true

@@ -31,6 +31,7 @@ pub use cache::{
 };
 pub use catalog::{CatalogError, EmbeddedCatalog};
 pub use exposure::Exposure;
+pub(crate) use fingerprint::canonical_json;
 pub use model::{CatalogSource, Fingerprint, InstanceId, ToolDefinition, ToolDiff, ToolEntry, ToolHints};
 
 /// Capacity of the event channel. A receiver that lags behind gets `RecvError::Lagged` and should re-read the

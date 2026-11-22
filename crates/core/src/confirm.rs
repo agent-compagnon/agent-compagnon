@@ -14,6 +14,8 @@ pub struct ConfirmationRequest {
     pub env: EnvId,
     pub mcp: McpId,
     pub tool: ToolName,
+    /// `DEV / kibana-logs / delete_index`: environment label, MCP and tool.
+    pub path: String,
     /// `clientInfo.name` of the LLM client, filtered.
     pub client: String,
     pub arguments: Value,

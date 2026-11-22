@@ -5,7 +5,9 @@
 //!
 //! Profile `developpeur`, its default environments exposed. Each remote MCP is served by one fake server (on
 //! `127.0.0.1`) for all its environments, with the tools of its snapshot; every session holds a demonstration token,
-//! allowed only towards the fake servers of the MCPs that use it. Stdout carries MCP: diagnostics go to stderr.
+//! allowed only towards the fake servers of the MCPs that use it. Every call goes through the whole call chain; a
+//! confirmation outside the chat is always refused (no notification here). Stdout carries MCP: diagnostics go to
+//! stderr.
 
 #![allow(clippy::print_stderr)]
 
@@ -18,12 +20,13 @@ use mcp_proxy_core::filter::OutputFilter;
 use mcp_proxy_core::secrets::{Credential, OriginGuard, SecretStore};
 use mcp_proxy_core::session::{SessionGate, StoreSessionGate};
 use mcp_proxy_core::settings::UserSettings;
+use mcp_proxy_core::trace::NoTrace;
 use mcp_proxy_gateway::registry::{EmbeddedCatalog, InstanceId, NoCatalogCache, Registry};
-use mcp_proxy_gateway::server::{GatewayServer, MinimalPipeline, OutputGate};
+use mcp_proxy_gateway::server::{CallChain, CallChainDeps, GatewayServer, OutputGate};
 use mcp_proxy_gateway::upstream::{HttpUpstream, HttpUpstreamConfig, Upstream, Upstreams, refresh};
-use mcp_proxy_testkit::{MockMcpServer, catalog_tools};
+use mcp_proxy_testkit::{FakeConfirmationBroker, MockMcpServer, catalog_tools};
 use secrecy::SecretString;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, watch};
 use url::Url;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -95,13 +98,17 @@ async fn main() -> Result<(), Error> {
     eprintln!("{} outils exposés", registry.read().await.exposed_count());
 
     let output = OutputGate::new(filter);
-    let pipeline = Arc::new(MinimalPipeline::new(
-        Arc::clone(&config),
-        Arc::clone(&registry),
+    let (_settings_sender, settings) = watch::channel(settings);
+    let pipeline = Arc::new(CallChain::new(CallChainDeps {
+        config: Arc::clone(&config),
+        registry: Arc::clone(&registry),
+        settings,
         upstreams,
         gate,
-        output.clone(),
-    ));
+        broker: Arc::new(FakeConfirmationBroker::default()),
+        output: output.clone(),
+        trace: Arc::new(NoTrace),
+    })?);
     let gateway = GatewayServer::new(
         registry,
         output,

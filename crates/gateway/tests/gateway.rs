@@ -335,6 +335,6 @@ async fn session_errors_are_tool_errors_in_french() {
         .await
         .unwrap();
     assert_eq!(result.is_error, Some(true));
-    assert!(text_of(&result).contains("MCP Proxy : connexion à la session « sso-dev » requise"));
+    assert!(text_of(&result).contains("MCP Proxy : connexion à « SSO DEV » requise"));
     assert!(stack.server.requests().iter().all(|r| r.tool.is_none()));
 }

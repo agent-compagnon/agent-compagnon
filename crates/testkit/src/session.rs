@@ -13,12 +13,20 @@ use mcp_proxy_core::session::{AccessReason, SessionError, SessionGate, StoreSess
 use secrecy::SecretString;
 use url::Url;
 
+enum Scripted {
+    Outcome(Result<(), SessionError>),
+    /// Never returns: the caller must give up at its deadline.
+    Hang,
+}
+
 /// Injection goes through the real `StoreSessionGate` (origin check included); `ensure` follows a script, then
-/// answers from the store. Every call is counted.
+/// answers from the store, after a simulated login if one is queued. Every call is counted.
 pub struct FakeSessionGate {
     inner: StoreSessionGate,
     store: Arc<SecretStore>,
-    script: Mutex<VecDeque<Result<(), SessionError>>>,
+    script: Mutex<VecDeque<Scripted>>,
+    /// Bearer tokens a login would obtain, used in order when `ensure` finds no secret.
+    logins: Mutex<VecDeque<String>>,
     ensures: AtomicUsize,
     injections: AtomicUsize,
     rejected: Mutex<Vec<SessionId>>,
@@ -36,6 +44,7 @@ impl FakeSessionGate {
             inner: StoreSessionGate::new(Arc::clone(&store), guard),
             store,
             script: Mutex::new(VecDeque::new()),
+            logins: Mutex::new(VecDeque::new()),
             ensures: AtomicUsize::new(0),
             injections: AtomicUsize::new(0),
             rejected: Mutex::new(Vec::new()),
@@ -70,7 +79,23 @@ impl FakeSessionGate {
         self.script
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .extend(outcomes);
+            .extend(outcomes.into_iter().map(Scripted::Outcome));
+    }
+
+    /// The next call to `ensure` never returns, like a login nobody completes.
+    pub fn hang(&self) {
+        self.script
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push_back(Scripted::Hang);
+    }
+
+    /// When `ensure` finds no secret, the next of these tokens is stored, as a completed login would.
+    pub fn logins(&self, tokens: impl IntoIterator<Item = &'static str>) {
+        self.logins
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend(tokens.into_iter().map(str::to_owned));
     }
 
     pub fn ensure_count(&self) -> usize {
@@ -93,8 +118,21 @@ impl SessionGate for FakeSessionGate {
         self.ensures.fetch_add(1, Ordering::SeqCst);
         let scripted = self.script.lock().unwrap_or_else(PoisonError::into_inner).pop_front();
         match scripted {
-            Some(outcome) => outcome,
-            None => self.inner.ensure(session, deadline, reason).await,
+            Some(Scripted::Outcome(outcome)) => outcome,
+            Some(Scripted::Hang) => {
+                tokio::time::sleep(std::time::Duration::from_secs(3600)).await;
+                Err(SessionError::LoginPending(session.clone()))
+            }
+            None => {
+                if !self.store.has(session) {
+                    let login = self.logins.lock().unwrap_or_else(PoisonError::into_inner).pop_front();
+                    if let Some(token) = login {
+                        let token = SecretString::from(token);
+                        self.store.put(session, Credential::Bearer { token })?;
+                    }
+                }
+                self.inner.ensure(session, deadline, reason).await
+            }
         }
     }
 

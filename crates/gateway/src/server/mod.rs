@@ -4,10 +4,12 @@
 //! per-request metadata. Only tools are announced and relayed: resources, prompts, sampling, roots and elicitation of
 //! the servers are neither.
 
+mod chain;
 mod output;
 mod pipeline;
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use mcp_proxy_core::filter::FilterError;
@@ -21,8 +23,11 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{RwLock, broadcast, mpsc};
 use tokio::task::JoinHandle;
 
+pub use self::chain::{
+    CallChain, CallChainDeps, CallContext, ChainError, Halt, Middleware, Refusal, ResolvedTool, STAGES,
+};
 pub use self::output::{FILTER_UNAVAILABLE, Filtered, OutputGate};
-pub use self::pipeline::{CallPipeline, CallRequest, MinimalPipeline};
+pub use self::pipeline::{CallPipeline, CallRequest};
 use crate::registry::{Registry, RegistryEvent};
 use crate::upstream::ProgressUpdate;
 
@@ -48,6 +53,24 @@ impl ClientIdentity {
     }
 }
 
+/// One client connection (one stream), unique in the process. A confirmation asked in the chat is only valid on
+/// the connection it was asked on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ConnectionId(u64);
+
+impl ConnectionId {
+    pub fn next() -> Self {
+        static NEXT: AtomicU64 = AtomicU64::new(1);
+        Self(NEXT.fetch_add(1, Ordering::Relaxed))
+    }
+}
+
+impl std::fmt::Display for ConnectionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// Shared by every connection.
 #[derive(Clone)]
 pub struct GatewayServer {
@@ -55,6 +78,7 @@ pub struct GatewayServer {
     output: OutputGate,
     pipeline: Arc<dyn CallPipeline>,
     list_ttl: Duration,
+    connection: ConnectionId,
 }
 
 impl std::fmt::Debug for GatewayServer {
@@ -123,6 +147,7 @@ impl GatewayServer {
             output,
             pipeline,
             list_ttl,
+            connection: ConnectionId::next(),
         }
     }
 
@@ -131,10 +156,11 @@ impl GatewayServer {
     ///
     /// Returns once the lifecycle is known: after `initialize`, or, for a 2026-07-28 client, after its first request
     /// other than `server/discover` (which is answered meanwhile). Do not wait for it before letting the client go on.
-    pub async fn serve<S>(self, stream: S) -> Result<GatewayConnection, ServerInitializeError>
+    pub async fn serve<S>(mut self, stream: S) -> Result<GatewayConnection, ServerInitializeError>
     where
         S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     {
+        self.connection = ConnectionId::next();
         let mut events = self.registry.read().await.subscribe();
         let running = ServiceExt::serve(self, stream).await?;
         let peer = running.peer().clone();
@@ -223,6 +249,10 @@ impl ServerHandler for GatewayServer {
             exposed_name: request.name.into_owned(),
             arguments: request.arguments,
             client: ClientIdentity::from_context(&context),
+            connection: self.connection,
+            peer: Some(context.peer.clone()),
+            input_responses: request.input_responses,
+            request_state: request.request_state,
             progress,
             cancel: context.ct.clone(),
         };
@@ -231,7 +261,7 @@ impl ServerHandler for GatewayServer {
         if let Some(task) = relay_task {
             let _ = task.await;
         }
-        Ok(filtered.into_result().into())
+        Ok(filtered.into_response())
     }
 
     fn accepted_subscription_filter(&self, requested: &SubscriptionFilter) -> Option<SubscriptionFilter> {
