@@ -95,7 +95,7 @@ test('the orange marks exactly what waits for the user', async ({ page }) => {
 })
 
 // Exigence : EX-016-03
-test('works with the keyboard alone: profile menu, tabs, cards', async ({ page }) => {
+test('works with the keyboard alone: profile menu, header menu, tabs, cards', async ({ page }) => {
   await open(page, 'sessions')
   await page.keyboard.press('Tab')
   await expect(page.getByRole('button', { name: 'Profil : Développeur' })).toBeFocused()
@@ -106,6 +106,14 @@ test('works with the keyboard alone: profile menu, tabs, cards', async ({ page }
   await page.keyboard.press('Escape')
   await expect(menu).toBeHidden()
   await expect(page.getByRole('button', { name: 'Profil : Développeur' })).toBeFocused()
+
+  // The menu of the header (spec 023), then the tabs.
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('button', { name: 'Menu' })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('menuitem', { name: 'Clients LLM…' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: 'Menu' })).toBeFocused()
 
   await page.keyboard.press('Tab')
   await expect(page.getByRole('tab', { name: 'Connexions' })).toBeFocused()
