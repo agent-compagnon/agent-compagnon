@@ -1,14 +1,15 @@
 ---
 id: "026"
 titre: "Pont stdio résilient : survivre au redémarrage de l'appli"
-statut: "proposée"
+etape: "9"
+statut: "prévue"
 depend_de: ["011", "020"]
 suivi: "github#27"
 ---
 
 # 026 — Pont stdio résilient : survivre au redémarrage de l'appli
 
-> **Proposé pendant le cadrage, non soumis au QCM.** À écarter si ce n'est pas souhaité.
+> Proposé pendant le cadrage, hors QCM ; retenu par l'utilisateur le 2026-11-23 (D19).
 
 ## Pourquoi
 
@@ -67,3 +68,5 @@ automatiques, cela arriverait régulièrement.
   critère `EX-026-09` est ajouté. Raison : depuis D18, le pipe n'a plus d'ACL sur mesure ni de vérification du
   binaire client ; c'est la preuve mutuelle qui protège le pont contre un pipe usurpé, et une reconnexion est
   précisément le moment où l'appli n'est pas là pour tenir le nom du pipe.
+- **2026-11-23** — Statut `proposée` → `prévue`, étape 9. Raison : l'utilisateur a retenu la spec (D19), maintenant
+  que l'updater (spec 020) redémarre l'appli et coupe le pont des clients LLM. Aucun critère touché.

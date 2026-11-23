@@ -34,13 +34,15 @@ on peut les recréer ailleurs à partir d'ici.
      « remplacée par … ».
 6. **Le gestionnaire de tickets suit le dépôt, jamais l'inverse.** Chaque spec a un ticket (champ `suivi`) dont le
    texte n'est qu'un pointeur vers elle. Après chaque étape poussée, l'état du ticket est aligné sur la spec :
-   - spec `implémentée` dont tous les critères sont prouvés par des tests : ticket **fermé** ;
+   - spec `implémentée` dont tous les critères sont prouvés par des tests : ticket **fermé**, étiquette `terminé` ;
    - spec `implémentée` avec des critères `(manuel)` : ticket **ouvert**, avec le nombre de vérifications qui
      restent dans `docs/recette.md` et l'étiquette `livré - recette Windows à faire` (`livré - recette GitLab à
      faire` pour le pipeline, dont la recette se passe sur GitLab) ; c'est la personne qui passe la recette qui le
      ferme ;
    - spec `en cours` : ticket ouvert, étiquette `en cours` ;
-   - autres statuts : ticket ouvert, sans étiquette.
+   - autres statuts : ticket ouvert, étiquette du statut (`prévu`, `proposé`, `backlog`, `à la demande`).
+
+   Chaque ticket porte ainsi une étiquette d'état, une seule ; le ticket d'entrée porte `suivi`.
 
    Le ticket d'entrée (celui dont les autres sont les sous-tickets) porte un tableau d'avancement, reflet de
    l'index ci-dessous et de `docs/recette.md`, refait à chaque alignement. Étiquettes et tableau ne servent qu'à
@@ -83,7 +85,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [023](023-config-clients.md) | 7e | Configuration automatique des clients LLM | implémentée | 016, 019 | 18 |
 | [024](024-doctor.md) | 7f | Auto-diagnostic (`doctor`) | implémentée | 009, 011, 019, 020 | 12 |
 | [025](025-module-jira-local.md) | 8 | Module MCP local d'exemple (`jira-local`) | implémentée | 002, 007, 010 | 12 |
-| [026](026-pont-resilient.md) | — | Pont stdio résilient : survivre au redémarrage de l'appli | proposée | 011, 020 | 9 |
+| [026](026-pont-resilient.md) | 9 | Pont stdio résilient : survivre au redémarrage de l'appli | prévue | 011, 020 | 9 |
 | [027](027-config-signee.md) | — | Config signée téléchargée depuis Artifactory | backlog | — | 0 |
 | [028](028-authenticode.md) | — | Signature Authenticode dans la CI | backlog | — | 0 |
 | [029](029-exe-windows-a-la-demande.md) | — | Exe Windows cross-compilé depuis Linux | à la demande | — | 0 |
