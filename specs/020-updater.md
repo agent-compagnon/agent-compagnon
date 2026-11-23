@@ -131,7 +131,9 @@ Réalisation (amendement du 2026-11-22) :
 - **Redémarrage** : « Redémarrer pour mettre à jour » demande d'abord confirmation (les connexions seront fermées),
   puis envoie `restart_for_update` (refusée sans mise à jour en place) ; l'appli quitte comme par « Quitter », et une
   fois sa boucle d'événements terminée (instance unique libérée) et ses tâches arrêtées (pipe fermé), lance l'exe
-  installé.
+  installé. Depuis la spec 026, les ponts des clients LLM (ancienne version, image `mcp-proxy.exe.old`) attendent la
+  nouvelle instance sans la relancer eux-mêmes (marque `arret-volontaire`) et s'y reconnectent : le client n'est pas
+  à redémarrer, seules les sessions sont à rouvrir.
 - **Release critique** : après la notification, au moins une minute de délai, puis attente qu'aucun appel ne soit en
   cours (appels comptés de leur arrivée à leur réponse, ceux qui attendent une connexion ou une confirmation
   compris), qu'aucune connexion ne soit demandée et qu'aucune confirmation n'attende ; puis redémarrage.
@@ -219,3 +221,7 @@ Pipeline de publication (7c). Authenticode (`028-authenticode.md`).
   place ; au démarrage de l'exe installé, avec le nettoyage des restes, l'entrée est réécrite si elle diffère (une
   installation mise à jour par une version antérieure à la spec 022 la reçoit ainsi). Prouvé par `EX-022-02`. Aucun
   critère touché.
+- **2026-11-23** — Spec 026 : le redémarrage pour une mise à jour (bouton ou release critique) écrit, comme tout arrêt
+  volontaire, la marque `arret-volontaire` ; les ponts des clients LLM se reconnectent à la nouvelle version sans
+  relance du client. Aucun critère touché ; la recette `EX-020-20` ne demande plus de relancer le serveur MCP du
+  client.

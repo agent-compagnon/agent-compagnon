@@ -1,11 +1,15 @@
 //! The `stdio` bridge and its named pipe (spec 011): the pipe's name, the mutual proof of identity both ends run
 //! before any MCP byte, and the byte relay of the bridge; the control channel that stops the application for an
-//! update of its installation (spec 019). The application and the bridge only wire these to the Windows pipe and
-//! to DPAPI.
+//! update of its installation (spec 019); the resilient relay that survives a restart of the application, and what
+//! it may start again (spec 026). The application and the bridge only wire these to the Windows pipe, to DPAPI and
+//! to the processes.
 
 mod control;
+mod messages;
 mod proof;
+mod relaunch;
 mod relay;
+mod resilient;
 
 use std::io;
 use std::sync::Arc;
@@ -14,8 +18,16 @@ use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 pub use self::control::{ControlRequest, STOP_TIMEOUT, StopError, request_ping, request_stop, serve_control};
+pub use self::messages::{MAX_MESSAGE, RESTARTING};
 pub use self::proof::{MAX_FRAME, NONCE_LEN, PROOF_TIMEOUT, PeerProof, ProofError, ProtectFailure, Role, prove};
+pub use self::relaunch::{
+    RelaunchTarget, STOPPED_MARKER, clear_stopped_on_purpose, mark_stopped_on_purpose, relaunch_target, stopped_marker,
+};
 pub use self::relay::{RelayStats, relay};
+pub use self::resilient::{
+    AppLauncher, BridgeStop, ConnectFailure, Connector, Diagnostics, FIRST_WAIT, MISSING_CONFIRM, RECONNECT_WINDOW,
+    RELAUNCH_COOLDOWN, RELAUNCH_GRACE, REPLAY_TIMEOUT, RETRY, RelayDeps, ResilientRelay,
+};
 
 /// Longest kept part of the domain and of the user name in the pipe's name.
 const NAME_PART_MAX: usize = 64;

@@ -59,7 +59,8 @@ Réalisation (amendement du 2026-11-23) :
   fenêtre est refusé pendant le travail. Un échec de la préparation (instance qui ne s'arrête pas…) dit que rien n'a
   été modifié et propose « Réessayer ».
 - **Ordre** (I022.3) : (1) l'exe est renommé `mcp-proxy.exe.old` dans son dossier — un client LLM qui relance son
-  pont ne trouve plus rien à lancer, donc ne relance pas l'appli — puis (2) l'instance est arrêtée par le canal de
+  pont ne trouve plus rien à lancer, donc ne relance pas l'appli ; depuis la spec 026, un pont déjà lancé, qui
+  survit à l'arrêt de l'appli, voit l'exe absent et s'arrête en 2 s sans rien relancer — puis (2) l'instance est arrêtée par le canal de
   contrôle de la spec 019 (20 s au plus) ; si elle ne s'arrête pas, l'exe est remis et rien d'autre n'est touché.
   Puis, chaque élément tenté quoi qu'il arrive aux précédents : entrées des clients LLM, valeur `Run`, raccourci,
   clé AUMID, valeur WER, dossier des données ; enfin, **seulement si rien n'a échoué**, l'entrée de désinstallation,
@@ -176,3 +177,7 @@ Réalisation : `mcp_proxy_deploy::uninstall` (`plan`, `decide`, `Item`, `ClientD
   version … » (spec 019). Raison : la désinstallation emprunte le même canal, qui ne dit pas qui demande l'arrêt ;
   après une désinstallation incomplète, le journal resté sur le disque aurait dit une chose fausse. Aucun critère
   touché.
+- **2026-11-23** — Spec 026 : les ponts des clients LLM survivent à l'arrêt de l'appli ; pendant une
+  désinstallation, l'exe étant mis de côté avant l'arrêt, un pont le voit absent et s'arrête en 2 s, sans relancer
+  l'appli (il tiendrait sinon l'image de l'exe, ce qui laisserait le fichier dans `%TEMP%`). La désinstallation
+  elle-même ne change pas ; aucun critère touché.

@@ -64,9 +64,10 @@ que l'exe porte son icône dans l'Explorateur (ressources compilées seulement s
 - [ ] **EX-011-17** — L'icône neutre se lit sur barre des tâches claire et sombre (Paramètres, Personnalisation,
   Couleurs). Sans `settings.json`, la fenêtre s'ouvre seule au lancement. Quitter, écrire `{ pas du json` dans
   `settings.json`, relancer : l'icône est rouge et son infobulle dit « MCP Proxy — 1 erreur ».
-- [ ] **EX-011-18** — Un client MCP connecté, « Quitter » : l'appli s'arrête, le client voit le serveur fermé
-  (le pont se termine). Le journal du jour contient « démarrage de MCP Proxy », « client connecté au canal » et
-  « arrêt de MCP Proxy », et aucune valeur de jeton, cookie ou mot de passe.
+- [ ] **EX-011-19** — Un client MCP connecté, « Quitter » : l'appli s'arrête (depuis la spec 026, le pont du client
+  l'attend 60 s au lieu de se terminer : voir la section 026). Le journal du jour contient « démarrage de MCP
+  Proxy », « client connecté au canal » et « arrêt de MCP Proxy », et aucune valeur de jeton, cookie ou mot de
+  passe.
 
 ## 012 — app — fenêtres de login WebView2 (JWT, cookie, Basic), profil InPrivate
 
@@ -341,8 +342,9 @@ la version du dépôt, puis la même après avoir monté `version` dans `Cargo.t
   le journal de l'ancienne instance se termine par « arrêt demandé par l'installation ou la désinstallation de
   MCP Proxy » ; l'en-tête de la fenêtre affiche la version 0.1.1 ; la valeur `Run` est inchangée ; `mcp-proxy.exe.old`
   n'existe plus, ou existe tant que le pont de l'ancienne version tourne (il disparaît à la mise à jour suivante). Le
-  client LLM retrouve ses outils après relance de son serveur MCP (la session est à rouvrir). Noter si un client qui
-  relance aussitôt son pont fait repartir l'ancienne version (I019.7).
+  client LLM continue **sans être redémarré** (spec 026) : un appel fait pendant la mise à jour reçoit « MCP Proxy
+  redémarre, réessayez dans un instant. », les suivants sont servis par la 0.1.1 (la session est à rouvrir). Noter si
+  un client qui redémarre son serveur MCP pendant ces secondes fait repartir l'ancienne version (I019.7).
 - [ ] **EX-019-16** — Échecs, rien ne doit rester (vérifier dossier, raccourci, valeur `Run`, fichiers `.new`) :
   (1) sans installation, créer un **fichier** nommé `MCP Proxy` dans `%LOCALAPPDATA%\Programs\`, lancer, cocher la
   case, « Installer » : message « Création du dossier d'installation impossible (…) », aucun reste ; supprimer le
@@ -415,7 +417,7 @@ numéro plus élevé que la précédente : l'updater n'essaie que la plus haute.
   le journal de l'ancienne instance se termine par « redémarrage automatique pour la mise à jour critique 0.2.1 ».
 - [ ] **EX-020-20** — Pendant `EX-020-08` (ou une publication suivante), garder un client LLM ouvert, connecté par le
   pont `stdio` à l'exe installé : la mise en place réussit malgré l'exe tenu, le client continue de lister et
-  d'appeler les outils jusqu'au redémarrage, puis retrouve ses outils après relance de son serveur MCP. Tant que le
+  d'appeler les outils jusqu'au redémarrage, puis après lui, **sans relance de son serveur MCP** (spec 026). Tant que le
   pont de l'ancienne version tourne, `mcp-proxy.exe.old` peut rester ; quitter le client puis relancer l'appli : il
   a disparu. Noter si un `.old` encore tenu fait échouer la mise à jour suivante (« ancienne version encore utilisée
   par un client LLM »).
@@ -524,8 +526,8 @@ configuration des clients LLM.
   et du profil de l'utilisateur.
 - [ ] **EX-022-13** — Réinstaller, configurer Claude Desktop, le démarrer et appeler un outil (un pont tourne).
   Lancer la désinstallation **sans** fermer Claude Desktop. Après « Désinstaller » : l'appli s'arrête, Claude Desktop
-  signale que son serveur MCP s'est arrêté et ne relance pas l'appli (Gestionnaire des tâches : aucun nouveau
-  `mcp-proxy.exe` hors du pont). Noter ce que dit le compte rendu, ce qui reste dans
+  signale que son serveur MCP s'est arrêté (son pont se termine quelques secondes après l'appli, spec 026) et ne
+  relance pas l'appli (Gestionnaire des tâches : aucun nouveau `mcp-proxy.exe`). Noter ce que dit le compte rendu, ce qui reste dans
   `%LOCALAPPDATA%\Programs\MCP Proxy\` et dans `%TEMP%` après la fermeture de la fenêtre, puis après avoir quitté
   Claude Desktop (le pont tient l'exe : un `.mcp-proxy.*.__relocated__.exe` peut rester dans `%TEMP%`, I022.4).
 - [ ] **EX-022-14** — Réinstaller et lancer MCP Proxy une fois. Ouvrir le journal du jour
@@ -658,3 +660,43 @@ l'instance `jira` pointe vers un Jira réel et dont `sso-tools` a une `probe_url
   s'affiche ; un refus n'ajoute rien dans Jira, une acceptation ajoute le commentaire. Changer le mot de passe dans
   Jira puis relancer une recherche : une nouvelle saisie est demandée, une seule, et la recherche aboutit.
 
+## 026 — Pont stdio résilient : survivre au redémarrage de l'appli
+
+Préparation : MCP Proxy installé (section 019), un profil choisi, Claude Desktop **et** VS Code configurés sur l'exe
+installé (« Clients LLM… », spec 023), chacun démarré, un outil de lecture appelé une fois dans chacun : leurs ponts
+tournent (Gestionnaire des tâches, onglet « Détails », colonne « Ligne de commande » : `…\mcp-proxy.exe stdio` ; noter
+leurs PID). Les messages des ponts sont dans le journal du serveur MCP de chaque client (Claude Desktop : « Settings »,
+« Developer », journaux du serveur `mcp-proxy` ; VS Code : « MCP: List Servers », `mcp-proxy`, « Show Output » ; à
+préciser ici au premier passage). Chaque appel « servi » ci-dessous peut demander de rouvrir la connexion : les
+sessions ne survivent pas au redémarrage.
+
+- [ ] **EX-026-07** — « Quitter » dans le menu de l'icône, attendre 5 s, relancer MCP Proxy depuis le menu Démarrer.
+  Sans toucher aux clients, appeler un outil dans chacun : il est servi. Les ponts ont gardé leur PID. Leur journal
+  dit « connexion à l'appli perdue (… requête(s) en cours interrompue(s)) », « l'appli a été arrêtée volontairement :
+  le pont ne la relance pas », puis « reconnecté à l'appli ». Noter si VS Code relit la liste des outils après la
+  reconnexion (`notifications/tools/list_changed`).
+- [ ] **EX-026-08** — Préparation de la section 020. Publier une version supérieure ; attendre « Redémarrer pour
+  mettre à jour », les deux clients ouverts ; « Redémarrer » : l'icône revient, l'en-tête affiche la nouvelle version.
+  Sans redémarrer les clients, un appel dans chacun est servi ; les ponts ont gardé leur PID (leur image est
+  `mcp-proxy.exe.old`) ; une seule appli tourne, lancée depuis `…\mcp-proxy.exe`. Recommencer avec une release
+  critique (`EX-020-19`) : même résultat après le redémarrage automatique.
+- [ ] **EX-026-16** — Lancer un exe plus récent téléchargé (section 019), « Mettre à jour », les deux clients
+  ouverts : l'icône disparaît puis revient ; aucune autre fenêtre n'apparaît du fait des ponts (ni fenêtre
+  d'installation, ni fenêtre principale) ; l'en-tête affiche la nouvelle version ; un appel dans chaque client est
+  servi sans redémarrage. Gestionnaire des tâches : une seule appli, aucune de l'ancienne version (date de l'exe
+  lancé, colonne « Ligne de commande »).
+- [ ] **EX-026-17** — Les deux clients ouverts, désinstaller depuis « Applications installées » (comme `EX-022-13`) :
+  dans les secondes qui suivent l'arrêt de l'appli, les deux ponts se terminent (Gestionnaire des tâches) ; leur
+  journal finit par « l'appli s'est arrêtée et son exe n'est plus là (MCP Proxy désinstallé ou déplacé) : le pont
+  s'arrête. » ; aucun `mcp-proxy.exe` n'est relancé. Après la fermeture de la fenêtre, noter si `%TEMP%` garde un
+  `.mcp-proxy.*.__relocated__.exe`.
+- [ ] **EX-026-18** — « Quitter », sans relancer. Dans les 60 s, appeler un outil : le client montre « MCP Proxy
+  redémarre, réessayez dans un instant. » ; l'appli ne revient pas. Au bout d'une minute, les ponts se terminent, leur
+  journal finit par « l'appli MCP Proxy n'est pas revenue dans les 60 s : le pont s'arrête. … ». Redémarrer un client :
+  il relance l'appli (`EX-011-07`).
+- [ ] **EX-026-19** — Les deux clients ouverts, terminer l'appli (le `mcp-proxy.exe` **sans** `stdio`) par « Fin de
+  tâche » : une dizaine de secondes plus tard, l'appli revient seule (icône), une seule instance ; les deux clients
+  sont servis sans redémarrage ; le journal des ponts dit « l'appli ne revient pas d'elle-même (plantage ?) : relance
+  de MCP Proxy. ». Noter si la fenêtre principale s'ouvre à cette relance (le second pont lance une seconde instance,
+  qui passe la main, I026.13). Recommencer aussitôt : cette fois l'appli ne revient pas (une relance par pont en
+  5 min) et les ponts se terminent au bout de 60 s.

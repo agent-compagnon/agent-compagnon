@@ -128,6 +128,11 @@ Les commandes internes (`--install`, `--uninstall`, `doctor`) arrivent aux étap
   du job du client quand le job le permet, aucune poignée héritée), puis le pipe est réessayé toutes les 100 ms ;
   pipe occupé (`ERROR_PIPE_BUSY`) : réessai ; toute autre erreur : sortie en erreur. Messages en une ligne,
   préfixés « MCP Proxy : ».
+- Depuis la spec 026, le pont survit au redémarrage de l'appli : pipe fermé, il attend son retour 60 s, refait la
+  preuve à chaque reconnexion et ne la relance qu'après un plantage ; le relais est `gateway::bridge::ResilientRelay`
+  (`prove_and_relay` et `relay` ne servent plus qu'aux tests de la preuve et du relais d'octets). L'appli écrit la
+  marque `arret-volontaire` dans son dossier de données à chaque arrêt volontaire et la retire après avoir créé son
+  pipe.
 
 ### Assemblage au démarrage
 
@@ -231,8 +236,11 @@ puis arrêt avec un code non nul.
   `HKCU\Software\Microsoft\Windows\Windows Error Reporting\ExcludedApplications`.
 - **EX-011-17** (manuel) — Icône : lisible sur barre claire et sombre ; au premier lancement (sans `settings.json`)
   la fenêtre s'ouvre seule ; avec un `settings.json` illisible, l'icône est rouge et l'infobulle dit « 1 erreur ».
-- **EX-011-18** (manuel) — « Quitter » arrête l'appli : un pont connecté se termine, et le journal du jour contient
-  le démarrage, la connexion du client et l'arrêt, sans aucun secret.
+- ~~**EX-011-18** (manuel) — « Quitter » arrête l'appli : un pont connecté se termine, et le journal du jour contient
+  le démarrage, la connexion du client et l'arrêt, sans aucun secret.~~ (retiré le 2026-11-23 : depuis la spec 026,
+  un pont connecté ne se termine plus à l'arrêt de l'appli, il l'attend 60 s ; voir `EX-011-19` et `EX-026-18`)
+- **EX-011-19** (manuel) — « Quitter » arrête l'appli, et le journal du jour contient le démarrage, la connexion du
+  client et l'arrêt, sans aucun secret.
 
 ## Hors périmètre
 
@@ -275,3 +283,8 @@ Fenêtres de login (5b), notifications (5c), contenu de l'interface (6).
 - **2026-11-22** — Spec 020 : `update` de l'instantané devient `{ version, critical }` (mise à jour mise en place,
   `UpdateReady`) au lieu d'un texte, et sa mise en place fait partie des changements qui émettent
   `snapshot-changed`. Aucun critère touché.
+- **2026-11-23** — Spec 026 : le pont ne se termine plus quand l'appli s'arrête (il l'attend 60 s, puis se
+  reconnecte ou s'arrête) et lance l'exe installé par son chemin d'installation ; l'appli écrit à chaque arrêt
+  volontaire la marque `arret-volontaire` de son dossier de données, et la retire après avoir créé son pipe. Critère
+  retiré : `EX-011-18` (le pont ne se termine plus à « Quitter ») ; ajouté : `EX-011-19` (même vérification du
+  journal, sans le pont). Raison : spec 026 (D19).

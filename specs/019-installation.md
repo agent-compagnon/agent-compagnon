@@ -66,7 +66,9 @@ Réalisation (amendement du 2026-11-22) :
 - **Arrêt de l'instance en cours** (cas 1 comme cas 2 : une appli lancée sans installation tient le pipe) : par un
   canal de contrôle authentifié par la preuve mutuelle de la spec 011, rôle `controle`. L'appli n'accepte de ce
   rôle qu'une demande d'arrêt, journalisée, et quitte comme par « Quitter » (et, depuis la spec 024, le `ping` sans
-  effet de l'auto-diagnostic) ; le pont prouve toujours le rôle `pont`,
+  effet de l'auto-diagnostic) ; depuis la spec 026, cet arrêt écrit, comme tout arrêt volontaire, la marque
+  `arret-volontaire` qui retient les ponts des clients LLM de relancer l'appli : ils attendent l'instance que
+  l'installation lance et s'y reconnectent ; le pont prouve toujours le rôle `pont`,
   si bien que rien de ce qu'envoie un client LLM n'atteint ce canal. Le client attend, 20 s au plus, que l'appli
   ferme le canal en terminant son processus. Instance qui ne s'arrête pas : message, rien n'est modifié.
 - **Étapes et retour arrière** : installation = arrêt de l'instance, dossiers créés un à un, copie sous
@@ -178,3 +180,8 @@ Mises à jour (7b). Désinstallation (7d).
 - **2026-11-23** — Spec 024 : le canal de contrôle accepte aussi `ping`, la demande sans effet de l'auto-diagnostic
   (l'appli répond sa version et ferme le canal : ni arrêt, ni journal). Aucun critère de la 019 touché ; `EX-024-10`
   le prouve.
+- **2026-11-23** — Spec 026 : l'arrêt demandé par le canal de contrôle écrit, comme « Quitter », la marque
+  `arret-volontaire` du dossier de données ; les ponts des clients LLM ne relancent donc pas l'ancienne version
+  pendant l'installation ou la mise à jour et se reconnectent à celle que l'installation lance, sans que le client
+  soit redémarré. La limite connue d'I019.7 ne vaut plus que pour un pont lancé pendant ces secondes par un client
+  qui démarre. Aucun critère touché ; la recette `EX-019-15` ne demande plus de relancer le serveur MCP du client.

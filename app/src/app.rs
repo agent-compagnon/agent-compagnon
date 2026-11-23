@@ -13,7 +13,7 @@ use mcp_proxy_core::secrets::{SecretStore, platform_key_wrapper};
 use mcp_proxy_core::trace::SystemWallClock;
 use mcp_proxy_deploy::install::{AUTOSTART_ARG, InstallPaths, autostart_enabled, set_autostart};
 use mcp_proxy_deploy::ops::SystemOps;
-use mcp_proxy_gateway::bridge::{PeerProof, pipe_name};
+use mcp_proxy_gateway::bridge::{PeerProof, clear_stopped_on_purpose, mark_stopped_on_purpose, pipe_name};
 use mcp_proxy_gateway::clients_view::ClientsAccess;
 use mcp_proxy_gateway::control::GatewayControl;
 use mcp_proxy_gateway::journal_view::FeedItem;
@@ -208,6 +208,7 @@ pub fn run(start: AppStart) -> ExitCode {
         }
     };
     let webview_dir = dirs.webview.clone();
+    let data_root = dirs.root.clone();
     let auth_ui = WebviewAuthUi::with_toaster(
         app.handle(),
         &config.webview,
@@ -250,6 +251,11 @@ pub fn run(start: AppStart) -> ExitCode {
             if let Err(error) = reset_profile_dir(&webview_dir) {
                 tracing::info!(kind = %error.kind(), "dossier du profil des fenêtres de connexion non vidé à l'arrêt");
             }
+            // Before the pipe closes: the bridges of the LLM clients do not start the application again behind
+            // whoever stopped it (spec 026). Without it, they take the stop for a crash.
+            if let Err(error) = mark_stopped_on_purpose(&data_root) {
+                tracing::info!(kind = %error.kind(), "marque d'arrêt volontaire non écrite");
+            }
             if let Some(gateway) = app.try_state::<Arc<Gateway>>() {
                 // Every waiting confirmation is refused, none can be approved any more.
                 gateway.confirmations().pending().shutdown();
@@ -282,6 +288,7 @@ fn start_gateway(
         }
     };
     let logs = dirs.logs.clone();
+    let data_root = dirs.root.clone();
     let persistence = Persistence::sealed(&dirs, platform_key_wrapper());
     let started = tauri::async_runtime::block_on(Gateway::start(RuntimeDeps {
         config,
@@ -331,6 +338,10 @@ fn start_gateway(
         Ok(server) => server,
         Err(failure) => return Err(refused(failure)),
     };
+    // This instance holds the pipe: a crash from now on is one again for the bridges (spec 026).
+    if let Err(error) = clear_stopped_on_purpose(&data_root) {
+        tracing::warn!(kind = %error.kind(), "marque d'arrêt volontaire non retirée : les ponts ne relanceront pas l'appli");
+    }
     let proof: Arc<dyn PeerProof> = Arc::new(DpapiProof);
     tauri::async_runtime::spawn(pipe::accept(server, name, Arc::clone(&gateway), proof));
     Ok(gateway)
