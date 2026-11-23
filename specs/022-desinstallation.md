@@ -2,7 +2,7 @@
 id: "022"
 titre: "Désinstallation propre"
 etape: "7d"
-statut: "prévue"
+statut: "en cours"
 depend_de: ["019"]
 suivi: "github#23"
 ---
