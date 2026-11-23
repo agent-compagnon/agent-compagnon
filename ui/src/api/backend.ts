@@ -3,7 +3,16 @@
 // the window in a plain browser). The window never holds anything secret: it shows the snapshot and sends
 // identifiers.
 
-import type { AppSnapshot, ExportOutcome, JournalEntry } from './types'
+import type {
+  AppSnapshot,
+  ApplyOutcome,
+  ClientAction,
+  ClientPreview,
+  ClientsView,
+  ExportOutcome,
+  JournalEntry,
+  LocationId,
+} from './types'
 
 /** What follows `get_journal`: one new entry, or a sign that entries were lost on the way (ask again). */
 export type JournalEvent = { type: 'entry'; entry: JournalEntry } | { type: 'resync' }
@@ -39,6 +48,12 @@ export interface Backend {
   exportDiagnostic(): Promise<ExportOutcome>
   /** « Redémarrer pour mettre à jour », once confirmed: the application starts its new version, then stops. */
   restartForUpdate(): Promise<void>
+  /** The dialog « Clients LLM »: the state of each configuration file. */
+  getLlmClients(): Promise<ClientsView>
+  /** What « Installer » or « Retirer » would change in one file; nothing is written. */
+  previewLlmClient(location: LocationId, action: ClientAction): Promise<ClientPreview>
+  /** The change shown by the preview whose fingerprint is sent back; `changed` if the file moved since. */
+  applyLlmClient(location: LocationId, action: ClientAction, fingerprint: string): Promise<ApplyOutcome>
 }
 
 /** `get_journal` gave something that is not exactly a journal: nothing of it is shown. */

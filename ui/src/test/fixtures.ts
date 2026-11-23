@@ -1,7 +1,8 @@
 // Snapshots for the tests of the window: the scenarios of the simulated backend, at a fixed time.
 import { type Scenario, createMockBackend, initialSnapshot, journalOf } from '@/api/mock'
 import type { Backend, JournalEvent } from '@/api/backend'
-import type { AppSnapshot, ExportOutcome, JournalEntry } from '@/api/types'
+import clientsExample from '@/api/clients.example.json'
+import { type AppSnapshot, type ExportOutcome, type JournalEntry, parseClientPreview, parseClients } from '@/api/types'
 import { vi } from 'vitest'
 import { type Component, defineComponent, h } from 'vue'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -15,6 +16,20 @@ export function snapshotOf(name: Scenario): AppSnapshot {
 
 export function journalFixture(name: Scenario = 'sessions'): JournalEntry[] {
   return journalOf(name, NOW)
+}
+
+/** The view of the dialog « Clients LLM » written by the gateway (`clients.example.json`). */
+export function clientsFixture(which: 'getLlmClients' | 'notInstalled' = 'getLlmClients') {
+  const view = parseClients(structuredClone(clientsExample[which]))
+  if (view === null) throw new Error('clients.example.json does not match types.ts')
+  return view
+}
+
+/** The `index`-th preview of `clients.example.json`: nothing, remove, replace, manual, add, create. */
+export function previewFixture(index: number) {
+  const preview = parseClientPreview(structuredClone(clientsExample.previews[index]))
+  if (preview === null) throw new Error('clients.example.json does not match types.ts')
+  return preview
 }
 
 /** A backend whose commands are spies, answering with `snapshot` and `journal`. */
@@ -49,6 +64,9 @@ export function spyBackend(snapshot: AppSnapshot, journal: JournalEntry[] = []) 
     exportDiagnostic: vi.fn<Backend['exportDiagnostic']>(() =>
       Promise.resolve<ExportOutcome>({ status: 'saved', path: 'C:\\Users\\exemple\\diagnostic.zip' }),
     ),
+    getLlmClients: vi.fn<Backend['getLlmClients']>(() => Promise.resolve(clientsFixture())),
+    previewLlmClient: vi.fn<Backend['previewLlmClient']>(() => Promise.resolve(previewFixture(0))),
+    applyLlmClient: vi.fn<Backend['applyLlmClient']>(() => Promise.resolve({ status: 'applied', backup: null })),
   } satisfies Backend
   return {
     backend,

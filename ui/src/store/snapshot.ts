@@ -4,7 +4,7 @@
 
 import { type InjectionKey, inject, reactive, shallowReadonly } from 'vue'
 import { type Backend, reason } from '@/api/backend'
-import type { AppSnapshot } from '@/api/types'
+import type { AppSnapshot, ClientAction, LocationId } from '@/api/types'
 import { createJournal } from './journal'
 
 export type Phase = 'loading' | 'ready' | 'unavailable' | 'invalid'
@@ -82,6 +82,11 @@ export function createStore(backend: Backend) {
       run(() => backend.acknowledgeMcpUpdate(environment, mcp)),
     reloadMcp: (environment: string, mcp: string) => run(() => backend.reloadMcp(environment, mcp)),
     restartForUpdate: () => run(() => backend.restartForUpdate()),
+    // The dialog « Clients LLM » shows its own errors: it covers the window, the banner would be hidden.
+    llmClients: () => backend.getLlmClients(),
+    previewLlmClient: (location: LocationId, action: ClientAction) => backend.previewLlmClient(location, action),
+    applyLlmClient: (location: LocationId, action: ClientAction, fingerprint: string) =>
+      backend.applyLlmClient(location, action, fingerprint),
     dismissError: () => {
       state.commandError = null
     },

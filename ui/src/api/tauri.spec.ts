@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import buildRs from '../../../app/build.rs?raw'
 import mainCapability from '../../../app/capabilities/main.json'
+import clientsExample from './clients.example.json'
 import journalExample from './journal.example.json'
 import example from './snapshot.example.json'
 
@@ -99,5 +100,33 @@ describe("the application's backend", () => {
     await expect(tauriBackend.exportDiagnostic()).rejects.toThrow('réponse illisible')
     invoke.mockRejectedValueOnce('export de diagnostic impossible : accès refusé')
     await expect(tauriBackend.exportDiagnostic()).rejects.toBe('export de diagnostic impossible : accès refusé')
+  })
+
+  // Exigence : EX-023-13
+  // Exigence : EX-023-14
+  it('names a location and an action, never a path, and refuses an answer of another shape', async () => {
+    invoke.mockResolvedValueOnce(structuredClone(clientsExample.getLlmClients))
+    await tauriBackend.getLlmClients()
+    invoke.mockResolvedValueOnce(structuredClone(clientsExample.previews[2]))
+    const preview = await tauriBackend.previewLlmClient('claude-desktop-msix', 'install')
+    invoke.mockResolvedValueOnce({ status: 'changed' })
+    await tauriBackend.applyLlmClient('claude-desktop-msix', 'install', preview.fingerprint)
+    expect(invoke.mock.calls).toEqual([
+      ['get_llm_clients'],
+      ['preview_llm_client', { location: 'claude-desktop-msix', action: 'install' }],
+      ['apply_llm_client', { location: 'claude-desktop-msix', action: 'install', fingerprint: preview.fingerprint }],
+    ])
+    for (const [command] of invoke.mock.calls) {
+      expect(buildRs).toContain(`"${command}"`)
+      expect(mainCapability.permissions).toContain(`allow-${command.replaceAll('_', '-')}`)
+    }
+    invoke.mockResolvedValueOnce({ ...structuredClone(clientsExample.getLlmClients), path: 'C:\\x' })
+    await expect(tauriBackend.getLlmClients()).rejects.toThrow('réponse illisible')
+    invoke.mockResolvedValueOnce({ ...structuredClone(clientsExample.previews[2]), fingerprint: 'abc' })
+    await expect(tauriBackend.previewLlmClient('vscode', 'install')).rejects.toThrow('réponse illisible')
+    invoke.mockResolvedValueOnce({ status: 'saved' })
+    await expect(tauriBackend.applyLlmClient('vscode', 'install', preview.fingerprint)).rejects.toThrow(
+      'réponse illisible',
+    )
   })
 })

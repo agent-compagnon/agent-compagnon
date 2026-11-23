@@ -29,6 +29,7 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 | Réglages scellés | `hmac` 0.13 (HMAC-SHA256 avec `sha2` 0.11), clé enveloppée par DPAPI utilisateur (spec 014) |
 | Mises à jour | `ed25519-dalek` 3, `semver` 1.0, `sha2`, `base64` ; remplacement par renommage (spec 019), pas `self-replace` |
 | Pipeline | GitLab CI (`.gitlab-ci.yml`), JFrog CLI ; `yaml-rust2` 0.13 pour `cargo xtask check-ci` (spec 021) |
+| Config des clients LLM | `jsonc-parser` 0.34 (dprint), AST et positions seulement : modification par coupes du texte d'origine, relue (spec 023) |
 | Filtre de sortie | `memchr` 2.8, `regex` 1.13 (motifs génériques seulement), `serde_json` 1.0 |
 | Logs | `tracing`, `tracing-subscriber` 0.3, `tracing-appender` |
 | Front | Vue 3, Vite, TypeScript, Tailwind CSS 4, shadcn-vue (Reka UI), `@lucide/vue`, `valibot` (schémas de l'instantané), `@tauri-apps/api`, TanStack Table (`@tanstack/vue-table` 8), TanStack Virtual (`@tanstack/vue-virtual` 3), npm ; Vitest et Playwright pour les tests |
@@ -53,7 +54,7 @@ Client LLM ──stdio──▶ mcp-proxy.exe stdio          (pont : aucun secre
 crates/core            mcp-proxy-core       config, sessions, secrets, filtre, politiques, réglages, traces
 crates/auth            mcp-proxy-auth       trait AuthMethod + implémentations, authentification à la demande
 crates/gateway         mcp-proxy-gateway    registre, amont, middlewares, serveur MCP, pont, vue, assemblage
-crates/deploy          mcp-proxy-deploy     installation, désinstallation, updater        (ajout)
+crates/deploy          mcp-proxy-deploy     installation, désinstallation, updater, clients LLM   (ajout)
 crates/testkit         mcp-proxy-testkit    faux MCP, faux SSO, faux Artifactory          (ajout, dev)
 crates/ci-check        mcp-proxy-ci-check   contrôle de .gitlab-ci.yml sans GitLab         (ajout, outil)
 crates/modules/*       un crate par module MCP local
@@ -219,6 +220,12 @@ du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
 - Claude Desktop coupe un appel d'outil vers 60 s, ne recharge pas fiablement la liste après `list_changed` et peut
   annoncer l'elicitation sans l'afficher.
 - VS Code/Copilot plafonne à 128 outils par requête.
+- Configuration (recherche du 2026-11-22, spec 023) : VS Code lit `mcp.json` du dossier de profil (documenté ;
+  `%APPDATA%\Code\User\mcp.json` pour le profil par défaut d'après des guides), serveurs sous `servers`. Claude
+  Desktop documente `%APPDATA%\Claude\claude_desktop_config.json` (`mcpServers`), mais installé par son paquet MSIX
+  il lit le fichier du dossier virtualisé du paquet, sous
+  `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\`, alors que « Edit Config » ouvre
+  l'autre (ticket `anthropics/claude-code#26073`) : à vérifier en recette (`EX-023-17`).
 
 ## Amendements
 
@@ -305,3 +312,7 @@ du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
   (`build:release-tools`) et `sign` l'exécute tel quel, sans cargo ; les commandes de l'outil sont listées dans
   `mcp_proxy_deploy::update::tool_commands`, compilé aussi dans `mcp-proxy-ci-check`. Aucun job de release ne
   télécharge Node.
+- **2026-11-23** — Spec 023 : configuration des clients LLM dans `mcp_proxy_deploy::clients` (un adaptateur par
+  client, éditeur tolérant, écriture sûre), vue et commandes dans `mcp_proxy_gateway::clients_view`. Dépendance
+  `jsonc-parser` 0.34 (ligne ajoutée à la stack), utilisée pour ses positions seulement. Faits sur les deux fichiers
+  de Claude Desktop et sur VS Code ajoutés aux « Clients LLM ».

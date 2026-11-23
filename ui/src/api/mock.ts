@@ -7,6 +7,7 @@
 // scenario with `?scenario=…`.
 
 import type { Backend, JournalEvent } from './backend'
+import { CLIENT_SCENARIOS, type ClientScenario, createMockClients } from './mock-clients'
 import { EXAMPLE_SPAN_MS, eventEntry, generatedCall, withExamples, workingDay } from './mock-journal'
 import example from './snapshot.example.json'
 import {
@@ -40,6 +41,7 @@ export const SCENARIOS = [
   'export-annule',
   'mise-a-jour-prete',
   'mise-a-jour-critique',
+  ...CLIENT_SCENARIOS,
 ] as const
 
 export type Scenario = (typeof SCENARIOS)[number]
@@ -202,6 +204,11 @@ export function scenario(name: Scenario, now: number): AppSnapshot {
     case 'journal-vide':
     case 'export-echec':
     case 'export-annule':
+    case 'clients-etats':
+    case 'clients-deux-emplacements':
+    case 'clients-illisible':
+    case 'clients-non-installe':
+    case 'clients-modifie':
       return working(now)
   }
 }
@@ -428,6 +435,8 @@ export function createMockBackend(name: Scenario, clock: () => number = Date.now
       record(generatedCall(seq + 7919, seq, clock()))
     }, LIVE_PERIOD_MS)
   }
+  const isClients = (n: Scenario): n is ClientScenario => (CLIENT_SCENARIOS as readonly string[]).includes(n)
+  const clients = createMockClients(isClients(name) ? name : 'clients-etats', clock, recordEvent)
   const label = (items: readonly { id: string; label: string }[], id: string) =>
     items.find((i) => i.id === id)?.label ?? id
 
@@ -570,6 +579,9 @@ export function createMockBackend(name: Scenario, clock: () => number = Date.now
       console.info(MOCK_MARKER, 'restart_for_update')
       return Promise.resolve()
     },
+    getLlmClients: clients.getLlmClients,
+    previewLlmClient: clients.previewLlmClient,
+    applyLlmClient: clients.applyLlmClient,
     exportDiagnostic() {
       // The save dialog belongs to the application: the simulation answers as if a path had been chosen.
       return new Promise((resolve, reject) => {

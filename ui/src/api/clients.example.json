@@ -1,0 +1,199 @@
+{
+  "getLlmClients": {
+    "command": "C:\\Users\\exemple\\AppData\\Local\\Programs\\MCP Proxy\\mcp-proxy.exe",
+    "locations": [
+      {
+        "client": "claudeDesktop",
+        "file": "%APPDATA%\\Claude\\claude_desktop_config.json",
+        "id": "claude-desktop",
+        "otherServers": 1,
+        "state": {
+          "fileExists": true,
+          "kind": "configured",
+          "previous": null,
+          "reason": null
+        }
+      },
+      {
+        "client": "claudeDesktop",
+        "file": "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\claude_desktop_config.json",
+        "id": "claude-desktop-msix",
+        "otherServers": 0,
+        "state": {
+          "fileExists": true,
+          "kind": "otherCommand",
+          "previous": {
+            "command": "C:\\Users\\exemple\\Downloads\\mcp-proxy.exe",
+            "otherKeys": [
+              "args",
+              "env"
+            ]
+          },
+          "reason": null
+        }
+      },
+      {
+        "client": "vscode",
+        "file": "%APPDATA%\\Code\\User\\mcp.json",
+        "id": "vscode",
+        "otherServers": 0,
+        "state": {
+          "fileExists": true,
+          "kind": "unreadable",
+          "previous": null,
+          "reason": "JSON invalide à la ligne 3"
+        }
+      }
+    ],
+    "snippet": "{\n  \"mcpServers\": {\n    \"mcp-proxy\": {\n      \"command\": \"C:\\\\Users\\\\exemple\\\\AppData\\\\Local\\\\Programs\\\\MCP Proxy\\\\mcp-proxy.exe\",\n      \"args\": [\"stdio\"]\n    }\n  }\n}\n"
+  },
+  "notInstalled": {
+    "command": null,
+    "locations": [
+      {
+        "client": "claudeDesktop",
+        "file": "%APPDATA%\\Claude\\claude_desktop_config.json",
+        "id": "claude-desktop",
+        "otherServers": 0,
+        "state": {
+          "fileExists": false,
+          "kind": "notInstalled",
+          "previous": null,
+          "reason": null
+        }
+      },
+      {
+        "client": "claudeDesktop",
+        "file": "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\claude_desktop_config.json",
+        "id": "claude-desktop-msix",
+        "otherServers": 0,
+        "state": {
+          "fileExists": false,
+          "kind": "notInstalled",
+          "previous": null,
+          "reason": null
+        }
+      },
+      {
+        "client": "vscode",
+        "file": "%APPDATA%\\Code\\User\\mcp.json",
+        "id": "vscode",
+        "otherServers": 0,
+        "state": {
+          "fileExists": false,
+          "kind": "notInstalled",
+          "previous": null,
+          "reason": null
+        }
+      }
+    ],
+    "snippet": null
+  },
+  "outcomes": [
+    {
+      "backup": "claude_desktop_config.json.bak-20261122-140307",
+      "status": "applied"
+    },
+    {
+      "backup": null,
+      "status": "applied"
+    },
+    {
+      "status": "nothing"
+    },
+    {
+      "status": "changed"
+    }
+  ],
+  "previews": [
+    {
+      "action": "install",
+      "backup": false,
+      "change": "nothing",
+      "entry": null,
+      "file": "%APPDATA%\\Claude\\claude_desktop_config.json",
+      "fingerprint": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "location": "claude-desktop",
+      "otherServers": 1,
+      "previous": null,
+      "reason": null,
+      "snippet": null
+    },
+    {
+      "action": "remove",
+      "backup": true,
+      "change": "remove",
+      "entry": null,
+      "file": "%APPDATA%\\Claude\\claude_desktop_config.json",
+      "fingerprint": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "location": "claude-desktop",
+      "otherServers": 1,
+      "previous": {
+        "command": "C:\\Users\\exemple\\AppData\\Local\\Programs\\MCP Proxy\\mcp-proxy.exe",
+        "otherKeys": [
+          "args"
+        ]
+      },
+      "reason": null,
+      "snippet": null
+    },
+    {
+      "action": "install",
+      "backup": true,
+      "change": "replace",
+      "entry": "\"mcp-proxy\": {\n  \"command\": \"C:\\\\Users\\\\exemple\\\\AppData\\\\Local\\\\Programs\\\\MCP Proxy\\\\mcp-proxy.exe\",\n  \"args\": [\"stdio\"]\n}",
+      "file": "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\claude_desktop_config.json",
+      "fingerprint": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "location": "claude-desktop-msix",
+      "otherServers": 0,
+      "previous": {
+        "command": "C:\\Users\\exemple\\Downloads\\mcp-proxy.exe",
+        "otherKeys": [
+          "args",
+          "env"
+        ]
+      },
+      "reason": null,
+      "snippet": null
+    },
+    {
+      "action": "install",
+      "backup": false,
+      "change": "manual",
+      "entry": null,
+      "file": "%APPDATA%\\Code\\User\\mcp.json",
+      "fingerprint": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "location": "vscode",
+      "otherServers": 0,
+      "previous": null,
+      "reason": "JSON invalide à la ligne 3",
+      "snippet": "{\n  \"servers\": {\n    \"mcp-proxy\": {\n      \"type\": \"stdio\",\n      \"command\": \"C:\\\\Users\\\\exemple\\\\AppData\\\\Local\\\\Programs\\\\MCP Proxy\\\\mcp-proxy.exe\",\n      \"args\": [\"stdio\"]\n    }\n  }\n}\n"
+    },
+    {
+      "action": "install",
+      "backup": true,
+      "change": "add",
+      "entry": "\"mcp-proxy\": {\n  \"type\": \"stdio\",\n  \"command\": \"C:\\\\Users\\\\exemple\\\\AppData\\\\Local\\\\Programs\\\\MCP Proxy\\\\mcp-proxy.exe\",\n  \"args\": [\"stdio\"]\n}",
+      "file": "%APPDATA%\\Code\\User\\mcp.json",
+      "fingerprint": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "location": "vscode",
+      "otherServers": 1,
+      "previous": null,
+      "reason": null,
+      "snippet": null
+    },
+    {
+      "action": "install",
+      "backup": false,
+      "change": "create",
+      "entry": "\"mcp-proxy\": {\n  \"type\": \"stdio\",\n  \"command\": \"C:\\\\Users\\\\exemple\\\\AppData\\\\Local\\\\Programs\\\\MCP Proxy\\\\mcp-proxy.exe\",\n  \"args\": [\"stdio\"]\n}",
+      "file": "%APPDATA%\\Code\\User\\mcp.json",
+      "fingerprint": "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "location": "vscode",
+      "otherServers": 0,
+      "previous": null,
+      "reason": null,
+      "snippet": null
+    }
+  ]
+}

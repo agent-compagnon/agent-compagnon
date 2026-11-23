@@ -14,6 +14,7 @@ use mcp_proxy_core::trace::SystemWallClock;
 use mcp_proxy_deploy::install::{AUTOSTART_ARG, InstallPaths, autostart_enabled, set_autostart};
 use mcp_proxy_deploy::ops::SystemOps;
 use mcp_proxy_gateway::bridge::{PeerProof, pipe_name};
+use mcp_proxy_gateway::clients_view::ClientsAccess;
 use mcp_proxy_gateway::control::GatewayControl;
 use mcp_proxy_gateway::journal_view::FeedItem;
 use mcp_proxy_gateway::notify::{ConfirmationPresenter, Information, ToastAction, ToastState, information_toast};
@@ -168,7 +169,10 @@ pub fn run(start: AppStart) -> ExitCode {
             interface::reload_mcp,
             interface::get_journal,
             interface::export_diagnostic,
-            interface::restart_for_update
+            interface::restart_for_update,
+            interface::get_llm_clients,
+            interface::preview_llm_client,
+            interface::apply_llm_client
         ])
         .setup(move |app| {
             // Tauri panics on a setup error: a failure here is explained, then the application exits.
@@ -229,6 +233,11 @@ pub fn run(start: AppStart) -> ExitCode {
     }
     app.manage(Arc::clone(&toaster));
     app.manage(gateway);
+    // The folders of the user, resolved here once: the window never gives a path (spec 023).
+    app.manage(interface::LlmClients(ClientsAccess::new(
+        std::env::var_os("APPDATA").map(PathBuf::from),
+        std::env::var_os("LOCALAPPDATA").map(PathBuf::from),
+    )));
 
     let code = app.run_return(move |app, event| match event {
         // Closing the window hides it; only « Quitter » (explicit code) stops the application.

@@ -1,0 +1,2 @@
+# Example files of other programs, read byte for byte by the tests of spec 023 (line endings included).
+crates/deploy/src/clients/examples/** -text

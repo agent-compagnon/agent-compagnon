@@ -240,4 +240,18 @@ describe('main window', () => {
     expect(wrapper.text()).toContain('Action impossible : aucune mise à jour prête à appliquer.')
     wrapper.unmount()
   })
+
+  // Exigence : EX-023-15
+  it('the menu of the header opens « Clients LLM… »', async () => {
+    const { wrapper, backend } = await mountApp(snapshotOf('sessions'))
+    const trigger = wrapper.get('[data-action="app-menu"]')
+    expect(trigger.attributes('aria-label')).toBe('Menu')
+    // The menu opens on pointer events (see the end-to-end tests): its entry sets what it opens.
+    const menu = wrapper.findComponent({ name: 'AppMenu' })
+    ;(menu.vm as unknown as { clients: boolean }).clients = true
+    await flushPromises()
+    expect(inBody('[data-dialog="clients"]')?.textContent).toContain('Clients LLM')
+    expect(backend.getLlmClients).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
 })

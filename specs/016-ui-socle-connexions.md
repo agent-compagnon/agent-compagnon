@@ -176,3 +176,7 @@ Onglets MCP (6b) et Journal (6c).
 - **2026-11-22** — Spec 020 : le bouton « Redémarrer pour mettre à jour » est actif ; il ouvre un dialogue qui
   prévient que les connexions seront fermées, puis envoie la commande `restart_for_update`. Une mise à jour
   critique est signalée à côté du bouton (« Mise à jour critique »). Aucun critère touché.
+- **2026-11-23** — Spec 023 : l'en-tête gagne un bouton « Menu », à droite du sélecteur de profil, avec l'entrée
+  « Clients LLM… » (la spec 024 y ajoutera « Auto-diagnostic »). `scripts/check-dist.mjs` ne cherche plus « Claude
+  Desktop », que l'interface réelle affiche désormais, mais « Kubernetes Admin » (libellé de la config d'exemple) et
+  le scénario `clients-deux-emplacements` (I023.14). Aucun critère touché.

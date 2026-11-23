@@ -7,6 +7,9 @@ import { listen } from '@tauri-apps/api/event'
 import { type Backend, InvalidJournal } from './backend'
 import {
   type AppSnapshot,
+  parseApplyOutcome,
+  parseClientPreview,
+  parseClients,
   type ExportOutcome,
   type JournalEntry,
   parseExportOutcome,
@@ -30,6 +33,12 @@ function checked(value: unknown): AppSnapshot {
   const snapshot = parseSnapshot(value)
   if (snapshot === null) throw new InvalidSnapshot()
   return snapshot
+}
+
+/** An answer of the dialog « Clients LLM » that is not exactly the expected one: nothing of it is shown. */
+function read<T>(value: T | null): T {
+  if (value === null) throw new Error('réponse illisible')
+  return value
 }
 
 export const tauriBackend: Backend = {
@@ -94,6 +103,15 @@ export const tauriBackend: Backend = {
     const outcome = parseExportOutcome(await invoke('export_diagnostic'))
     if (outcome === null) throw new Error('réponse illisible')
     return outcome
+  },
+  async getLlmClients() {
+    return read(parseClients(await invoke('get_llm_clients')))
+  },
+  async previewLlmClient(location, action) {
+    return read(parseClientPreview(await invoke('preview_llm_client', { location, action })))
+  },
+  async applyLlmClient(location, action, fingerprint) {
+    return read(parseApplyOutcome(await invoke('apply_llm_client', { location, action, fingerprint })))
   },
 }
 

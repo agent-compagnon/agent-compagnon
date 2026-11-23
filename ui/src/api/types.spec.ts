@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
+import clientsExample from './clients.example.json'
 import journalExample from './journal.example.json'
 import example from './snapshot.example.json'
-import { parseEntry, parseExportOutcome, parseJournal, parseSnapshot } from './types'
+import {
+  parseApplyOutcome,
+  parseClientPreview,
+  parseClients,
+  parseEntry,
+  parseExportOutcome,
+  parseJournal,
+  parseSnapshot,
+} from './types'
 
 describe('contract of the snapshot', () => {
   // Exigence : EX-016-06
@@ -84,5 +93,45 @@ describe('contract of the journal', () => {
     expect(parseJournal({ entries: [first], more: true })).toBeNull()
     expect(parseExportOutcome({ status: 'saved' })).toBeNull()
     expect(parseExportOutcome({ status: 'cancelled', path: 'C:\\x.zip' })).toBeNull()
+  })
+})
+
+describe('contract of the dialog « Clients LLM »', () => {
+  // Exigence : EX-023-14
+  it('reads exactly the views, previews and outcomes written by the gateway', () => {
+    expect(parseClients(structuredClone(clientsExample.getLlmClients))?.locations.map((l) => l.state.kind)).toEqual([
+      'configured',
+      'otherCommand',
+      'unreadable',
+    ])
+    expect(parseClients(structuredClone(clientsExample.notInstalled))?.command).toBeNull()
+    expect(clientsExample.previews.map((p) => parseClientPreview(structuredClone(p))?.change)).toEqual([
+      'nothing',
+      'remove',
+      'replace',
+      'manual',
+      'add',
+      'create',
+    ])
+    expect(clientsExample.outcomes.map((o) => parseApplyOutcome(structuredClone(o))?.status)).toEqual([
+      'applied',
+      'applied',
+      'nothing',
+      'changed',
+    ])
+  })
+
+  // Exigence : EX-023-14
+  it('refuses a key more, an unknown location or state, a fingerprint that is not one', () => {
+    const view = structuredClone(clientsExample.getLlmClients)
+    expect(parseClients({ ...view, env: {} })).toBeNull()
+    const location = structuredClone(clientsExample.getLlmClients)
+    Object.assign(location.locations[0] ?? {}, { id: 'cursor' })
+    expect(parseClients(location)).toBeNull()
+    const state = structuredClone(clientsExample.getLlmClients)
+    Object.assign(state.locations[0]?.state ?? {}, { kind: 'broken' })
+    expect(parseClients(state)).toBeNull()
+    expect(parseClientPreview({ ...structuredClone(clientsExample.previews[0]), fingerprint: 'x' })).toBeNull()
+    expect(parseApplyOutcome({ status: 'applied' })).toBeNull()
   })
 })

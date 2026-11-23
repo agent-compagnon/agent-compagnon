@@ -488,6 +488,53 @@ Préparation :
   `check-tag` affiche « (préversion, canal bêta) », la version est publiée sous `mcp-proxy/X.(Y+1).0-rc.1/`,
   ignorée par un poste qui ne reçoit pas les préversions et proposée dès que la case est cochée (comme `EX-020-11`).
 
+## 023 — Configuration automatique des clients LLM
+
+Préparation : MCP Proxy installé (spec 019), un profil choisi avec au moins un environnement exposé et une session
+active. Claude Desktop et VS Code installés, chacun démarré une fois. Avant chaque étape qui écrit, copier à part le
+fichier visé (le dialogue le sauvegarde aussi, mais la recette ne doit pas en dépendre). Ouvrir le dialogue par le
+bouton « Menu » de l'en-tête, « Clients LLM… ». Dans Claude Desktop, la liste des serveurs se voit dans Settings,
+Developer ; dans VS Code, par la commande « MCP: List Servers ».
+
+- [ ] **EX-023-06** — Claude Desktop (ligne qui correspond à l'installation, voir `EX-023-17`), avec dans son fichier
+  un autre serveur qui a un `env` : « Installer », lire l'aperçu (fichier, lignes `+`, « L'autre serveur et le reste
+  du fichier ne sont pas modifiés », sauvegarde ; aucune valeur de l'`env` affichée), « Installer ». Le message dit
+  de quitter Claude Desktop depuis la zone de notification ; le faire (clic droit, « Quit »), le relancer : les
+  outils de MCP Proxy apparaissent et un appel de lecture réussit. Le fichier contient `"command":
+  "C:\\Users\\…\\AppData\\Local\\Programs\\MCP Proxy\\mcp-proxy.exe"` et `"args": ["stdio"]` ; la
+  sauvegarde `claude_desktop_config.json.bak-<date>` est à côté, identique à la copie faite avant. Rouvrir le
+  dialogue : « configuré », « Installer » inactif.
+- [ ] **EX-023-07** — VS Code : même chose sur `%APPDATA%\Code\User\mcp.json` préparé avec un commentaire `//`, une
+  virgule finale et un autre serveur (ou absent : il est alors créé). Après « Installer » : le fichier garde le
+  commentaire, la virgule, l'autre serveur et ses fins de ligne (ouvrir dans le Bloc-notes : CRLF conservé si le
+  fichier en avait) ; recharger la fenêtre de VS Code (« Developer: Reload Window ») : `mcp-proxy` est listé,
+  démarre, et ses outils sont proposés à Copilot.
+- [ ] **EX-023-08** — Pour chaque client configuré : « Retirer », lire l'aperçu (ligne `-` de l'entrée, « Seule
+  l'entrée « mcp-proxy » est retirée »), « Retirer » ; comparer avec la copie faite avant l'installation : seule
+  l'entrée `mcp-proxy` a disparu, les autres serveurs, les autres clés et les commentaires sont là ; le client
+  relancé ne liste plus MCP Proxy et ses autres serveurs marchent.
+- [ ] **EX-023-17** — Claude Desktop installé par le Microsoft Store ou son paquet MSIX : vérifier que le dossier
+  `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\` existe (sinon noter le vrai nom du dossier du paquet : le nom
+  écrit dans l'appli est à corriger). Dans le dialogue, les deux lignes « installation classique » et « paquet MSIX »,
+  la note des deux fichiers, la ligne classique « sans doute pas lu ». Installer **seulement** sur la ligne
+  classique, redémarrer Claude Desktop : noter si MCP Proxy apparaît (attendu : non). Retirer, installer seulement
+  sur la ligne du paquet, redémarrer : noter si MCP Proxy apparaît (attendu : oui). Ouvrir « Edit Config » de Claude
+  Desktop : noter quel fichier il ouvre. Redémarrer Windows, puis mettre à jour Claude Desktop si une version est
+  proposée : noter si le fichier du paquet a été réécrit ou vidé. Sur une installation classique (installeur
+  `.exe`), vérifier qu'une seule ligne est installée. Reporter les constats dans la section « Adaptateurs » de la
+  spec 023 et dans `DECISIONS.md` (I023.3, I023.4).
+- [ ] **EX-023-18** — Dans l'appli, en clair puis en sombre : le menu de l'en-tête s'ouvre et le dialogue s'affiche
+  sans erreur de CSP ni texte coupé. « Copier la configuration », puis coller dans le Bloc-notes : le JSON
+  `mcpServers` avec le chemin de l'exe installé (si la WebView refuse la copie, le dialogue affiche « Copie
+  impossible » et le texte à sélectionner : le noter, I023.12). Claude Desktop **en cours** : ouvrir l'aperçu
+  « Installer », modifier puis enregistrer `claude_desktop_config.json` dans le Bloc-notes, cliquer « Installer » :
+  « Le fichier a changé depuis l'aperçu », nouvel aperçu, rien d'écrit (le fichier est celui du Bloc-notes) ; le
+  journal dit « changée depuis l'aperçu ». Rendre le fichier invalide (supprimer une virgule) : ligne « fichier
+  illisible » en rouge avec le numéro de ligne, « Installer » donne l'extrait à coller, rien n'est écrit. Quitter
+  MCP Proxy, renommer le dossier `%LOCALAPPDATA%\Programs\MCP Proxy`, lancer l'exe téléchargé avec `--no-install` :
+  le dialogue dit que MCP Proxy n'est pas installé, « Installer » est inactif, « Retirer » marche ; remettre le
+  dossier. Le journal ne contient aucun chemin ni contenu de fichier.
+
 ## 025 — Module MCP local d'exemple (`jira-local`)
 
 À dérouler quand l'appli (spec 011) et les fenêtres de saisie Basic (spec 012) existent, avec une config dont

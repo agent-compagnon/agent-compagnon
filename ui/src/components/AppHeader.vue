@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { fr } from '@/i18n/fr'
 import type { AppSnapshot } from '@/api/types'
 import { useStore } from '@/store/snapshot'
+import AppMenu from './AppMenu.vue'
 import ProfileSelector from './profile/ProfileSelector.vue'
 
 // An update put in place (spec 020): restarting applies it, and closes every session, which the dialog says first.
@@ -63,6 +64,7 @@ async function restart() {
           </Button>
         </template>
         <ProfileSelector :snapshot="snapshot" />
+        <AppMenu />
       </div>
     </div>
   </header>

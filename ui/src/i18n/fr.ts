@@ -43,6 +43,99 @@ export const fr = {
       confirm: 'Redémarrer',
     },
   },
+  menu: {
+    trigger: 'Menu',
+    clients: 'Clients LLM…',
+  },
+  clients: {
+    title: 'Clients LLM',
+    intro:
+      "MCP Proxy s'ajoute à la configuration des clients LLM sous le nom « mcp-proxy ». Seule cette entrée est modifiée, après un aperçu, et le fichier est copié avant chaque écriture.",
+    loading: 'Lecture des configurations…',
+    loadFailed: (reason: string) => `Configurations illisibles : ${reason}.`,
+    command: 'Commande écrite dans chaque client :',
+    notInstalled:
+      "MCP Proxy n'est pas installé : il tourne depuis un emplacement provisoire. Les clients LLM sont toujours configurés avec l'exe installé, qui n'existe pas encore : installez d'abord MCP Proxy (relancez l'exe téléchargé et choisissez « Installer »). « Retirer » reste possible.",
+    client: { claudeDesktop: 'Claude Desktop', vscode: 'VS Code' },
+    variant: {
+      'claude-desktop': 'installation classique',
+      'claude-desktop-msix': 'paquet MSIX (Microsoft Store)',
+      vscode: 'profil par défaut',
+    },
+    label: {
+      'claude-desktop': 'Claude Desktop',
+      'claude-desktop-msix': 'Claude Desktop (paquet MSIX)',
+      vscode: 'VS Code',
+    },
+    state: {
+      notInstalled: 'non installé',
+      notConfigured: 'non configuré',
+      configured: 'configuré',
+      otherCommand: 'configuré avec un autre chemin',
+      unreadable: 'fichier illisible',
+    },
+    otherCommand: (command: string | null) =>
+      `L'entrée « mcp-proxy » lance ${command ?? 'une autre commande'}. « Installer » la remplace par l'exe installé, après aperçu.`,
+    unreadable: (reason: string) =>
+      `${reason}. MCP Proxy n'écrit rien dans ce fichier : « Installer » donne l'entrée à coller.`,
+    otherServers: (count: number) =>
+      count === 0 ? '' : `${plural(count, 'autre serveur', 'autres serveurs')} dans ce fichier.`,
+    twoLocations:
+      "Claude Desktop a deux fichiers de configuration sur ce poste. Installé par son paquet MSIX (Microsoft Store), il lit celui du paquet, et non celui qu'ouvre son bouton « Edit Config ». Configurez celui que lit votre installation, ou les deux, puis vérifiez dans Claude Desktop (Settings, Developer) que « mcp-proxy » y figure.",
+    probablyIgnored: 'Sans doute pas lu : Claude Desktop installé par son paquet MSIX lit le fichier du paquet.',
+    install: 'Installer',
+    remove: 'Retirer',
+    installIn: (client: string) => `Installer MCP Proxy dans ${client}`,
+    removeFrom: (client: string) => `Retirer MCP Proxy de ${client}`,
+    copy: 'Copier la configuration',
+    copyHelp: "Pour tout autre client LLM : l'entrée « mcp-proxy » au format «\u00a0mcpServers\u00a0», le plus courant.",
+    copied: 'Configuration copiée dans le presse-papiers :',
+    copyFailed: 'Copie impossible : sélectionnez le texte ci-dessous et copiez-le (Ctrl+C).',
+    close: 'Fermer',
+    preview: {
+      title: {
+        install: (client: string) => `Ajouter MCP Proxy à ${client} ?`,
+        remove: (client: string) => `Retirer MCP Proxy de ${client} ?`,
+      },
+      file: 'Fichier :',
+      create: "Le fichier n'existe pas encore : il est créé avec cette seule entrée.",
+      add: "L'entrée « mcp-proxy » est ajoutée.",
+      replace: "L'entrée « mcp-proxy » actuelle est remplacée.",
+      remove: "Seule l'entrée « mcp-proxy » est retirée.",
+      untouched: (count: number) =>
+        count === 0
+          ? "Le reste du fichier n'est pas modifié."
+          : `${count === 1 ? "L'autre serveur" : `Les ${String(count)} autres serveurs`} et le reste du fichier ne sont pas modifiés.`,
+      otherFields: (keys: readonly string[]) => `autres champs : ${keys.join(', ')}`,
+      backup: "Une copie du fichier actuel est enregistrée à côté de lui avant l'écriture.",
+      nothing: {
+        install: 'Déjà configuré : rien à écrire.',
+        remove: "Aucune entrée « mcp-proxy » dans ce fichier : rien à retirer.",
+      },
+      manual: (reason: string) => `Ce fichier ne peut pas être modifié sans risque (${reason}) : MCP Proxy n'y écrit rien.`,
+      manualInstall: 'Ajoutez vous-même cette configuration au fichier, puis redémarrez le client :',
+      manualRemove: "Retirez vous-même l'entrée « mcp-proxy » de ce fichier, puis redémarrez le client.",
+      changed:
+        "Le fichier a changé depuis l'aperçu, sans doute réécrit par le client : rien n'a été écrit. Voici l'aperçu à jour.",
+      cancel: 'Annuler',
+      back: 'Retour',
+      copy: "Copier l'entrée",
+      working: 'Écriture…',
+    },
+    done: {
+      install: (client: string) => `MCP Proxy a été ajouté à ${client}.`,
+      remove: (client: string) => `MCP Proxy a été retiré de ${client}.`,
+      nothing: 'Rien à écrire : le fichier était déjà comme demandé.',
+      backup: (name: string) => `Copie de l'ancien fichier : ${name}, dans le même dossier.`,
+      restart: {
+        claudeDesktop:
+          "Redémarrez Claude Desktop pour qu'il en tienne compte : quittez-le depuis son icône de la zone de notification (clic droit, « Quit »), et non en fermant seulement sa fenêtre, puis relancez-le.",
+        vscode:
+          "Redémarrez VS Code, ou rechargez sa fenêtre (commande « Developer: Reload Window »), pour qu'il en tienne compte.",
+      },
+      back: 'Retour à la liste',
+    },
+  },
   tabs: {
     label: 'Sections',
     connections: 'Connexions',

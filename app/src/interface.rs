@@ -1,10 +1,11 @@
-//! Commands of the main window (specs 016 to 018, 020), each declared in `build.rs` and granted to the window `main` alone by
+//! Commands of the main window (specs 016 to 018, 020, 023), each declared in `build.rs` and granted to the window `main` alone by
 //! `capabilities/main.json`. Wiring only: the checks and the effects live in `mcp_proxy_gateway::interface`. An
 //! error is a French text without any secret, shown by the window.
 
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use mcp_proxy_gateway::clients_view::{ApplyOutcome, ClientsAccess, ClientsView, PreviewView};
 use mcp_proxy_gateway::control::GatewayControl;
 use mcp_proxy_gateway::interface::{ExportOutcome, default_export_dir};
 use mcp_proxy_gateway::runtime::Gateway;
@@ -146,4 +147,59 @@ pub async fn export_diagnostic(window: WebviewWindow) -> Result<ExportOutcome, S
 pub async fn restart_for_update(window: WebviewWindow) -> Result<(), String> {
     let gateway = gateway_for(&window)?;
     gateway.restart_for_update().map_err(|e| e.to_string())
+}
+
+/// The folders of the user the configurations of the LLM clients are found from; `None` when `%APPDATA%` or
+/// `%LOCALAPPDATA%` is missing.
+pub struct LlmClients(pub Option<ClientsAccess>);
+
+fn clients_for(window: &WebviewWindow) -> Result<ClientsAccess, String> {
+    window
+        .app_handle()
+        .try_state::<LlmClients>()
+        .and_then(|c| c.inner().0.clone())
+        .ok_or_else(|| "dossiers de l'utilisateur introuvables : les clients LLM ne peuvent pas être lus".to_owned())
+}
+
+/// The dialog « Clients LLM »: the state of each configuration file. Reads only.
+#[tauri::command]
+pub async fn get_llm_clients(window: WebviewWindow) -> Result<ClientsView, String> {
+    let gateway = gateway_for(&window)?;
+    let access = clients_for(&window)?;
+    gateway.llm_clients(&access).await.map_err(|e| e.to_string())
+}
+
+/// What « Installer » or « Retirer » would change in one file, shown before anything is written.
+#[tauri::command]
+pub async fn preview_llm_client(
+    window: WebviewWindow,
+    location: String,
+    action: String,
+) -> Result<PreviewView, String> {
+    let gateway = gateway_for(&window)?;
+    let access = clients_for(&window)?;
+    let id = gateway.known_location(&location).map_err(|e| e.to_string())?;
+    let action = gateway.known_client_action(&action).map_err(|e| e.to_string())?;
+    gateway
+        .preview_llm_client(&access, id, action)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// The change the user saw: refused (`changed`) if the file is no longer what the preview showed.
+#[tauri::command]
+pub async fn apply_llm_client(
+    window: WebviewWindow,
+    location: String,
+    action: String,
+    fingerprint: String,
+) -> Result<ApplyOutcome, String> {
+    let gateway = gateway_for(&window)?;
+    let access = clients_for(&window)?;
+    let id = gateway.known_location(&location).map_err(|e| e.to_string())?;
+    let action = gateway.known_client_action(&action).map_err(|e| e.to_string())?;
+    gateway
+        .apply_llm_client(&access, id, action, fingerprint)
+        .await
+        .map_err(|e| e.to_string())
 }

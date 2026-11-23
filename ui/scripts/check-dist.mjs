@@ -8,7 +8,9 @@ const MARKERS = [
   'mcp-proxy-simulated-backend',
   'premier-lancement',
   'reglages-reinitialises',
-  'Claude Desktop',
+  // A label of the example configuration. Not « Claude Desktop »: the dialog « Clients LLM » (spec 023) names it.
+  'Kubernetes Admin',
+  'clients-deux-emplacements',
   'mcp-proxy-simulated-installer',
   'mise-a-jour-echec',
 ]

@@ -270,6 +270,96 @@ export type JournalEntry = v.InferOutput<typeof EntryViewSchema>
 export type JournalView = v.InferOutput<typeof JournalViewSchema>
 export type ExportOutcome = v.InferOutput<typeof ExportOutcomeSchema>
 
+// The dialog « Clients LLM » (spec 023): the mirror of `mcp_proxy_gateway::clients_view`, fixed by
+// `clients.example.json` (written by the `clients` test of the gateway). Paths of files are written from
+// `%APPDATA%` or `%LOCALAPPDATA%`; the only full path is the installed exe, which the user pastes.
+
+export const ClientKindSchema = v.picklist(['claudeDesktop', 'vscode'])
+export const LocationIdSchema = v.picklist(['claude-desktop', 'claude-desktop-msix', 'vscode'])
+export const ClientStateKindSchema = v.picklist([
+  'notInstalled',
+  'notConfigured',
+  'configured',
+  'otherCommand',
+  'unreadable',
+])
+export const ClientActionSchema = v.picklist(['install', 'remove'])
+export const ChangeKindSchema = v.picklist(['nothing', 'create', 'add', 'replace', 'remove', 'manual'])
+
+export const EntrySummarySchema = v.strictObject({
+  command: nullableText,
+  /** The names of its other fields, never their values. */
+  otherKeys: v.array(text),
+})
+
+export const ClientStateSchema = v.strictObject({
+  kind: ClientStateKindSchema,
+  fileExists: v.boolean(),
+  previous: v.nullable(EntrySummarySchema),
+  reason: nullableText,
+})
+
+export const ClientLocationSchema = v.strictObject({
+  id: LocationIdSchema,
+  client: ClientKindSchema,
+  file: text,
+  state: ClientStateSchema,
+  otherServers: count,
+})
+
+export const ClientsViewSchema = v.strictObject({
+  /** The installed exe; `null` when MCP Proxy is not installed. */
+  command: nullableText,
+  snippet: nullableText,
+  locations: v.array(ClientLocationSchema),
+})
+
+export const ClientPreviewSchema = v.strictObject({
+  location: LocationIdSchema,
+  action: ClientActionSchema,
+  file: text,
+  change: ChangeKindSchema,
+  entry: nullableText,
+  previous: v.nullable(EntrySummarySchema),
+  reason: nullableText,
+  snippet: nullableText,
+  backup: v.boolean(),
+  otherServers: count,
+  fingerprint: v.pipe(v.string(), v.regex(/^[0-9a-f]{64}$/)),
+})
+
+export const ApplyOutcomeSchema = v.variant('status', [
+  v.strictObject({ status: v.literal('applied'), backup: nullableText }),
+  v.strictObject({ status: v.literal('nothing') }),
+  v.strictObject({ status: v.literal('changed') }),
+])
+
+export type ClientKind = v.InferOutput<typeof ClientKindSchema>
+export type LocationId = v.InferOutput<typeof LocationIdSchema>
+export type ClientStateKind = v.InferOutput<typeof ClientStateKindSchema>
+export type ClientAction = v.InferOutput<typeof ClientActionSchema>
+export type ChangeKind = v.InferOutput<typeof ChangeKindSchema>
+export type EntrySummary = v.InferOutput<typeof EntrySummarySchema>
+export type ClientLocation = v.InferOutput<typeof ClientLocationSchema>
+export type ClientsView = v.InferOutput<typeof ClientsViewSchema>
+export type ClientPreview = v.InferOutput<typeof ClientPreviewSchema>
+export type ApplyOutcome = v.InferOutput<typeof ApplyOutcomeSchema>
+
+export function parseClients(value: unknown): ClientsView | null {
+  const result = v.safeParse(ClientsViewSchema, value)
+  return result.success ? result.output : null
+}
+
+export function parseClientPreview(value: unknown): ClientPreview | null {
+  const result = v.safeParse(ClientPreviewSchema, value)
+  return result.success ? result.output : null
+}
+
+export function parseApplyOutcome(value: unknown): ApplyOutcome | null {
+  const result = v.safeParse(ApplyOutcomeSchema, value)
+  return result.success ? result.output : null
+}
+
 /** The entries of `get_journal`, or `null` if `value` is not exactly a journal. */
 export function parseJournal(value: unknown): JournalEntry[] | null {
   const result = v.safeParse(JournalViewSchema, value)

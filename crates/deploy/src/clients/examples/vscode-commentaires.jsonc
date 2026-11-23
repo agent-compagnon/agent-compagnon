@@ -1,0 +1,15 @@
+// Configuration MCP de VS Code
+{
+	"inputs": [
+		{ "type": "promptString", "id": "token", "password": true, },
+	],
+	/* Serveurs */
+	"servers": {
+		"memory": {
+			"type": "stdio",
+			"command": "npx", // npm
+			"args": ["-y", "@modelcontextprotocol/server-memory",],
+		},
+		// fin des serveurs
+	},
+}

@@ -49,6 +49,14 @@ pub enum InterfaceError {
     /// « Redémarrer pour mettre à jour » without an update put in place (spec 020).
     #[error("aucune mise à jour prête à appliquer")]
     NoUpdateReady,
+    /// A location of an LLM client the application does not know (spec 023).
+    #[error("client LLM inconnu")]
+    UnknownClient,
+    #[error("action inconnue")]
+    UnknownAction,
+    /// Reading or changing the configuration of an LLM client: French, without any path or content.
+    #[error("{0}")]
+    Clients(String),
     /// `DiagnosticError`, already French and without content (« export de diagnostic impossible : … »).
     #[error("{0}")]
     Export(String),
