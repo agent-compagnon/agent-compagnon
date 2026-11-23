@@ -539,8 +539,14 @@ impl Check for SettingsCheck {
                     )
                 },
                 format!(
-                    "{open} Si cela se reproduit sans raison, un programme modifie le fichier des réglages : \
-                     signalez-le au support."
+                    "{} Si cela se reproduit sans raison, un programme modifie le fichier des réglages : signalez-le \
+                     au support.",
+                    if facts.running {
+                        "Choisissez de nouveau votre profil (sélecteur « Profil » de l'en-tête) : les réglages sont \
+                         réenregistrés et scellés."
+                    } else {
+                        open
+                    }
                 ),
             )),
             SealFacts::Missing => findings.push(Finding::warning(

@@ -65,7 +65,7 @@
       {
         "findings": [
           {
-            "fix": "Ouvrez la fenêtre de MCP Proxy et choisissez un profil. Si cela se reproduit sans raison, un programme modifie le fichier des réglages : signalez-le au support.",
+            "fix": "Choisissez de nouveau votre profil (sélecteur « Profil » de l'en-tête) : les réglages sont réenregistrés et scellés. Si cela se reproduit sans raison, un programme modifie le fichier des réglages : signalez-le au support.",
             "message": "fichier des réglages refusé (sceau invalide : fichier modifié hors de MCP Proxy, ou scellé par une autre clé) : les réglages en cours s'appliquent jusqu'à l'arrêt, puis les plus stricts au prochain démarrage",
             "status": "failure"
           }
@@ -78,7 +78,7 @@
         "findings": [
           {
             "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
-            "message": "Artifactory (artifactory.corp.internal) injoignable : nom introuvable (résolution DNS en échec)",
+            "message": "Artifactory (artifactory.corp.internal) injoignable : nom introuvable (DNS)",
             "status": "failure"
           }
         ],
@@ -124,57 +124,57 @@
         "findings": [
           {
             "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
-            "message": "Kibana Logs en DEV (kibana-mcp.dev.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "message": "Kibana Logs en DEV (kibana-mcp.dev.corp.internal) : injoignable, nom introuvable (DNS)",
             "status": "failure"
           },
           {
             "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
-            "message": "Kibana Logs en INT (kibana-mcp.int.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "message": "Kibana Logs en INT (kibana-mcp.int.corp.internal) : injoignable, nom introuvable (DNS)",
             "status": "failure"
           },
           {
             "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
-            "message": "Kibana Logs en REC (kibana-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "message": "Kibana Logs en REC (kibana-mcp.rec.corp.internal) : injoignable, nom introuvable (DNS)",
             "status": "failure"
           },
           {
             "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
-            "message": "GitLab Ops en DEV (gitlab-mcp.dev.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "message": "GitLab Ops en DEV (gitlab-mcp.dev.corp.internal) : injoignable, nom introuvable (DNS)",
             "status": "failure"
           },
           {
             "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
-            "message": "GitLab Ops en REC (gitlab-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "message": "GitLab Ops en REC (gitlab-mcp.rec.corp.internal) : injoignable, nom introuvable (DNS)",
             "status": "failure"
           },
           {
             "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
-            "message": "Kubernetes Admin en DEV (k8s-mcp.dev.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "message": "Kubernetes Admin en DEV (k8s-mcp.dev.corp.internal) : injoignable, nom introuvable (DNS)",
             "status": "failure"
           },
           {
             "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
-            "message": "Kubernetes Admin en INT (k8s-mcp.int.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "message": "Kubernetes Admin en INT (k8s-mcp.int.corp.internal) : injoignable, nom introuvable (DNS)",
             "status": "failure"
           },
           {
             "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
-            "message": "Kubernetes Admin en REC (k8s-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "message": "Kubernetes Admin en REC (k8s-mcp.rec.corp.internal) : injoignable, nom introuvable (DNS)",
             "status": "failure"
           },
           {
             "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
-            "message": "Base de données (lecture) en INT (db-mcp.int.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "message": "Base de données (lecture) en INT (db-mcp.int.corp.internal) : injoignable, nom introuvable (DNS)",
             "status": "failure"
           },
           {
             "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
-            "message": "Base de données (lecture) en REC (db-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "message": "Base de données (lecture) en REC (db-mcp.rec.corp.internal) : injoignable, nom introuvable (DNS)",
             "status": "failure"
           },
           {
             "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
-            "message": "Jira en REC (jira.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "message": "Jira en REC (jira.corp.internal) : injoignable, nom introuvable (DNS)",
             "status": "failure"
           }
         ],
@@ -200,7 +200,7 @@
     "fileError": null,
     "status": "failure",
     "summary": "9 échecs",
-    "text": "MCP Proxy — auto-diagnostic\nVersion 0.1.0, 2026-11-23T10:00:00.000Z (UTC), lancé depuis la fenêtre de MCP Proxy.\nRésultat : 9 échecs.\n\n[ok] Config\n  - configuration chargée et valide (8 environnements, 5 MCP)\n\n[échec] WebView2\n  × runtime WebView2 absent : MCP Proxy ne peut ouvrir aucune fenêtre\n    À faire : Installez ou mettez à jour le « Microsoft Edge WebView2 Runtime » (programme d'installation « Evergreen » de Microsoft, sans droits d'administrateur), puis relancez MCP Proxy.\n\n[échec] Installation\n  × version de l'exe installé illisible : l'installation est abîmée et ne sera jamais mise à jour\n    À faire : Désinstallez MCP Proxy depuis les paramètres de Windows (« Applications installées »), puis lancez l'exe téléchargé et choisissez « Installer ».\n\n[échec] Notifications\n  × état des notifications illisible : Windows ne dit pas si elles s'affichent ; les confirmations s'ouvrent dans une fenêtre au premier plan à la place\n    À faire : Redémarrez Windows. Joignez ce rapport à votre demande au support.\n\n[échec] Appli\n  × le canal de MCP Proxy est tenu par un programme qui n'est pas MCP Proxy de cet utilisateur\n    À faire : Redémarrez Windows ; si l'échec reste, un autre programme occupe le canal : signalez-le au support.\n\n[échec] Réglages\n  × fichier des réglages refusé (sceau invalide : fichier modifié hors de MCP Proxy, ou scellé par une autre clé) : les réglages en cours s'appliquent jusqu'à l'arrêt, puis les plus stricts au prochain démarrage\n    À faire : Ouvrez la fenêtre de MCP Proxy et choisissez un profil. Si cela se reproduit sans raison, un programme modifie le fichier des réglages : signalez-le au support.\n\n[échec] Artifactory\n  × Artifactory (artifactory.corp.internal) injoignable : nom introuvable (résolution DNS en échec)\n    À faire : Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.\n\n[échec] Clé de mise à jour\n  × cet exe embarque la clé de développement, dont la clé privée est publique : il refuse toute mise à jour\n    À faire : Cet exe ne doit pas être utilisé : installez une version publiée par le pipeline de release.\n\n[échec] Clients LLM\n  - Claude Desktop : non installé\n  - Claude Desktop (paquet MSIX) : non installé\n  × VS Code : fichier de configuration illisible (JSON invalide à la ligne 1)\n    À faire : Corrigez le fichier %APPDATA%\\Code\\User\\mcp.json (il est peut-être en cours d'écriture par le client), ou copiez l'entrée depuis « Clients LLM… ».\n\n[échec] MCP\n  × Kibana Logs en DEV (kibana-mcp.dev.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n    À faire : Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.\n  × Kibana Logs en INT (kibana-mcp.int.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Kibana Logs en REC (kibana-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × GitLab Ops en DEV (gitlab-mcp.dev.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × GitLab Ops en REC (gitlab-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Kubernetes Admin en DEV (k8s-mcp.dev.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Kubernetes Admin en INT (k8s-mcp.int.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Kubernetes Admin en REC (k8s-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Base de données (lecture) en INT (db-mcp.int.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Base de données (lecture) en REC (db-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Jira en REC (jira.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n\n[ok] Horloge\n  - écart non mesuré : aucun serveur n'a donné son heure (aucun serveur contacté ou joignable)\n\nRapport enregistré dans %LOCALAPPDATA%\\MCP Proxy\\logs\\doctor-20261123-100000.txt\n",
+    "text": "MCP Proxy — auto-diagnostic\nVersion 0.1.0, 2026-11-23T10:00:00.000Z (UTC), lancé depuis la fenêtre de MCP Proxy.\nRésultat : 9 échecs.\n\n[ok] Config\n  - configuration chargée et valide (8 environnements, 5 MCP)\n\n[échec] WebView2\n  × runtime WebView2 absent : MCP Proxy ne peut ouvrir aucune fenêtre\n    À faire : Installez ou mettez à jour le « Microsoft Edge WebView2 Runtime » (programme d'installation « Evergreen » de Microsoft, sans droits d'administrateur), puis relancez MCP Proxy.\n\n[échec] Installation\n  × version de l'exe installé illisible : l'installation est abîmée et ne sera jamais mise à jour\n    À faire : Désinstallez MCP Proxy depuis les paramètres de Windows (« Applications installées »), puis lancez l'exe téléchargé et choisissez « Installer ».\n\n[échec] Notifications\n  × état des notifications illisible : Windows ne dit pas si elles s'affichent ; les confirmations s'ouvrent dans une fenêtre au premier plan à la place\n    À faire : Redémarrez Windows. Joignez ce rapport à votre demande au support.\n\n[échec] Appli\n  × le canal de MCP Proxy est tenu par un programme qui n'est pas MCP Proxy de cet utilisateur\n    À faire : Redémarrez Windows ; si l'échec reste, un autre programme occupe le canal : signalez-le au support.\n\n[échec] Réglages\n  × fichier des réglages refusé (sceau invalide : fichier modifié hors de MCP Proxy, ou scellé par une autre clé) : les réglages en cours s'appliquent jusqu'à l'arrêt, puis les plus stricts au prochain démarrage\n    À faire : Choisissez de nouveau votre profil (sélecteur « Profil » de l'en-tête) : les réglages sont réenregistrés et scellés. Si cela se reproduit sans raison, un programme modifie le fichier des réglages : signalez-le au support.\n\n[échec] Artifactory\n  × Artifactory (artifactory.corp.internal) injoignable : nom introuvable (DNS)\n    À faire : Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.\n\n[échec] Clé de mise à jour\n  × cet exe embarque la clé de développement, dont la clé privée est publique : il refuse toute mise à jour\n    À faire : Cet exe ne doit pas être utilisé : installez une version publiée par le pipeline de release.\n\n[échec] Clients LLM\n  - Claude Desktop : non installé\n  - Claude Desktop (paquet MSIX) : non installé\n  × VS Code : fichier de configuration illisible (JSON invalide à la ligne 1)\n    À faire : Corrigez le fichier %APPDATA%\\Code\\User\\mcp.json (il est peut-être en cours d'écriture par le client), ou copiez l'entrée depuis « Clients LLM… ».\n\n[échec] MCP\n  × Kibana Logs en DEV (kibana-mcp.dev.corp.internal) : injoignable, nom introuvable (DNS)\n    À faire : Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.\n  × Kibana Logs en INT (kibana-mcp.int.corp.internal) : injoignable, nom introuvable (DNS)\n  × Kibana Logs en REC (kibana-mcp.rec.corp.internal) : injoignable, nom introuvable (DNS)\n  × GitLab Ops en DEV (gitlab-mcp.dev.corp.internal) : injoignable, nom introuvable (DNS)\n  × GitLab Ops en REC (gitlab-mcp.rec.corp.internal) : injoignable, nom introuvable (DNS)\n  × Kubernetes Admin en DEV (k8s-mcp.dev.corp.internal) : injoignable, nom introuvable (DNS)\n  × Kubernetes Admin en INT (k8s-mcp.int.corp.internal) : injoignable, nom introuvable (DNS)\n  × Kubernetes Admin en REC (k8s-mcp.rec.corp.internal) : injoignable, nom introuvable (DNS)\n  × Base de données (lecture) en INT (db-mcp.int.corp.internal) : injoignable, nom introuvable (DNS)\n  × Base de données (lecture) en REC (db-mcp.rec.corp.internal) : injoignable, nom introuvable (DNS)\n  × Jira en REC (jira.corp.internal) : injoignable, nom introuvable (DNS)\n\n[ok] Horloge\n  - écart non mesuré : aucun serveur n'a donné son heure (aucun serveur contacté ou joignable)\n\nRapport enregistré dans %LOCALAPPDATA%\\MCP Proxy\\logs\\doctor-20261123-100000.txt\n",
     "version": "0.1.0",
     "viewpoint": "app",
     "warnings": 0

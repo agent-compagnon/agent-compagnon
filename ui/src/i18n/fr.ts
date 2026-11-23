@@ -46,6 +46,33 @@ export const fr = {
   menu: {
     trigger: 'Menu',
     clients: 'Clients LLM…',
+    doctor: 'Auto-diagnostic',
+  },
+  doctor: {
+    title: 'Auto-diagnostic',
+    intro:
+      "MCP Proxy vérifie son installation, ses réglages et les serveurs exposés, sans rien modifier. Aucun identifiant n'est envoyé.",
+    running: 'Contrôle en cours…',
+    runningHint: 'Les contrôles tournent ensemble ; cela prend quelques secondes au plus.',
+    failed: (reason: string) => `Auto-diagnostic impossible : ${reason}.`,
+    summary: {
+      ok: 'Tout va bien.',
+      warning: (summary: string) => `${summary.charAt(0).toUpperCase()}${summary.slice(1)} : une action est attendue.`,
+      failure: (summary: string) => `${summary.charAt(0).toUpperCase()}${summary.slice(1)} : quelque chose empêche MCP Proxy de fonctionner.`,
+    },
+    status: {
+      ok: 'OK',
+      warning: 'Avertissement',
+      failure: 'Échec',
+    },
+    fix: 'À faire :',
+    saved: 'Rapport enregistré dans',
+    notSaved: (reason: string) => `Rapport non enregistré dans le dossier des logs (${reason}).`,
+    copy: 'Copier le rapport',
+    copied: 'Rapport copié dans le presse-papiers.',
+    copyFailed: 'Copie refusée : sélectionnez le texte ci-dessous puis Ctrl+C.',
+    again: 'Relancer',
+    close: 'Fermer',
   },
   clients: {
     title: 'Clients LLM',

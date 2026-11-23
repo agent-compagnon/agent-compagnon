@@ -2,7 +2,7 @@
 id: "024"
 titre: "Auto-diagnostic (`doctor`)"
 etape: "7f"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["009", "011", "019", "020"]
 suivi: "github#25"
 ---

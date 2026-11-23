@@ -590,6 +590,63 @@ Developer ; dans VS Code, par la commande « MCP: List Servers ».
   le dialogue dit que MCP Proxy n'est pas installé, « Installer » est inactif, « Retirer » marche ; remettre le
   dossier. Le journal ne contient aucun chemin ni contenu de fichier.
 
+## 024 — Auto-diagnostic (`doctor`)
+
+Préparation : MCP Proxy installé (spec 019), lancé, un profil choisi avec au moins un environnement exposé, un client
+LLM configuré (spec 023). Noter l'heure, et le contenu de `%LOCALAPPDATA%\MCP Proxy\logs\` avant de commencer.
+Hypothèses à confirmer au passage (I024.9) : `cmd` n'attend pas la fin d'un exe fenêtré tapé à l'invite, d'où le
+fichier `.cmd` ou `start /wait` ci-dessous ; un exe fenêtré lancé sans redirection a une sortie standard nulle (pas de
+texte dans la console, une boîte de message).
+
+- [ ] **EX-024-09** — Créer `test-doctor.cmd` contenant les deux lignes `"%LOCALAPPDATA%\Programs\MCP
+  Proxy\mcp-proxy.exe" doctor > "%USERPROFILE%\Desktop\rapport.txt"` et `echo code %ERRORLEVEL%`, le lancer depuis
+  un terminal (`cmd`) : aucune fenêtre de MCP Proxy ne s'ouvre et l'icône de l'instance en cours ne bouge pas ; le
+  terminal affiche `code 0`, `1` ou `2` ; `rapport.txt` commence par « MCP Proxy — auto-diagnostic », sa ligne
+  « Résultat » correspond au code (0 : tout va bien, 1 : avertissements, 2 : au moins un échec), et sa dernière
+  ligne donne `%LOCALAPPDATA%\MCP Proxy\logs\doctor-AAAAMMJJ-HHMMSS.txt` : ce fichier existe et a le même contenu.
+  Aucune boîte de message (la sortie est redirigée). Variante PowerShell : `$p = Start-Process -FilePath
+  "$env:LOCALAPPDATA\Programs\MCP Proxy\mcp-proxy.exe" -ArgumentList doctor -RedirectStandardOutput rapport.txt
+  -Wait -PassThru; $p.ExitCode`. Puis, dans le terminal, taper `mcp-proxy.exe doctor` **sans** redirection (depuis le
+  dossier d'installation) : rien ne s'écrit dans la console, une boîte « MCP Proxy — auto-diagnostic » donne le
+  résultat et le chemin du nouveau fichier ; coller ce chemin dans la barre d'adresse de l'Explorateur : le rapport
+  s'ouvre. Relancer deux fois de suite dans la même seconde (`.cmd` avec deux lignes) : deux fichiers, le second
+  suffixé `_2`. Vérifier dans chaque rapport : la ligne « Appli » dit « instance en cours en version … », aucun
+  chemin ne contient le nom de l'utilisateur, aucune URL complète, aucune valeur des fichiers des clients LLM. Le
+  journal de l'appli (onglet Journal, et `mcp-proxy-AAAA-MM-JJ.log`) ne contient aucune ligne due au diagnostic.
+  Quitter MCP Proxy, relancer le `.cmd` : « Appli » en avertissement « MCP Proxy n'est pas lancé », code 1 au moins ;
+  aucune instance n'a été lancée par le diagnostic (Gestionnaire des tâches).
+- [ ] **EX-024-06** — Paramètres de Windows, « Système », « Notifications » : désactiver les notifications de
+  « MCP Proxy ». Relancer le `.cmd` : « Notifications » en avertissement, « notifications désactivées pour MCP
+  Proxy », avec la marche à suivre (« Paramètres de Windows, « Système », « Notifications »… »). Les réactiver : le
+  contrôle repasse « ok ». Activer « Ne pas déranger » : avertissement « mode « Ne pas déranger » actif ». Le noter si
+  Windows ne présente pas l'appli dans la liste tant qu'aucune notification n'a été montrée.
+- [ ] **EX-024-07** — Dans l'appli, menu de l'en-tête, « Auto-diagnostic », en clair puis en sombre : « Contrôle en
+  cours… » quelques secondes au plus, puis les onze contrôles, chacun avec son issue (noir et blanc pour « OK »,
+  orange pour un avertissement, rouge pour un échec) et la marche à suivre ; la ligne « Appli » dit « cette instance
+  en version … », l'appli ne s'arrête pas et sa fenêtre ne se rouvre pas. Le rapport affiché est celui du fichier
+  `doctor-….txt` indiqué en bas (comparer à l'écran). « Copier le rapport », coller dans le Bloc-notes : le texte
+  du fichier (si la WebView refuse la copie, le dialogue affiche le texte à sélectionner : le noter). Aucune erreur
+  de CSP (outils de développement fermés : rien à vérifier de plus), aucun texte coupé. Puis « Exporter un
+  diagnostic » (onglet Journal) : l'archive contient `auto-diagnostic.txt`, rapport refait à l'export (« Rapport
+  joint à l'export de diagnostic » à la fin), et aucun nouveau `doctor-*.txt` n'est apparu dans le dossier des logs.
+
+Contrôles à provoquer une fois chacun, en notant ce que dit le rapport (attendu entre parenthèses) :
+
+- Laisser un `mcp-proxy.exe.old` dans `%LOCALAPPDATA%\Programs\MCP Proxy\` (copier l'exe sous ce nom) :
+  « Installation » en avertissement (reste d'une mise à jour) ; le supprimer ensuite. Supprimer l'entrée
+  « Applications installées » (`reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\MCP Proxy"
+  /f`) : avertissement « absente » ; quitter et relancer MCP Proxy depuis le menu Démarrer : l'entrée revient et le
+  contrôle repasse « ok ». Mettre une autre commande dans la valeur `Run` « MCP Proxy » : avertissement.
+- Couper le VPN (ou le réseau) : « MCP » en échec « nom introuvable (DNS) » ou « connexion impossible » pour chaque
+  instance exposée, « Artifactory » en échec ; aucune instance d'un environnement non exposé n'est citée.
+- Décaler l'horloge de Windows de 10 minutes (synchronisation automatique coupée), réseau rétabli : « Horloge » en
+  échec « en avance de 10 min » ; la remettre à l'heure.
+- Un exe construit hors du pipeline (le cas de cette recette) : « Clé de mise à jour » en avertissement « aucune clé
+  de mise à jour embarquée ».
+- Avec une capture réseau (Fiddler, ou le journal d'un proxy) pendant le diagnostic : une seule requête `GET /` par
+  origine des instances exposées, sans en-tête `Authorization` ni `Cookie`, même avec des sessions connectées ; et
+  la requête de l'API Storage d'Artifactory. Aucune autre destination.
+
 ## 025 — Module MCP local d'exemple (`jira-local`)
 
 À dérouler quand l'appli (spec 011) et les fenêtres de saisie Basic (spec 012) existent, avec une config dont

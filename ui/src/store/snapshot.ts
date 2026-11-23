@@ -87,6 +87,8 @@ export function createStore(backend: Backend) {
     previewLlmClient: (location: LocationId, action: ClientAction) => backend.previewLlmClient(location, action),
     applyLlmClient: (location: LocationId, action: ClientAction, fingerprint: string) =>
       backend.applyLlmClient(location, action, fingerprint),
+    // « Auto-diagnostic » shows its own errors too.
+    runDoctor: () => backend.runDoctor(),
     dismissError: () => {
       state.commandError = null
     },

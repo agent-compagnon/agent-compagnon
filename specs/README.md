@@ -81,7 +81,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [021](021-pipeline-gitlab.md) | 7c | Pipeline GitLab de release | implémentée | 001, 020 | 15 |
 | [022](022-desinstallation.md) | 7d | Désinstallation propre | implémentée | 019 | 16 |
 | [023](023-config-clients.md) | 7e | Configuration automatique des clients LLM | implémentée | 016, 019 | 18 |
-| [024](024-doctor.md) | 7f | Auto-diagnostic (`doctor`) | en cours | 009, 011, 019, 020 | 12 |
+| [024](024-doctor.md) | 7f | Auto-diagnostic (`doctor`) | implémentée | 009, 011, 019, 020 | 12 |
 | [025](025-module-jira-local.md) | 8 | Module MCP local d'exemple (`jira-local`) | implémentée | 002, 007, 010 | 12 |
 | [026](026-pont-resilient.md) | — | Pont stdio résilient : survivre au redémarrage de l'appli | proposée | 011, 020 | 9 |
 | [027](027-config-signee.md) | — | Config signée téléchargée depuis Artifactory | backlog | — | 0 |

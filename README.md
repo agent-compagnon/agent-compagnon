@@ -18,6 +18,10 @@ lit `ui/dist` : construire `ui/` d'abord (`cargo xtask ci` le fait). Sous Window
 build`, puis `cargo build -p mcp-proxy --release`. Lancé hors de `%LOCALAPPDATA%\Programs\MCP Proxy\`, l'exe
 propose de s'installer (spec 019) ; `mcp-proxy.exe --no-install` le fait tourner sur place.
 
+Quand « ça ne marche pas » : `mcp-proxy.exe doctor > rapport.txt` (auto-diagnostic, spec 024 ; code de sortie 0, 1
+ou 2), ou « Auto-diagnostic » dans le menu de l'en-tête de la fenêtre. Le rapport est aussi écrit dans
+`%LOCALAPPDATA%\MCP Proxy\logs\doctor-*.txt`. Le diagnostic ne modifie rien.
+
 ## Commandes
 
 | Commande | Effet |
@@ -34,9 +38,9 @@ propose de s'installer (spec 019) ; `mcp-proxy.exe --no-install` le fait tourner
 | `cargo xtask check-tag <tag>` | Vérifie qu'un tag de release est `v` suivi de la version du workspace, `X.Y.Z` ou `X.Y.Z-rc.N` (spec 021, lancé par le pipeline avant le build) |
 | `cargo xtask check-ci` | Vérifie `.gitlab-ci.yml` sans GitLab : YAML valide, structure, jobs de release réservés aux tags protégés, aucun outil de construction ni gestionnaire de paquets dans les jobs qui reçoivent les secrets, aucune trace des commandes, commandes `cargo xtask` et `update-tool` connues, variables documentées dans `docs/release.md` (spec 021) |
 | `cargo test -p mcp-proxy-core` | Tests du core, dont la validation de la config embarquée |
-| `cd ui && npm run dev` | Interface dans un navigateur, avec le backend simulé (`?scenario=sessions`, `premier-lancement`, … : `ui/src/api/mock.ts` ; dialogue « Clients LLM… » du menu de l'en-tête : `?scenario=clients-etats`, `clients-deux-emplacements`, … ; fenêtre d'installation : `install.html?scenario=mise-a-jour`, … : `ui/src/install/mock.ts`) |
+| `cd ui && npm run dev` | Interface dans un navigateur, avec le backend simulé (`?scenario=sessions`, `premier-lancement`, … : `ui/src/api/mock.ts` ; dialogue « Clients LLM… » du menu de l'en-tête : `?scenario=clients-etats`, `clients-deux-emplacements`, … ; « Auto-diagnostic » : `?scenario=diagnostic-ok`, `diagnostic-avertissements`, `diagnostic-echecs`, `diagnostic-en-cours` ; fenêtre d'installation : `install.html?scenario=mise-a-jour`, … : `ui/src/install/mock.ts`) |
 | `cd ui && npm run e2e` | Tests Playwright de l'interface sur `vite preview` du backend simulé, hors `cargo xtask ci` ; `CAPTURES_DIR=…` y ajoute les captures |
-| `MCP_PROXY_WRITE_FIXTURES=1 cargo test -p mcp-proxy-gateway --test snapshot_contract` | Réécrit `ui/src/api/snapshot.example.json` après un changement voulu de l'instantané (de même `--test journal_contract` pour `journal.example.json`, `--test clients` pour `clients.example.json`) |
+| `MCP_PROXY_WRITE_FIXTURES=1 cargo test -p mcp-proxy-gateway --test snapshot_contract` | Réécrit `ui/src/api/snapshot.example.json` après un changement voulu de l'instantané (de même `--test journal_contract` pour `journal.example.json`, `--test clients` pour `clients.example.json`, `--test doctor` pour `doctor.example.json`) |
 
 `cargo xtask ci` s'arrête à la première étape en échec et sort avec un code non nul.
 
@@ -49,7 +53,7 @@ protégé `vX.Y.Z`).
 crates/core              mcp-proxy-core       config (étape 1), secrets en mémoire (2a) ; filtre, politiques… à venir
 crates/auth              mcp-proxy-auth       méthodes d'authentification (étape 4)
 crates/gateway           mcp-proxy-gateway    registre, amont, middlewares, serveur MCP, pont, vue, assemblage
-crates/deploy            mcp-proxy-deploy     installation (7a), updater (7b, clés dans keys/), désinstallation (7d), clients LLM (7e)
+crates/deploy            mcp-proxy-deploy     installation (7a), updater (7b, clés dans keys/), désinstallation (7d), clients LLM (7e), auto-diagnostic (7f)
 crates/testkit           mcp-proxy-testkit    faux MCP, faux SSO, faux Artifactory (étape 3b)
 crates/ci-check          mcp-proxy-ci-check   contrôle de .gitlab-ci.yml sans GitLab (`cargo xtask check-ci`, 7c)
 crates/modules/jira-local                     module MCP local Jira (étape 8)

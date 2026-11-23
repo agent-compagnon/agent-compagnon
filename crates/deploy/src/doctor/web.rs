@@ -48,7 +48,7 @@ impl fmt::Display for WebError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Refused => "adresse refusée (ni HTTPS, ni sans identifiant)",
-            Self::Dns => "nom introuvable (résolution DNS en échec)",
+            Self::Dns => "nom introuvable (DNS)",
             Self::Tls => "connexion sécurisée (TLS) refusée",
             Self::Connect => "connexion impossible",
             Self::Timeout => "délai dépassé",

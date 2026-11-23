@@ -254,4 +254,16 @@ describe('main window', () => {
     expect(backend.getLlmClients).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
+
+  // Exigence : EX-024-12
+  it('the menu of the header opens « Auto-diagnostic », which runs the checks', async () => {
+    const { wrapper, backend } = await mountApp(snapshotOf('sessions'))
+    const menu = wrapper.findComponent({ name: 'AppMenu' })
+    expect(backend.runDoctor).not.toHaveBeenCalled()
+    ;(menu.vm as unknown as { doctor: boolean }).doctor = true
+    await flushPromises()
+    expect(inBody('[data-dialog="doctor"]')?.textContent).toContain('Auto-diagnostic')
+    expect(backend.runDoctor).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
 })

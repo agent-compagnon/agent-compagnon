@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import buildRs from '../../../app/build.rs?raw'
 import mainCapability from '../../../app/capabilities/main.json'
 import clientsExample from './clients.example.json'
+import doctorExample from './doctor.example.json'
 import journalExample from './journal.example.json'
 import example from './snapshot.example.json'
 
@@ -128,5 +129,19 @@ describe("the application's backend", () => {
     await expect(tauriBackend.applyLlmClient('vscode', 'install', preview.fingerprint)).rejects.toThrow(
       'réponse illisible',
     )
+  })
+
+  // Exigence : EX-024-12
+  it('runs the self-diagnostic through its command, and refuses a report of another shape', async () => {
+    invoke.mockResolvedValueOnce(structuredClone(doctorExample.warnings))
+    const report = await tauriBackend.runDoctor()
+    expect(report.status).toBe('warning')
+    expect(invoke.mock.calls).toEqual([['run_doctor']])
+    expect(buildRs).toContain('"run_doctor"')
+    expect(mainCapability.permissions).toContain('allow-run-doctor')
+    invoke.mockResolvedValueOnce({ ...structuredClone(doctorExample.ok), secret: 'x' })
+    await expect(tauriBackend.runDoctor()).rejects.toThrow('réponse illisible')
+    invoke.mockRejectedValueOnce('filtre de sortie indisponible')
+    await expect(tauriBackend.runDoctor()).rejects.toBe('filtre de sortie indisponible')
   })
 })

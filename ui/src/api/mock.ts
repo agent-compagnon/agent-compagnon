@@ -8,14 +8,17 @@
 
 import type { Backend, JournalEvent } from './backend'
 import { CLIENT_SCENARIOS, type ClientScenario, createMockClients } from './mock-clients'
+import doctorExample from './doctor.example.json'
 import { EXAMPLE_SPAN_MS, eventEntry, generatedCall, withExamples, workingDay } from './mock-journal'
 import example from './snapshot.example.json'
 import {
   type AppSnapshot,
+  type DoctorReport,
   type JournalEntry,
   type McpView,
   type SessionStateView,
   type ToolView,
+  parseDoctorReport,
   parseSnapshot,
 } from './types'
 
@@ -42,6 +45,10 @@ export const SCENARIOS = [
   'mise-a-jour-prete',
   'mise-a-jour-critique',
   ...CLIENT_SCENARIOS,
+  'diagnostic-ok',
+  'diagnostic-avertissements',
+  'diagnostic-echecs',
+  'diagnostic-en-cours',
 ] as const
 
 export type Scenario = (typeof SCENARIOS)[number]
@@ -51,6 +58,8 @@ const LOGIN_DELAY_MS = 1500
 /** A new call in `journal-direct`. */
 export const LIVE_PERIOD_MS = 1200
 const EXPORT_DELAY_MS = 600
+/** The checks run together, bounded: a short wait shows « Contrôle en cours… ». */
+export const DOCTOR_DELAY_MS = 900
 /** Entries of `journal-volumineux`: as many as the window keeps. */
 export const LARGE_JOURNAL = 5000
 
@@ -209,8 +218,20 @@ export function scenario(name: Scenario, now: number): AppSnapshot {
     case 'clients-illisible':
     case 'clients-non-installe':
     case 'clients-modifie':
+    case 'diagnostic-ok':
+    case 'diagnostic-avertissements':
+    case 'diagnostic-echecs':
+    case 'diagnostic-en-cours':
       return working(now)
   }
+}
+
+/** The report of a scenario, as the gateway writes it for the contract. Every other scenario: all is well. */
+export function doctorOf(name: Scenario): DoctorReport {
+  const key = name === 'diagnostic-avertissements' ? 'warnings' : name === 'diagnostic-echecs' ? 'failures' : 'ok'
+  const report = parseDoctorReport(structuredClone(doctorExample[key]))
+  if (report === null) throw new Error('doctor.example.json does not match types.ts')
+  return report
 }
 
 /** The journal of a scenario as `get_journal` first gives it, oldest first. */
@@ -578,6 +599,15 @@ export function createMockBackend(name: Scenario, clock: () => number = Date.now
       recordEvent(`redémarrage demandé pour passer à MCP Proxy ${ready.version}`)
       console.info(MOCK_MARKER, 'restart_for_update')
       return Promise.resolve()
+    },
+    runDoctor() {
+      // The checks read the machine in the application; the simulation gives the reports of the contract.
+      if (name === 'diagnostic-en-cours') return new Promise<DoctorReport>(() => undefined)
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(doctorOf(name))
+        }, DOCTOR_DELAY_MS)
+      })
     },
     getLlmClients: clients.getLlmClients,
     previewLlmClient: clients.previewLlmClient,

@@ -2,7 +2,15 @@
 import { type Scenario, createMockBackend, initialSnapshot, journalOf } from '@/api/mock'
 import type { Backend, JournalEvent } from '@/api/backend'
 import clientsExample from '@/api/clients.example.json'
-import { type AppSnapshot, type ExportOutcome, type JournalEntry, parseClientPreview, parseClients } from '@/api/types'
+import doctorExample from '@/api/doctor.example.json'
+import {
+  type AppSnapshot,
+  type ExportOutcome,
+  type JournalEntry,
+  parseClientPreview,
+  parseClients,
+  parseDoctorReport,
+} from '@/api/types'
 import { vi } from 'vitest'
 import { type Component, defineComponent, h } from 'vue'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -30,6 +38,13 @@ export function previewFixture(index: number) {
   const preview = parseClientPreview(structuredClone(clientsExample.previews[index]))
   if (preview === null) throw new Error('clients.example.json does not match types.ts')
   return preview
+}
+
+/** A report of the self-diagnostic written by the gateway (`doctor.example.json`). */
+export function doctorFixture(which: 'ok' | 'warnings' | 'failures' = 'ok') {
+  const report = parseDoctorReport(structuredClone(doctorExample[which]))
+  if (report === null) throw new Error('doctor.example.json does not match types.ts')
+  return report
 }
 
 /** A backend whose commands are spies, answering with `snapshot` and `journal`. */
@@ -67,6 +82,7 @@ export function spyBackend(snapshot: AppSnapshot, journal: JournalEntry[] = []) 
     getLlmClients: vi.fn<Backend['getLlmClients']>(() => Promise.resolve(clientsFixture())),
     previewLlmClient: vi.fn<Backend['previewLlmClient']>(() => Promise.resolve(previewFixture(0))),
     applyLlmClient: vi.fn<Backend['applyLlmClient']>(() => Promise.resolve({ status: 'applied', backup: null })),
+    runDoctor: vi.fn<Backend['runDoctor']>(() => Promise.resolve(doctorFixture())),
   } satisfies Backend
   return {
     backend,

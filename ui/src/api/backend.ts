@@ -9,6 +9,7 @@ import type {
   ClientAction,
   ClientPreview,
   ClientsView,
+  DoctorReport,
   ExportOutcome,
   JournalEntry,
   LocationId,
@@ -54,6 +55,8 @@ export interface Backend {
   previewLlmClient(location: LocationId, action: ClientAction): Promise<ClientPreview>
   /** The change shown by the preview whose fingerprint is sent back; `changed` if the file moved since. */
   applyLlmClient(location: LocationId, action: ClientAction, fingerprint: string): Promise<ApplyOutcome>
+  /** « Auto-diagnostic »: every check, read only; the report is also written to a file of the log folder. */
+  runDoctor(): Promise<DoctorReport>
 }
 
 /** `get_journal` gave something that is not exactly a journal: nothing of it is shown. */

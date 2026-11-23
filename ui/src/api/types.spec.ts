@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import clientsExample from './clients.example.json'
+import doctorExample from './doctor.example.json'
 import journalExample from './journal.example.json'
 import example from './snapshot.example.json'
 import {
   parseApplyOutcome,
   parseClientPreview,
   parseClients,
+  parseDoctorReport,
   parseEntry,
   parseExportOutcome,
   parseJournal,
@@ -133,5 +135,46 @@ describe('contract of the dialog « Clients LLM »', () => {
     expect(parseClients(state)).toBeNull()
     expect(parseClientPreview({ ...structuredClone(clientsExample.previews[0]), fingerprint: 'x' })).toBeNull()
     expect(parseApplyOutcome({ status: 'applied' })).toBeNull()
+  })
+})
+
+describe('contract of the dialog « Auto-diagnostic »', () => {
+  // Exigence : EX-024-12
+  it('reads exactly the reports written by the gateway', () => {
+    const keys = ['ok', 'warnings', 'failures'] as const
+    expect(keys.map((k) => parseDoctorReport(structuredClone(doctorExample[k]))?.status)).toEqual([
+      'ok',
+      'warning',
+      'failure',
+    ])
+    const ok = parseDoctorReport(structuredClone(doctorExample.ok))
+    expect(ok?.checks.map((c) => c.id)).toEqual([
+      'config',
+      'webview',
+      'installation',
+      'notifications',
+      'app',
+      'settings',
+      'artifactory',
+      'updateKey',
+      'clients',
+      'mcp',
+      'clock',
+    ])
+    expect(ok?.text.startsWith('MCP Proxy — auto-diagnostic')).toBe(true)
+  })
+
+  // Exigence : EX-024-12
+  it('refuses a key more, an unknown check or status, a check without finding', () => {
+    expect(parseDoctorReport({ ...structuredClone(doctorExample.ok), path: 'x' })).toBeNull()
+    const check = structuredClone(doctorExample.ok)
+    Object.assign(check.checks[0] ?? {}, { id: 'registry' })
+    expect(parseDoctorReport(check)).toBeNull()
+    const status = structuredClone(doctorExample.ok)
+    Object.assign(status.checks[0] ?? {}, { status: 'unknown' })
+    expect(parseDoctorReport(status)).toBeNull()
+    const empty = structuredClone(doctorExample.ok)
+    Object.assign(empty.checks[0] ?? {}, { findings: [] })
+    expect(parseDoctorReport(empty)).toBeNull()
   })
 })

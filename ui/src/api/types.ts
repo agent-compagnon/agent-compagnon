@@ -360,6 +360,65 @@ export function parseApplyOutcome(value: unknown): ApplyOutcome | null {
   return result.success ? result.output : null
 }
 
+// The self-diagnostic (spec 024, `run_doctor`): `mcp_proxy_deploy::doctor::Report::to_json`, contract
+// `doctor.example.json`. `text` is what « Copier » copies; the window shows the structure.
+export const DoctorStatusSchema = v.picklist(['ok', 'warning', 'failure'])
+export const DoctorCheckIdSchema = v.picklist([
+  'config',
+  'webview',
+  'installation',
+  'notifications',
+  'app',
+  'settings',
+  'artifactory',
+  'updateKey',
+  'clients',
+  'mcp',
+  'clock',
+])
+
+export const DoctorFindingSchema = v.strictObject({
+  status: DoctorStatusSchema,
+  message: text,
+  /** What to do; `null` for an `ok` finding. */
+  fix: nullableText,
+})
+
+export const DoctorCheckSchema = v.strictObject({
+  id: DoctorCheckIdSchema,
+  name: text,
+  status: DoctorStatusSchema,
+  findings: v.pipe(v.array(DoctorFindingSchema), v.minLength(1)),
+})
+
+export const DoctorReportSchema = v.strictObject({
+  version: text,
+  /** RFC 3339, UTC. */
+  at: text,
+  viewpoint: v.picklist(['command', 'app']),
+  status: DoctorStatusSchema,
+  summary: text,
+  warnings: count,
+  failures: count,
+  checks: v.array(DoctorCheckSchema),
+  /** The report file, written from `%LOCALAPPDATA%`; `null` when it could not be written. */
+  file: nullableText,
+  /** Why it could not be written. */
+  fileError: nullableText,
+  text: text,
+})
+
+export type DoctorStatus = v.InferOutput<typeof DoctorStatusSchema>
+export type DoctorFinding = v.InferOutput<typeof DoctorFindingSchema>
+export type DoctorCheck = v.InferOutput<typeof DoctorCheckSchema>
+export type DoctorReport = v.InferOutput<typeof DoctorReportSchema>
+
+/** The answer of `run_doctor`, or `null`. */
+export function parseDoctorReport(value: unknown): DoctorReport | null {
+  const result = v.safeParse(DoctorReportSchema, value)
+  return result.success ? result.output : null
+}
+
 /** The entries of `get_journal`, or `null` if `value` is not exactly a journal. */
 export function parseJournal(value: unknown): JournalEntry[] | null {
   const result = v.safeParse(JournalViewSchema, value)

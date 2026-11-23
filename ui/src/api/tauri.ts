@@ -10,6 +10,7 @@ import {
   parseApplyOutcome,
   parseClientPreview,
   parseClients,
+  parseDoctorReport,
   type ExportOutcome,
   type JournalEntry,
   parseExportOutcome,
@@ -35,7 +36,8 @@ function checked(value: unknown): AppSnapshot {
   return snapshot
 }
 
-/** An answer of the dialog « Clients LLM » that is not exactly the expected one: nothing of it is shown. */
+/** An answer of a dialog (« Clients LLM », « Auto-diagnostic ») that is not exactly the expected one: nothing of it
+ * is shown. */
 function read<T>(value: T | null): T {
   if (value === null) throw new Error('réponse illisible')
   return value
@@ -112,6 +114,9 @@ export const tauriBackend: Backend = {
   },
   async applyLlmClient(location, action, fingerprint) {
     return read(parseApplyOutcome(await invoke('apply_llm_client', { location, action, fingerprint })))
+  },
+  async runDoctor() {
+    return read(parseDoctorReport(await invoke('run_doctor')))
   },
 }
 
