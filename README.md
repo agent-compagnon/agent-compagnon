@@ -6,11 +6,15 @@ Les serveurs MCP délèguent l'authentification à l'application : le LLM ne voi
 Mémoire du projet : [`specs/`](specs/README.md) — constitution, architecture et une spec par fonctionnalité.
 Décisions : [`DECISIONS.md`](DECISIONS.md). Consignes pour les agents : [`CLAUDE.md`](CLAUDE.md).
 
+Avancement : l'index de [`specs/README.md`](specs/README.md) donne le statut de chaque spec. Ce qui reste à
+vérifier à la main, sous Windows et sur GitLab, est dans [`docs/recette.md`](docs/recette.md) ; tant qu'une case n'y
+est pas cochée, le comportement correspondant n'a jamais été observé sur une vraie machine.
+
 ## Prérequis
 
 - Rust 1.97.0, installé automatiquement par `rustup` d'après `rust-toolchain.toml` (composants `clippy`, `rustfmt`,
   cible `x86_64-pc-windows-msvc`).
-- Node 22 et npm 10, pour `ui/` (squelette depuis la spec 011, interface à l'étape 6).
+- Node 22 et npm 10, pour `ui/` (l'interface de l'appli et ses petites fenêtres).
 
 Le développement se fait sous Linux. Le code Windows y est contrôlé à la compilation (`cargo clippy --target
 x86_64-pc-windows-msvc`) mais jamais exécuté ni lié. `app/` (l'appli Tauri) n'est compilé que pour cette cible et
@@ -50,15 +54,15 @@ protégé `vX.Y.Z`).
 ## Organisation
 
 ```
-crates/core              mcp-proxy-core       config (étape 1), secrets en mémoire (2a) ; filtre, politiques… à venir
-crates/auth              mcp-proxy-auth       méthodes d'authentification (étape 4)
+crates/core              mcp-proxy-core       config, secrets en mémoire, filtre de sortie, politiques, réglages scellés, sessions, journal et diagnostic
+crates/auth              mcp-proxy-auth       méthodes d'authentification, connexion à la demande, logique des fenêtres de login
 crates/gateway           mcp-proxy-gateway    registre, amont, middlewares, serveur MCP, pont, vue, assemblage
 crates/deploy            mcp-proxy-deploy     installation (7a), updater (7b, clés dans keys/), désinstallation (7d), clients LLM (7e), auto-diagnostic (7f)
-crates/testkit           mcp-proxy-testkit    faux MCP, faux SSO, faux Artifactory (étape 3b)
+crates/testkit           mcp-proxy-testkit    faux MCP, faux SSO, faux Jira, faux Artifactory, capture des logs
 crates/ci-check          mcp-proxy-ci-check   contrôle de .gitlab-ci.yml sans GitLab (`cargo xtask check-ci`, 7c)
 crates/modules/jira-local                     module MCP local Jira (étape 8)
-app/                     mcp-proxy            appli Tauri et pont stdio, Windows uniquement, câblage seulement (5a)
-ui/                                           interface Vue (socle et onglet Connexions : spec 016)
+app/                     mcp-proxy            appli Tauri et pont stdio, Windows uniquement, câblage seulement
+ui/                                           interface Vue : onglets Connexions, MCP et Journal, dialogues, fenêtres d'installation, de désinstallation, de saisie et de confirmation
 config/default.toml                           config embarquée dans l'exe, validée au démarrage
 xtask/                                        cargo xtask
 .gitlab-ci.yml                                pipeline : contrôles, puis build, signature et publication sur tag (7c)
