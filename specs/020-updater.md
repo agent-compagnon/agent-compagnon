@@ -118,7 +118,9 @@ Réalisation (amendement du 2026-11-22) :
   `mcp-proxy.exe.old` (un exe en cours, tenu par l'appli ou par un pont, se renomme mais ne se remplace pas), `.new`
   renommé en `mcp-proxy.exe` ; un échec remet l'ancien exe et retire la copie. `.old` reste jusqu'au démarrage
   suivant ; un `.old` encore tenu par un pont d'une version antérieure fait échouer le remplacement, réessayé à la
-  vérification suivante.
+  vérification suivante. Une fois le nouvel exe en place, l'entrée « Applications installées » (spec 022) prend sa
+  version, au mieux (un échec est journalisé, le remplacement n'est pas défait) ; elle est de toute façon réécrite au
+  démarrage suivant de l'exe installé, avec le nettoyage des restes.
 - **Téléchargement** : client à part, anonyme (ni identifiant, ni cookie, ni `Referer`), TLS natif, `https` (`http`
   vers la boucle locale seulement), redirections suivies dans la même origine seulement (5 au plus), 1 Mio pour la
   liste, 1 024 octets pour le `.sig`, 256 Mio pour l'exe, délais bornés. Erreurs et journal sans adresse, chemin ni
@@ -213,3 +215,7 @@ Pipeline de publication (7c). Authenticode (`028-authenticode.md`).
   jour ». Critères ajoutés : `EX-020-12` à `EX-020-18` (automatiques), `EX-020-19` et `EX-020-20` (recette). Aucun
   critère retiré. Raison : points laissés ouverts par le texte, tranchés par l'option la plus sûre, et `self_replace`
   incompatible avec un exe tenu par les ponts des clients LLM (I019.7).
+- **2026-11-23** — Spec 022 : après le remplacement, l'entrée « Applications installées » prend la version mise en
+  place ; au démarrage de l'exe installé, avec le nettoyage des restes, l'entrée est réécrite si elle diffère (une
+  installation mise à jour par une version antérieure à la spec 022 la reçoit ainsi). Prouvé par `EX-022-02`. Aucun
+  critère touché.

@@ -14,6 +14,7 @@ use sha2::{Digest, Sha256};
 
 use crate::install::{BACKUP_NAME, InstallPaths, STAGED_NAME};
 use crate::ops::{OpError, SystemOps};
+use crate::uninstall::record_entry;
 use crate::version::{Installed, Version};
 
 /// Where the updater works: the installation, and `%LOCALAPPDATA%\MCP Proxy\update\` for the downloads.
@@ -173,6 +174,10 @@ impl ExeReplacer for RenameReplacer {
         // Held by this very process: goes at the next start.
         let _ = ops.remove_file(&paths.backup);
         tracing::info!(version = %verified.version, "mise à jour : nouvelle version en place, effective au prochain démarrage");
+        // Best effort: the exe is in place; the entry is written again at the next start of the installed exe.
+        if let Err(error) = record_entry(ops, paths, Some(&verified.version)) {
+            tracing::warn!(cause = %error, "mise à jour : entrée « Applications installées » non mise à jour");
+        }
         Ok(())
     }
 }
@@ -185,7 +190,7 @@ pub struct Cleanup {
 }
 
 /// A name left by a replacement in the installation folder: `.old`, `.new`, or what `self_replace` would leave.
-fn is_leftover(name: &str) -> bool {
+pub fn is_leftover(name: &str) -> bool {
     name.eq_ignore_ascii_case(BACKUP_NAME)
         || name.eq_ignore_ascii_case(STAGED_NAME)
         || name.to_ascii_lowercase().ends_with(".__relocated__.exe")

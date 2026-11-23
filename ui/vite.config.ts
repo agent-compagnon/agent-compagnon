@@ -32,14 +32,15 @@ export default defineConfig(({ mode }) => ({
     emptyOutDir: true,
     target: 'es2022',
     assetsInlineLimit: 0,
-    // The main window, the Basic input window of spec 012, the detail window of the confirmations of spec 013 and
-    // the installation window of spec 019 (local pages, no remote content).
+    // The main window, the Basic input window of spec 012, the detail window of the confirmations of spec 013, the
+    // installation window of spec 019 and the uninstallation window of spec 022 (local pages, no remote content).
     rolldownOptions: {
       input: {
         main: 'index.html',
         basic: 'basic.html',
         confirm: 'confirm.html',
         install: 'install.html',
+        uninstall: 'uninstall.html',
       },
     },
   },

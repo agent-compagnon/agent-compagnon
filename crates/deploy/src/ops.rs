@@ -1,6 +1,7 @@
 //! What installing, updating and uninstalling do to the system, behind one trait: files, the Start menu shortcut,
-//! the `Run` value of `HKCU`, the running instance and new processes. The application implements it for Windows
-//! (`winreg`, a safe shortcut writer, the authenticated control channel of the pipe, `std::process`); tests use
+//! the values of `HKCU` (`Run`, the entry « Applications installées », the AUMID, the exclusion from error reports),
+//! the running instance and new processes. The application implements it for Windows (`winreg`, a safe shortcut
+//! writer, the authenticated control channel of the pipe, `std::process`, `self_replace`); tests use
 //! [`crate::fake::FakeSystem`]. The file operations have default bodies over `std::fs`, so that an implementation
 //! only has to provide the rest.
 //!
@@ -10,6 +11,7 @@ use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use crate::uninstall::UninstallEntry;
 use crate::version::{Installed, installed_version};
 
 /// A failed operation: what the system said, without any path.
@@ -92,6 +94,26 @@ pub struct Shortcut {
     pub target: PathBuf,
 }
 
+/// What a path is, read without following a link.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PathKind {
+    Missing,
+    File,
+    Dir,
+    /// A symbolic link or a junction: removed itself, never followed.
+    Link,
+    Other,
+}
+
+/// What removing a value or a key of ours did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Removal {
+    Removed,
+    Absent,
+    /// Something is there under our name, but not what MCP Proxy writes: left as it is.
+    NotOurs,
+}
+
 pub trait SystemOps: Send + Sync {
     fn exists(&self, path: &Path) -> bool {
         path.exists()
@@ -150,6 +172,42 @@ pub trait SystemOps: Send + Sync {
         Ok(std::fs::remove_dir_all(path)?)
     }
 
+    /// What `path` is, without following a link (under Windows, a junction is a link too).
+    fn kind(&self, path: &Path) -> Result<PathKind, OpError> {
+        let file_type = match std::fs::symlink_metadata(path) {
+            Ok(metadata) => metadata.file_type(),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(PathKind::Missing),
+            Err(error) => return Err(error.into()),
+        };
+        Ok(if file_type.is_symlink() {
+            PathKind::Link
+        } else if file_type.is_dir() {
+            PathKind::Dir
+        } else if file_type.is_file() {
+            PathKind::File
+        } else {
+            PathKind::Other
+        })
+    }
+
+    /// The link itself, never what it points at: under Windows, a link to a folder (or a junction) goes as a
+    /// folder does.
+    fn remove_link(&self, path: &Path) -> Result<(), OpError> {
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::FileTypeExt as _;
+            if std::fs::symlink_metadata(path)?.file_type().is_symlink_dir() {
+                return Ok(std::fs::remove_dir(path)?);
+            }
+        }
+        Ok(std::fs::remove_file(path)?)
+    }
+
+    /// The size of a file, in bytes.
+    fn file_len(&self, path: &Path) -> Result<u64, OpError> {
+        Ok(std::fs::metadata(path)?.len())
+    }
+
     /// Writes the shortcut whole or not at all (temporary file then rename), replacing an existing one.
     fn write_shortcut(&self, shortcut: &Shortcut) -> Result<(), OpError>;
 
@@ -160,6 +218,26 @@ pub trait SystemOps: Send + Sync {
 
     /// Succeeds when the value is already absent.
     fn remove_run_entry(&self) -> Result<(), OpError>;
+
+    /// `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\MCP Proxy`, if any.
+    fn uninstall_entry(&self) -> Result<Option<UninstallEntry>, OpError>;
+
+    /// Creates or rewrites that key with exactly these values.
+    fn set_uninstall_entry(&self, entry: &UninstallEntry) -> Result<(), OpError>;
+
+    /// That key, which holds values only: a key with subkeys is not ours.
+    fn remove_uninstall_entry(&self) -> Result<Removal, OpError>;
+
+    /// `HKCU\Software\Classes\AppUserModelId\McpProxy.Desktop` (spec 013), a key of values only.
+    fn remove_aumid(&self) -> Result<Removal, OpError>;
+
+    /// The DWORD `1` named `mcp-proxy.exe` under `HKCU\Software\Microsoft\Windows\Windows Error
+    /// Reporting\ExcludedApplications` (spec 011); any other value of that name is not ours.
+    fn remove_wer_exclusion(&self) -> Result<Removal, OpError>;
+
+    /// Schedules the deletion of `exe`, the image of this very process, for once the process has ended. The file
+    /// usually leaves its folder at once; it stays there if it could not be moved out.
+    fn delete_running_exe(&self, exe: &Path) -> Result<(), OpError>;
 
     /// Asks the instance that holds the pipe to stop, through the authenticated control channel only (mutual proof
     /// of spec 011, control role), and waits, bounded, for its process to end.

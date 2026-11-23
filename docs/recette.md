@@ -488,6 +488,61 @@ Préparation :
   `check-tag` affiche « (préversion, canal bêta) », la version est publiée sous `mcp-proxy/X.(Y+1).0-rc.1/`,
   ignorée par un poste qui ne reçoit pas les préversions et proposée dès que la case est cochée (comme `EX-020-11`).
 
+## 022 — Désinstallation propre
+
+**À faire d'abord sur un poste ou un compte Windows de test** : la désinstallation supprime des fichiers et des
+clés du registre. Préparation : un compte Windows **standard** (sans droits d'administrateur), MCP Proxy installé
+(spec 019), lancé une fois, un profil choisi, une connexion ouverte (pour que `logs\`, `cache\`, `webview\`,
+`settings.json`, `settings.key` existent), « Démarrer avec Windows » coché, une notification reçue. Claude Desktop et
+VS Code configurés par « Clients LLM… » (spec 023). Avant de commencer, noter avec `regedit` et l'Explorateur : la
+valeur `MCP Proxy` de `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, la clé
+`HKCU\Software\Classes\AppUserModelId\McpProxy.Desktop`, la valeur `mcp-proxy.exe` de
+`HKCU\Software\Microsoft\Windows\Windows Error Reporting\ExcludedApplications`, la clé
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\MCP Proxy`, les dossiers
+`%LOCALAPPDATA%\Programs\MCP Proxy\`, `%LOCALAPPDATA%\MCP Proxy\` et `%LOCALAPPDATA%\com.mcpproxy.app\`, le
+raccourci `%APPDATA%\Microsoft\Windows\Start Menu\Programs\MCP Proxy.lnk`, et copier à part les fichiers de
+configuration des clients LLM.
+
+- [ ] **EX-022-03** — Paramètres de Windows, « Applications », « Applications installées » : « MCP Proxy » est
+  listé avec la version affichée dans l'en-tête de l'appli, l'éditeur « MCP Proxy », une taille proche de celle de
+  l'exe et l'icône de l'appli (noter si Windows l'affiche) ; le menu « … » ne propose que « Désinstaller » (ni
+  « Modifier » ni « Réparer »). Dans `regedit`, la clé `…\Uninstall\MCP Proxy` a `UninstallString` égal à
+  `"C:\Users\…\AppData\Local\Programs\MCP Proxy\mcp-proxy.exe" --uninstall`. Après une mise à jour par la
+  fenêtre d'installation (`EX-019-15`), la version listée est la nouvelle.
+- [ ] **EX-022-04** — Fermer Claude Desktop et VS Code. « Désinstaller » dans « Applications installées » : la
+  fenêtre « Désinstaller MCP Proxy » s'ouvre (en clair et en sombre selon Windows, rien de coupé), case « Retirer MCP
+  Proxy des clients LLM » cochée, qui nomme les clients configurés. « Désinstaller » : l'icône de notification
+  disparaît, le compte rendu « MCP Proxy est désinstallé » s'affiche ; « Fermer ». Vérifier : plus de raccourci dans
+  le menu Démarrer, plus de valeur `Run`, plus de clé AUMID, plus de valeur WER `mcp-proxy.exe`, plus d'entrée
+  `Uninstall\MCP Proxy` ni de ligne dans « Applications installées » (actualiser), plus de dossiers
+  `Programs\MCP Proxy`, `MCP Proxy` et `com.mcpproxy.app` sous `%LOCALAPPDATA%` (attendre quelques secondes après la
+  fermeture). `%LOCALAPPDATA%\Programs\` lui-même est toujours là. Dans chaque fichier de client : seule l'entrée
+  `mcp-proxy` a disparu, une sauvegarde `….bak-<date>` est à côté. Fermer puis rouvrir la session Windows : MCP
+  Proxy ne démarre pas. Regarder `%TEMP%` : aucun fichier `.mcp-proxy.*.__relocated__.exe` ni
+  `.mcp-proxy.*.__selfdelete__.exe` ne reste (noter sinon).
+- [ ] **EX-022-05** — Pendant toute cette section : aucune demande d'élévation (UAC), aucune écriture hors de `HKCU`
+  et du profil de l'utilisateur.
+- [ ] **EX-022-13** — Réinstaller, configurer Claude Desktop, le démarrer et appeler un outil (un pont tourne).
+  Lancer la désinstallation **sans** fermer Claude Desktop. Après « Désinstaller » : l'appli s'arrête, Claude Desktop
+  signale que son serveur MCP s'est arrêté et ne relance pas l'appli (Gestionnaire des tâches : aucun nouveau
+  `mcp-proxy.exe` hors du pont). Noter ce que dit le compte rendu, ce qui reste dans
+  `%LOCALAPPDATA%\Programs\MCP Proxy\` et dans `%TEMP%` après la fermeture de la fenêtre, puis après avoir quitté
+  Claude Desktop (le pont tient l'exe : un `.mcp-proxy.*.__relocated__.exe` peut rester dans `%TEMP%`, I022.4).
+- [ ] **EX-022-14** — Réinstaller et lancer MCP Proxy une fois. Ouvrir le journal du jour
+  (`%LOCALAPPDATA%\MCP Proxy\logs\mcp-proxy-<date>.log`) dans un programme qui le garde ouvert en écriture
+  (par exemple `powershell -Command "$f=[IO.File]::Open('<chemin>','Open','ReadWrite','None'); Read-Host"`). Désinstaller : le
+  compte rendu « Désinstallation incomplète » nomme le fichier en rouge, dit que MCP Proxy reste installé ;
+  « Applications installées » liste toujours MCP Proxy, l'exe est à sa place (`mcp-proxy.exe`, pas `.old`). Fermer le
+  programme qui tenait le fichier, relancer « Désinstaller » : tout part.
+- [ ] **EX-022-15** — Avec MCP Proxy installé, lancer `mcp-proxy.exe --uninstall` depuis une copie de l'exe dans
+  `Téléchargements` : message « Cet exe n'est pas celui qui est installé », rien n'est modifié. Sans installation
+  (après `EX-022-04`), même commande : message « MCP Proxy n'est pas installé sur ce compte », rien n'est créé.
+  Avec l'appli installée ouverte et bloquée (en recette : ne pas pouvoir la fermer est difficile à provoquer ; à
+  défaut, noter que le cas est couvert par les tests) : « La désinstallation n'a pas eu lieu », « Réessayer ».
+- [ ] **EX-022-16** — Installer une version construite **avant** cette spec (commit précédant `Spec: 022`), puis la
+  mettre à jour vers celle-ci par la fenêtre d'installation ou par l'updater (spec 020) : après le premier démarrage
+  de la nouvelle version, « Applications installées » liste MCP Proxy avec la nouvelle version.
+
 ## 023 — Configuration automatique des clients LLM
 
 Préparation : MCP Proxy installé (spec 019), un profil choisi avec au moins un environnement exposé et une session

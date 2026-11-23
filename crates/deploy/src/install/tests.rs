@@ -8,7 +8,8 @@ use serde_json::json;
 
 use super::*;
 use crate::fake::{FakeSystem, Instance, Op, World};
-use crate::ops::{OpError, Shortcut, Stopped, SystemOps};
+use crate::ops::{OpError, Removal, Shortcut, Stopped, SystemOps};
+use crate::uninstall::{UninstallEntry, entry_for};
 use crate::version::{Installed, Version, mark_prefix};
 
 const LOCAL: &str = "/home/ana/AppData/Local";
@@ -173,6 +174,11 @@ fn inspection_finds_the_installation_through_short_names() {
     assert!(ops.log().is_empty(), "inspecting changes nothing");
 }
 
+/// The entry « Applications installées » of the exe `version` installed in `paths`.
+fn entry(paths: &InstallPaths, version: &str) -> UninstallEntry {
+    entry_for(paths, Some(&v(version)), exe(version).len() as u64).unwrap()
+}
+
 fn installation_ops(paths: &InstallPaths, autostart: bool) -> Vec<Op> {
     let mut ops = vec![
         Op::StopInstance,
@@ -191,6 +197,7 @@ fn installation_ops(paths: &InstallPaths, autostart: bool) -> Vec<Op> {
     if autostart {
         ops.push(Op::SetRun(run_command(&paths.exe).unwrap()));
     }
+    ops.push(Op::SetUninstallEntry(entry(paths, "0.2.0")));
     ops.push(Op::Launch {
         exe: paths.exe.clone(),
         args: vec![],
@@ -276,8 +283,8 @@ fn an_undo_that_fails_is_reported() {
     let ops = FakeSystem::new(fresh());
     let launch = installation_ops(&paths, true).len() - 1;
     ops.fail_at(launch);
-    // Undo order: `Run` value, shortcut, exe, temporary copy, folders.
-    ops.fail_at(launch + 2);
+    // Undo order: entry « Applications installées », `Run` value, shortcut, exe, temporary copy, folders.
+    ops.fail_at(launch + 3);
     let error = install(&ops, &paths, Path::new(SOURCE), true).unwrap_err();
     assert_eq!(
         error,
@@ -313,6 +320,7 @@ fn update_ops(paths: &InstallPaths) -> Vec<Op> {
             from: paths.staged.clone(),
             to: paths.exe.clone(),
         },
+        Op::SetUninstallEntry(entry(paths, "0.2.0")),
         Op::Launch {
             exe: paths.exe.clone(),
             args: vec![],
@@ -362,9 +370,9 @@ fn a_failed_update_step_puts_the_installed_exe_back() {
 
     // The previous exe cannot be put back: the user is told where it is.
     let ops = FakeSystem::new(installed());
-    ops.fail_at(4);
-    // Undo order: the new exe removed, then the previous one renamed back.
-    ops.fail_at(6);
+    ops.fail_at(5);
+    // Undo order: the entry « Applications installées », the new exe removed, then the previous one renamed back.
+    ops.fail_at(8);
     let error = update(&ops, &paths, Path::new(SOURCE)).unwrap_err();
     assert!(matches!(&error, InstallError::Failed { left, .. } if left == &vec![Leftover::Previous]));
     assert!(error.to_string().contains("mcp-proxy.exe.old"), "{error}");
@@ -426,6 +434,7 @@ fn the_journal_names_steps_never_paths() {
 /// them.
 struct RealFiles {
     run: Mutex<Option<String>>,
+    entry: Mutex<Option<UninstallEntry>>,
     launches: Mutex<Vec<PathBuf>>,
     launch_fails: bool,
 }
@@ -450,6 +459,34 @@ impl SystemOps for RealFiles {
     fn remove_run_entry(&self) -> Result<(), OpError> {
         *self.run.lock().unwrap() = None;
         Ok(())
+    }
+
+    fn uninstall_entry(&self) -> Result<Option<UninstallEntry>, OpError> {
+        Ok(self.entry.lock().unwrap().clone())
+    }
+
+    fn set_uninstall_entry(&self, entry: &UninstallEntry) -> Result<(), OpError> {
+        *self.entry.lock().unwrap() = Some(entry.clone());
+        Ok(())
+    }
+
+    fn remove_uninstall_entry(&self) -> Result<Removal, OpError> {
+        Ok(match self.entry.lock().unwrap().take() {
+            Some(_) => Removal::Removed,
+            None => Removal::Absent,
+        })
+    }
+
+    fn remove_aumid(&self) -> Result<Removal, OpError> {
+        Ok(Removal::Absent)
+    }
+
+    fn remove_wer_exclusion(&self) -> Result<Removal, OpError> {
+        Ok(Removal::Absent)
+    }
+
+    fn delete_running_exe(&self, _: &Path) -> Result<(), OpError> {
+        Err(OpError::Refused("hors sujet"))
     }
 
     fn stop_instance(&self) -> Result<Stopped, OpError> {
@@ -502,6 +539,7 @@ fn installation_on_real_files() {
     let (paths, source) = real(&dir.0);
     let ops = RealFiles {
         run: Mutex::new(None),
+        entry: Mutex::new(None),
         launches: Mutex::new(Vec::new()),
         launch_fails: false,
     };
@@ -526,6 +564,7 @@ fn a_failed_installation_on_real_files_leaves_nothing() {
     let (paths, source) = real(&dir.0);
     let ops = RealFiles {
         run: Mutex::new(None),
+        entry: Mutex::new(None),
         launches: Mutex::new(Vec::new()),
         launch_fails: true,
     };

@@ -1,5 +1,5 @@
-//! An in-memory [`SystemOps`] for tests: files, directories, the shortcut, the `Run` value, the running instance and
-//! launched processes, with every operation recorded in order and a failure injectable at any of them. Meant for the
+//! An in-memory [`SystemOps`] for tests: files, directories, links, the shortcut, the values of the registry, the
+//! running instance and launched processes, with every operation recorded in order and a failure injectable at any of them. Meant for the
 //! tests of this crate and of the specs that reuse the trait (updater, uninstallation). [`FakeReplacer`] stands for
 //! the replacement of the exe in the tests of the updater.
 
@@ -8,7 +8,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use crate::ops::{OpError, Shortcut, Stopped, SystemOps};
+use crate::ops::{OpError, PathKind, Removal, Shortcut, Stopped, SystemOps};
+use crate::uninstall::UninstallEntry;
 use crate::update::{ExeReplacer, ReplaceError, VerifiedExe};
 use crate::version::{Installed, Version, version_in};
 
@@ -24,6 +25,12 @@ pub enum Op {
     WriteShortcut(PathBuf),
     SetRun(String),
     RemoveRun,
+    RemoveLink(PathBuf),
+    SetUninstallEntry(UninstallEntry),
+    RemoveUninstallEntry,
+    RemoveAumid,
+    RemoveWerExclusion,
+    DeleteRunningExe(PathBuf),
     StopInstance,
     Launch { exe: PathBuf, args: Vec<String> },
 }
@@ -43,7 +50,18 @@ pub enum Instance {
 pub struct World {
     pub files: BTreeMap<PathBuf, Vec<u8>>,
     pub dirs: BTreeSet<PathBuf>,
+    /// Symbolic links and junctions: never followed, removed themselves.
+    pub links: BTreeSet<PathBuf>,
     pub run: Option<String>,
+    pub uninstall: Option<UninstallEntry>,
+    /// The key of the AUMID exists.
+    pub aumid: bool,
+    /// The value `mcp-proxy.exe` of the exclusion from error reports.
+    pub wer: Option<u32>,
+    /// Exes whose deletion is scheduled for the end of the process.
+    pub deleted_at_exit: Vec<PathBuf>,
+    /// The exe scheduled for deletion stays in its folder until the end of the process (it could not be moved).
+    pub deletes_in_place: bool,
     pub instance: Instance,
 }
 
@@ -55,6 +73,8 @@ struct State {
     fail_at: BTreeSet<usize>,
     launched: Vec<(PathBuf, Vec<String>)>,
     aliases: BTreeMap<PathBuf, PathBuf>,
+    /// Paths held by another program: removing or renaming them fails, every time.
+    held: BTreeSet<PathBuf>,
 }
 
 #[derive(Debug, Default)]
@@ -104,18 +124,36 @@ impl FakeSystem {
         self.state().fail_at.insert(index);
     }
 
+    /// `path` is held by another program: removing or renaming it fails with a sharing violation, until the end.
+    pub fn hold(&self, path: &Path) {
+        self.state().held.insert(path.to_path_buf());
+    }
+
     /// `alias` resolves to `path`, as a short name or a link would.
     pub fn alias(&self, alias: impl Into<PathBuf>, path: impl Into<PathBuf>) {
         self.state().aliases.insert(alias.into(), path.into());
     }
 
-    /// Records `op`, then applies it unless it is the one that fails.
+    /// Records `op`, then applies it unless it is the one that fails or it touches a held path.
     fn apply(&self, op: Op, change: impl FnOnce(&mut World) -> Result<(), OpError>) -> Result<(), OpError> {
         let mut state = self.state();
         let index = state.log.len();
+        let held = match &op {
+            Op::RemoveFile(path) | Op::RemoveDir(path) | Op::RemoveLink(path) | Op::Rename { from: path, .. } => {
+                state.held.contains(path)
+            }
+            Op::RemoveDirAll(path) => state.held.iter().any(|h| h.starts_with(path)),
+            _ => false,
+        };
         state.log.push(op);
         if state.fail_at.contains(&index) {
             return Err(kind(io::ErrorKind::PermissionDenied));
+        }
+        if held {
+            return Err(OpError::Io {
+                kind: io::ErrorKind::Other,
+                code: Some(32),
+            });
         }
         change(&mut state.world)
     }
@@ -131,12 +169,12 @@ impl World {
     }
 
     fn exists(&self, path: &Path) -> bool {
-        self.files.contains_key(path) || self.dirs.contains(path)
+        self.files.contains_key(path) || self.dirs.contains(path) || self.links.contains(path)
     }
 
     fn is_empty_dir(&self, path: &Path) -> bool {
         let child = |p: &PathBuf| p.parent() == Some(path);
-        !self.files.keys().any(child) && !self.dirs.iter().any(child)
+        !self.files.keys().any(child) && !self.dirs.iter().any(child) && !self.links.iter().any(child)
     }
 }
 
@@ -239,6 +277,7 @@ impl SystemOps for FakeSystem {
             .keys()
             .filter(child)
             .chain(state.world.dirs.iter().filter(child))
+            .chain(state.world.links.iter().filter(child))
             .cloned()
             .collect())
     }
@@ -250,8 +289,37 @@ impl SystemOps for FakeSystem {
             }
             w.files.retain(|p, _| !p.starts_with(path));
             w.dirs.retain(|p| !p.starts_with(path));
+            w.links.retain(|p| !p.starts_with(path));
             Ok(())
         })
+    }
+
+    fn kind(&self, path: &Path) -> Result<PathKind, OpError> {
+        let world = &self.state().world;
+        Ok(if world.links.contains(path) {
+            PathKind::Link
+        } else if world.dirs.contains(path) {
+            PathKind::Dir
+        } else if world.files.contains_key(path) {
+            PathKind::File
+        } else {
+            PathKind::Missing
+        })
+    }
+
+    fn remove_link(&self, path: &Path) -> Result<(), OpError> {
+        self.apply(Op::RemoveLink(path.to_path_buf()), |w| {
+            if w.links.remove(path) { Ok(()) } else { Err(not_found()) }
+        })
+    }
+
+    fn file_len(&self, path: &Path) -> Result<u64, OpError> {
+        let world = &self.state().world;
+        world
+            .files
+            .get(path)
+            .map(|bytes| bytes.len() as u64)
+            .ok_or_else(not_found)
     }
 
     fn write_shortcut(&self, shortcut: &Shortcut) -> Result<(), OpError> {
@@ -279,6 +347,68 @@ impl SystemOps for FakeSystem {
     fn remove_run_entry(&self) -> Result<(), OpError> {
         self.apply(Op::RemoveRun, |w| {
             w.run = None;
+            Ok(())
+        })
+    }
+
+    fn uninstall_entry(&self) -> Result<Option<UninstallEntry>, OpError> {
+        Ok(self.state().world.uninstall.clone())
+    }
+
+    fn set_uninstall_entry(&self, entry: &UninstallEntry) -> Result<(), OpError> {
+        self.apply(Op::SetUninstallEntry(entry.clone()), |w| {
+            w.uninstall = Some(entry.clone());
+            Ok(())
+        })
+    }
+
+    fn remove_uninstall_entry(&self) -> Result<Removal, OpError> {
+        let mut removal = Removal::Absent;
+        self.apply(Op::RemoveUninstallEntry, |w| {
+            if w.uninstall.take().is_some() {
+                removal = Removal::Removed;
+            }
+            Ok(())
+        })?;
+        Ok(removal)
+    }
+
+    fn remove_aumid(&self) -> Result<Removal, OpError> {
+        let mut removal = Removal::Absent;
+        self.apply(Op::RemoveAumid, |w| {
+            if std::mem::take(&mut w.aumid) {
+                removal = Removal::Removed;
+            }
+            Ok(())
+        })?;
+        Ok(removal)
+    }
+
+    fn remove_wer_exclusion(&self) -> Result<Removal, OpError> {
+        let mut removal = Removal::Absent;
+        self.apply(Op::RemoveWerExclusion, |w| {
+            match w.wer {
+                Some(1) => {
+                    w.wer = None;
+                    removal = Removal::Removed;
+                }
+                Some(_) => removal = Removal::NotOurs,
+                None => {}
+            }
+            Ok(())
+        })?;
+        Ok(removal)
+    }
+
+    fn delete_running_exe(&self, exe: &Path) -> Result<(), OpError> {
+        self.apply(Op::DeleteRunningExe(exe.to_path_buf()), |w| {
+            if !w.files.contains_key(exe) {
+                return Err(not_found());
+            }
+            if !w.deletes_in_place {
+                w.files.remove(exe);
+            }
+            w.deleted_at_exit.push(exe.to_path_buf());
             Ok(())
         })
     }

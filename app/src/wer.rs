@@ -1,10 +1,9 @@
 //! Exclusion from Windows Error Reporting, so that no crash dump holds the process memory: DWORD `1` named after
 //! the exe under `HKCU\Software\Microsoft\Windows\Windows Error Reporting\ExcludedApplications` (`winreg`).
 
+use mcp_proxy_deploy::uninstall::WER_KEY as KEY;
 use winreg::RegKey;
 use winreg::enums::HKEY_CURRENT_USER;
-
-const KEY: &str = r"Software\Microsoft\Windows\Windows Error Reporting\ExcludedApplications";
 
 /// Idempotent. The error names the step only.
 pub fn exclude_from_error_reports() -> Result<(), String> {

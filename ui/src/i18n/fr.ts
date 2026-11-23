@@ -479,4 +479,49 @@ export const fr = {
       continue: 'Continuer sans installer',
     },
   },
+  uninstall: {
+    title: 'Désinstaller MCP Proxy',
+    intro: (version: string) =>
+      `MCP Proxy ${version} va être retiré de votre compte Windows, sans droits d'administrateur. S'il est ouvert, il sera fermé.`,
+    removedTitle: 'Sera supprimé',
+    removed: {
+      program: (location: string) => `le programme et son dossier (${location})`,
+      data: (data: string) =>
+        `les journaux, les réglages, le cache, les téléchargements et le profil des fenêtres de connexion (${data})`,
+      windows: 'le raccourci du menu Démarrer et le démarrage avec Windows',
+      registry:
+        "l'inscription des notifications, l'exclusion des rapports d'erreur de Windows et l'entrée des applications installées",
+    },
+    clients: 'Retirer MCP Proxy des clients LLM',
+    clientsHint: (labels: string) =>
+      `L'entrée « mcp-proxy » est retirée de ${labels}, rien d'autre ; une copie de chaque fichier modifié est gardée à côté de lui.`,
+    clientsKept: (labels: string) =>
+      `Les fichiers des clients LLM ne sont pas modifiés : l'entrée « mcp-proxy » de ${labels} reste, et ne lancera plus rien.`,
+    noClient: "Aucun client LLM n'est configuré avec MCP Proxy sur ce compte.",
+    keptTitle: 'Ne sera pas supprimé',
+    kept: {
+      other: (label: string, command: string | null) =>
+        `l'entrée « mcp-proxy » de ${label}, qui lance un autre programme${command === null ? '' : ` (${command})`}`,
+      unreadable: (label: string, reason: string | null) =>
+        `le fichier de ${label}, illisible${reason === null ? '' : ` (${reason})`} : regardez s'il contient « mcp-proxy »`,
+      backups: 'les copies de sauvegarde (.bak-…) des fichiers des clients LLM',
+      elsewhere: "les diagnostics exportés, et cet exe s'il a été téléchargé ailleurs",
+      secrets: "aucun mot de passe ni jeton à effacer : MCP Proxy n'en a jamais écrit sur le disque",
+    },
+    closeClients:
+      "Fermez vos clients LLM (Claude Desktop, VS Code…) avant de continuer : tant qu'ils tournent, ils peuvent garder le programme ouvert.",
+    cancel: 'Annuler',
+    confirm: 'Désinstaller',
+    working: 'Désinstallation en cours…',
+    failedTitle: "La désinstallation n'a pas eu lieu",
+    retry: 'Réessayer',
+    close: 'Fermer',
+    doneTitle: 'MCP Proxy est désinstallé',
+    partialTitle: 'Désinstallation incomplète',
+    doneRemoved: 'Retiré',
+    atClose: (item: string) => `${item} : à la fermeture de cette fenêtre`,
+    doneLeft: 'Reste',
+    keptInstalled:
+      'MCP Proxy reste installé, avec son programme, son dossier et son entrée dans les applications installées : fermez ce qui utilise encore ces fichiers, puis relancez la désinstallation depuis « Applications installées ».',
+  },
 } as const

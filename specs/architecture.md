@@ -28,6 +28,7 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 | Secrets | `secrecy` 0.10, `zeroize` 1.9, enveloppe : `chacha20poly1305` 0.11 (XChaCha20-Poly1305), `getrandom` 0.4, clé de session enveloppée par DPAPI utilisateur (WinRT `DataProtectionProvider`) |
 | Réglages scellés | `hmac` 0.13 (HMAC-SHA256 avec `sha2` 0.11), clé enveloppée par DPAPI utilisateur (spec 014) |
 | Mises à jour | `ed25519-dalek` 3, `semver` 1.0, `sha2`, `base64` ; remplacement par renommage (spec 019), pas `self-replace` |
+| Désinstallation | `self-replace` 1.5.1 (`self_delete_at` seulement : suppression de l'exe en cours à la fin du processus, spec 022) |
 | Pipeline | GitLab CI (`.gitlab-ci.yml`), JFrog CLI ; `yaml-rust2` 0.13 pour `cargo xtask check-ci` (spec 021) |
 | Config des clients LLM | `jsonc-parser` 0.34 (dprint), AST et positions seulement : modification par coupes du texte d'origine, relue (spec 023) |
 | Filtre de sortie | `memchr` 2.8, `regex` 1.13 (motifs génériques seulement), `serde_json` 1.0 |
@@ -40,7 +41,8 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 Client LLM ──stdio──▶ mcp-proxy.exe stdio          (pont : aucun secret, aucune logique)
                           │ named pipe \\.\pipe\mcp-proxy.<utilisateur>   (tokio, première instance, clients
                           │   distants rejetés ; preuve mutuelle DPAPI avant tout octet MCP ; rôle `controle` :
-                          │   arrêt demandé par l'installation d'une nouvelle version, rien d'autre)
+                          │   arrêt demandé par l'installation d'une nouvelle version ou la désinstallation,
+                          │   rien d'autre)
                           ▼
                   mcp-proxy.exe                     (instance unique, icône de notification)
                   ├─ gateway  serveur MCP par connexion · registre d'outils · chaîne de middlewares
@@ -67,9 +69,12 @@ xtask/                 cargo xtask : ci, trace, snapshot-catalog, keygen, sign, 
 
 Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` (posé par l'exe lui-même au premier
 lancement, spec 019 ; raccourci `MCP Proxy.lnk` du menu Démarrer ; démarrage automatique par la valeur `MCP Proxy`
-de `HKCU\…\CurrentVersion\Run`, `--autostart`) ; données non secrètes dans
+de `HKCU\…\CurrentVersion\Run`, `--autostart` ; entrée « Applications installées » `HKCU\…\CurrentVersion\Uninstall\MCP
+Proxy`, `--uninstall`, spec 022) ; données non secrètes dans
 `%LOCALAPPDATA%\MCP Proxy\` (`logs\`, `cache\catalog\`, `webview\`, `update\`, `settings.json`, `settings.key` : clé
-du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
+du scellement des réglages et du cache, enveloppée par DPAPI, spec 014 ; `notification-icon.png`, spec 013) ; données
+WebView2 des fenêtres de l'appli (hors connexion) dans `%LOCALAPPDATA%\com.mcpproxy.app\`, posées par Tauri. Registre :
+clé AUMID `HKCU\Software\Classes\AppUserModelId\McpProxy.Desktop` (spec 013), exclusion WER (spec 011).
 
 ### Parcours d'un `tools/call`
 
@@ -206,7 +211,7 @@ du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
   raccourci (recette `EX-013-05`, `EX-013-10`).
 - `self_replace` renomme l'exe en cours, pose le nouveau et programme la suppression de l'ancien. Le dossier de
   l'exe doit être inscriptible. **Toujours vrai, mais plus utilisé** (spec 020) : l'updater remplace par renommage,
-  comme l'installation (spec 019).
+  comme l'installation (spec 019). Seul `self_delete_at` sert, à la désinstallation (spec 022, I022.4).
 - Installation (spec 019, compilé en cible Windows, non exécuté) : valeur `Run` par `winreg` 0.56
   (`create_subkey_with_flags`, `set_value`, `delete_value`) ; raccourci par `mslnk` 0.1.8, lu dans ses sources :
   format `.lnk` écrit en Rust pur (en-tête, liste d'identifiants de la cible, chemin relatif, dossier de travail),
@@ -316,3 +321,10 @@ du scellement des réglages et du cache, enveloppée par DPAPI, spec 014).
   client, éditeur tolérant, écriture sûre), vue et commandes dans `mcp_proxy_gateway::clients_view`. Dépendance
   `jsonc-parser` 0.34 (ligne ajoutée à la stack), utilisée pour ses positions seulement. Faits sur les deux fichiers
   de Claude Desktop et sur VS Code ajoutés aux « Clients LLM ».
+- **2026-11-23** — Spec 022 : désinstallation dans `mcp_proxy_deploy::uninstall` (plan pur, garde-fous des chemins,
+  compte rendu), argument `--uninstall` dans `gateway::launch`, fenêtre `uninstall` dans `app/`. Ligne
+  « Désinstallation » ajoutée à la stack : `self-replace` 1.5.1, pour la seule suppression de l'exe en cours (lu dans
+  ses sources, I022.4). Répertoires à l'exécution : entrée « Applications installées », clé AUMID, exclusion WER et
+  dossier `%LOCALAPPDATA%\com.mcpproxy.app\` (données WebView2 que Tauri pose pour toute fenêtre sans dossier
+  propre, constaté dans `tauri` 2.12.7). Fait sur la bibliothèque standard : sous Windows, `FileType::is_symlink`
+  compte aussi les points de jonction.

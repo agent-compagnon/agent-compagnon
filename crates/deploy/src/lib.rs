@@ -5,5 +5,6 @@ pub mod clients;
 pub mod fake;
 pub mod install;
 pub mod ops;
+pub mod uninstall;
 pub mod update;
 pub mod version;

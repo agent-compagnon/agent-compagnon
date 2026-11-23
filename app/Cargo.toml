@@ -31,6 +31,7 @@ mcp-proxy-gateway = { path = "../crates/gateway" }
 mslnk.workspace = true
 rfd = { workspace = true }
 secrecy.workspace = true
+self-replace.workspace = true
 serde_json.workspace = true
 tauri = { workspace = true, features = ["tray-icon", "image-png"] }
 tauri-plugin-single-instance.workspace = true

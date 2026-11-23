@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "uninstall",
+  "description": "Uninstallation window (spec 022): local page of the bundle, sends the user's answer (uninstall with or without the LLM clients, cancel, close) and receives the report. No remote URL, nothing else.",
+  "windows": ["uninstall"],
+  "permissions": ["allow-answer-uninstall"]
+}

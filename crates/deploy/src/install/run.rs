@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 use crate::install::autostart::run_command;
 use crate::install::paths::InstallPaths;
 use crate::ops::{OpError, Shortcut, Stopped, SystemOps};
+use crate::uninstall::{UninstallEntry, record_entry};
+use crate::version::Installed;
 
 /// Argument of a relaunch that must not offer the installation again.
 pub const NO_INSTALL_ARG: &str = "--no-install";
@@ -26,6 +28,7 @@ pub enum Step {
     PutInPlace,
     Shortcut,
     Autostart,
+    UninstallEntry,
     Launch,
 }
 
@@ -39,6 +42,7 @@ impl Step {
             Self::PutInPlace => "Mise en place de l'exe",
             Self::Shortcut => "Création du raccourci du menu Démarrer",
             Self::Autostart => "Inscription du démarrage avec Windows",
+            Self::UninstallEntry => "Inscription dans « Applications installées »",
             Self::Launch => "Lancement depuis le dossier d'installation",
         }
     }
@@ -52,6 +56,7 @@ impl Step {
             Self::PutInPlace => "mise en place",
             Self::Shortcut => "raccourci",
             Self::Autostart => "démarrage automatique",
+            Self::UninstallEntry => "entrée de désinstallation",
             Self::Launch => "lancement",
         }
     }
@@ -66,6 +71,7 @@ pub enum Leftover {
     Previous,
     Shortcut,
     Autostart,
+    UninstallEntry,
 }
 
 impl Leftover {
@@ -78,6 +84,7 @@ impl Leftover {
             }
             Self::Shortcut => "le raccourci du menu Démarrer",
             Self::Autostart => "l'inscription au démarrage de Windows",
+            Self::UninstallEntry => "l'entrée « MCP Proxy » des applications installées",
         }
     }
 }
@@ -138,6 +145,8 @@ enum Done {
     Shortcut(PathBuf),
     /// The `Run` value before the change.
     Autostart(Option<String>),
+    /// The entry « Applications installées » before the change.
+    UninstallEntry(Option<UninstallEntry>),
 }
 
 /// The steps done so far, undone in reverse order on failure.
@@ -185,6 +194,8 @@ impl<'a> Transaction<'a> {
                 Done::Shortcut(path) => (gone(ops.remove_file(&path)), Leftover::Shortcut),
                 Done::Autostart(Some(previous)) => (ops.set_run_entry(&previous), Leftover::Autostart),
                 Done::Autostart(None) => (ops.remove_run_entry(), Leftover::Autostart),
+                Done::UninstallEntry(Some(previous)) => (ops.set_uninstall_entry(&previous), Leftover::UninstallEntry),
+                Done::UninstallEntry(None) => (ops.remove_uninstall_entry().map(|_| ()), Leftover::UninstallEntry),
             };
             if let Err(error) = result {
                 tracing::warn!(cause = %error, "installation : retour arrière d'une étape en échec");
@@ -256,6 +267,23 @@ impl<'a> Transaction<'a> {
         self.step(Step::Autostart, result, Some(Done::Autostart(previous)))
     }
 
+    /// The entry « Applications installées » of the exe now in place, its version read in the file (spec 022).
+    fn uninstall_entry(&mut self, paths: &InstallPaths) -> Result<(), InstallError> {
+        let version = match self.ops.exe_version(&paths.exe) {
+            Installed::Known(version) => Some(version),
+            Installed::Unknown => None,
+        };
+        match record_entry(self.ops, paths, version.as_ref()) {
+            Ok(recorded) if !recorded.changed => Ok(()),
+            Ok(recorded) => self.step(
+                Step::UninstallEntry,
+                Ok(()),
+                Some(Done::UninstallEntry(recorded.previous)),
+            ),
+            Err(cause) => self.step(Step::UninstallEntry, Err(cause), None),
+        }
+    }
+
     fn launch(&mut self, exe: &Path) -> Result<(), InstallError> {
         let result = self.ops.launch(exe, &[]);
         self.step(Step::Launch, result, None)
@@ -287,7 +315,7 @@ fn clear_leftover(ops: &dyn SystemOps, path: &Path) {
 }
 
 /// First installation: stop a running instance (one launched from elsewhere), folder, copy, shortcut, `Run` value if
-/// `autostart`, then the installed exe is launched. The caller then stops.
+/// `autostart`, entry « Applications installées », then the installed exe is launched. The caller then stops.
 pub fn install(ops: &dyn SystemOps, paths: &InstallPaths, source: &Path, autostart: bool) -> Result<(), InstallError> {
     stop_running(ops)?;
     let mut transaction = Transaction::new(ops);
@@ -296,13 +324,15 @@ pub fn install(ops: &dyn SystemOps, paths: &InstallPaths, source: &Path, autosta
     transaction.put_exe(paths, source)?;
     transaction.shortcut(paths, true)?;
     transaction.autostart(paths, autostart)?;
+    transaction.uninstall_entry(paths)?;
     transaction.launch(&paths.exe)?;
     tracing::info!(autostart, "installation terminée");
     Ok(())
 }
 
 /// Update of the installation: stop the running instance, copy, set the installed exe aside (an exe still held by a
-/// bridge can be renamed), put the new one in place, shortcut if missing, launch. The `Run` value is left as it is:
+/// bridge can be renamed), put the new one in place, its entry « Applications installées », shortcut if missing,
+/// launch. The `Run` value is left as it is:
 /// it names the same path. The exe set aside is removed once the new one runs, or left for the next update if a
 /// bridge still holds it.
 pub fn update(ops: &dyn SystemOps, paths: &InstallPaths, source: &Path) -> Result<(), InstallError> {
@@ -320,6 +350,7 @@ pub fn update(ops: &dyn SystemOps, paths: &InstallPaths, source: &Path) -> Resul
     transaction.step(Step::SetAside, result, Some(aside))?;
     let result = ops.rename(&paths.staged, &paths.exe);
     transaction.step(Step::PutInPlace, result, Some(Done::Placed(paths.exe.clone())))?;
+    transaction.uninstall_entry(paths)?;
     transaction.shortcut(paths, false)?;
     transaction.launch(&paths.exe)?;
     if let Err(cause) = ops.remove_file(&paths.backup) {

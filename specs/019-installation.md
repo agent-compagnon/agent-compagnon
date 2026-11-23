@@ -70,12 +70,13 @@ Réalisation (amendement du 2026-11-22) :
   ferme le canal en terminant son processus. Instance qui ne s'arrête pas : message, rien n'est modifié.
 - **Étapes et retour arrière** : installation = arrêt de l'instance, dossiers créés un à un, copie sous
   `mcp-proxy.exe.new` puis renommage en `mcp-proxy.exe`, raccourci, valeur `Run` (posée si la case est cochée,
-  retirée sinon), lancement de l'exe installé. Mise à jour = arrêt, copie sous `.new`, exe installé renommé en
-  `mcp-proxy.exe.old` (un exe tenu par un pont se renomme, il ne se remplace pas), `.new` renommé en `mcp-proxy.exe`,
+  retirée sinon), entrée « Applications installées » (spec 022), lancement de l'exe installé. Mise à jour = arrêt,
+  copie sous `.new`, exe installé renommé en `mcp-proxy.exe.old` (un exe tenu par un pont se renomme, il ne se
+  remplace pas), `.new` renommé en `mcp-proxy.exe`, entrée « Applications installées » à la nouvelle version,
   raccourci s'il manque, lancement, puis suppression de `.old` (laissé pour la mise à jour suivante si un pont le
   tient encore) ; la valeur `Run` n'est pas touchée. Chaque étape faite est notée ; une étape qui échoue défait les
   précédentes dans l'ordre inverse (fichiers retirés, ancien exe remis, dossiers créés retirés, raccourci créé
-  retiré, valeur `Run` remise à l'identique) ; ce qui n'a pas pu être défait est nommé dans le message.
+  retiré, valeur `Run` et entrée « Applications installées » remises à l'identique) ; ce qui n'a pas pu être défait est nommé dans le message.
 - **Démarrage automatique** : valeur `MCP Proxy` sous `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`,
   `"<exe installé>" --autostart`. **La valeur fait foi** (c'est elle que Windows applique) : seule la commande exacte
   de l'exe installé compte comme active ; `UserSettings::autostart` la reflète au démarrage, en mémoire seulement
@@ -169,3 +170,7 @@ Mises à jour (7b). Désinstallation (7d).
   renommage ; la valeur `Run` fait foi et `UserSettings::autostart` la reflète ; le raccourci n'a pas d'AUMID
   (`mslnk` n'écrit pas de bloc de propriétés). Raison : points laissés ouverts par le texte, tranchés par l'option la
   plus sûre, et contraintes de D18.
+- **2026-11-23** — Spec 022 : l'installation et la mise à jour écrivent l'entrée « Applications installées »
+  (`HKCU\…\Uninstall\MCP Proxy`) avec la version lue dans l'exe mis en place, comme une étape de la transaction
+  (défaite par un retour arrière : entrée retirée, ou remise à l'identique si elle existait). Les tests d'ordre et de
+  retour arrière (`EX-019-02`) comptent cette étape. Aucun critère touché.

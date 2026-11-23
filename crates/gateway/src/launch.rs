@@ -1,8 +1,9 @@
-//! The launch modes of `mcp-proxy.exe` (specs 011 and 019).
+//! The launch modes of `mcp-proxy.exe` (specs 011, 019 and 022).
 
 use std::ffi::OsString;
 
 use mcp_proxy_deploy::install::{AUTOSTART_ARG, NO_INSTALL_ARG};
+use mcp_proxy_deploy::uninstall::UNINSTALL_ARG;
 use thiserror::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,6 +19,8 @@ pub enum LaunchMode {
     InPlace,
     /// `stdio`: the bridge launched by an LLM client.
     Stdio,
+    /// `--uninstall`, from « Applications installées »: the uninstallation window, nothing else.
+    Uninstall,
 }
 
 /// Why the command line was refused. French, shown to whoever launched the exe.
@@ -35,7 +38,7 @@ pub enum LaunchError {
 const QUOTED_MAX: usize = 64;
 
 /// Reads the arguments that follow the program name. Exact and case-sensitive: anything else is refused rather than
-/// guessed, and the other internal commands of step 7 (`--uninstall`, `doctor`…) are not known yet.
+/// guessed, and the other internal commands of step 7 (`doctor`) are not known yet.
 pub fn parse_launch<I>(args: I) -> Result<LaunchMode, LaunchError>
 where
     I: IntoIterator<Item = OsString>,
@@ -52,6 +55,7 @@ where
         "stdio" => Ok(LaunchMode::Stdio),
         AUTOSTART_ARG => Ok(LaunchMode::Autostart),
         NO_INSTALL_ARG => Ok(LaunchMode::InPlace),
+        UNINSTALL_ARG => Ok(LaunchMode::Uninstall),
         other => Err(LaunchError::Unknown(other.chars().take(QUOTED_MAX).collect())),
     }
 }
@@ -93,6 +97,24 @@ mod tests {
         assert_eq!(parse(&["--autostart", "stdio"]), Err(LaunchError::TooMany));
         assert_eq!(parse(&["stdio", "--no-install"]), Err(LaunchError::TooMany));
         assert_eq!((AUTOSTART_ARG, NO_INSTALL_ARG), ("--autostart", "--no-install"));
+    }
+
+    // Exigence : EX-022-10
+    #[test]
+    fn the_argument_of_the_uninstallation() {
+        assert_eq!(parse(&["--uninstall"]), Ok(LaunchMode::Uninstall));
+        assert_eq!(
+            parse(&["--UNINSTALL"]),
+            Err(LaunchError::Unknown("--UNINSTALL".to_owned()))
+        );
+        assert_eq!(
+            parse(&["/uninstall"]),
+            Err(LaunchError::Unknown("/uninstall".to_owned()))
+        );
+        assert_eq!(parse(&["uninstall"]), Err(LaunchError::Unknown("uninstall".to_owned())));
+        assert_eq!(parse(&["--uninstall", "--yes"]), Err(LaunchError::TooMany));
+        assert_eq!(parse(&["stdio", "--uninstall"]), Err(LaunchError::TooMany));
+        assert_eq!(UNINSTALL_ARG, "--uninstall");
     }
 
     // Exigence : EX-011-03

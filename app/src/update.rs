@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use mcp_proxy_deploy::ops::SystemOps;
+use mcp_proxy_deploy::uninstall::record_entry;
 use mcp_proxy_deploy::update::{
     AnonymousClient, ExeReplacer, KeyRing, RenameReplacer, Source, UpdatePaths, Updater, UpdaterDeps, check_interval,
     clean_leftovers,
@@ -66,7 +67,9 @@ pub fn relaunch_if_asked(
     }
 }
 
-/// The leftovers of an earlier replacement, then the checks; nothing outside the installation.
+/// The leftovers of an earlier replacement and the entry « Applications installées » of this version (spec 022: an
+/// installation made or updated by a version that did not write it gets it here), then the checks; nothing outside
+/// the installation.
 pub fn start(
     app: &AppHandle,
     gateway: &Arc<Gateway>,
@@ -78,7 +81,14 @@ pub fn start(
     let paths = UpdatePaths::new(installed.paths.clone(), &dirs.root);
     let ops = Arc::clone(&installed.ops);
     let cleaning = paths.clone();
-    tauri::async_runtime::spawn_blocking(move || clean_leftovers(ops.as_ref(), &cleaning));
+    tauri::async_runtime::spawn_blocking(move || {
+        clean_leftovers(ops.as_ref(), &cleaning);
+        match record_entry(ops.as_ref(), &cleaning.install, Some(&own_version())) {
+            Ok(recorded) if recorded.changed => tracing::info!("entrée « Applications installées » mise à jour"),
+            Ok(_) => {}
+            Err(error) => tracing::warn!(cause = %error, "entrée « Applications installées » non écrite"),
+        }
+    });
 
     let fetch = match AnonymousClient::new() {
         Ok(fetch) => Arc::new(fetch),

@@ -1049,6 +1049,7 @@ fn replaceable() -> (World, VerifiedExe) {
 }
 
 // Exigence : EX-020-13
+// Exigence : EX-022-02
 #[test]
 fn the_installed_exe_is_renamed_aside_then_replaced() {
     let paths = install_paths();
@@ -1075,6 +1076,9 @@ fn the_installed_exe_is_renamed_aside_then_replaced() {
                 to: paths.exe.clone()
             },
             Op::RemoveFile(paths.backup.clone()),
+            Op::SetUninstallEntry(
+                crate::uninstall::entry_for(&paths, Some(&v("1.4.0")), exe("1.4.0").len() as u64).unwrap()
+            ),
         ]
     );
     let world = ops.world();
@@ -1154,6 +1158,24 @@ impl SystemOps for RealFiles {
     }
     fn remove_run_entry(&self) -> Result<(), OpError> {
         Ok(())
+    }
+    fn uninstall_entry(&self) -> Result<Option<crate::uninstall::UninstallEntry>, OpError> {
+        Ok(None)
+    }
+    fn set_uninstall_entry(&self, _: &crate::uninstall::UninstallEntry) -> Result<(), OpError> {
+        Ok(())
+    }
+    fn remove_uninstall_entry(&self) -> Result<crate::ops::Removal, OpError> {
+        Ok(crate::ops::Removal::Absent)
+    }
+    fn remove_aumid(&self) -> Result<crate::ops::Removal, OpError> {
+        Ok(crate::ops::Removal::Absent)
+    }
+    fn remove_wer_exclusion(&self) -> Result<crate::ops::Removal, OpError> {
+        Ok(crate::ops::Removal::Absent)
+    }
+    fn delete_running_exe(&self, _: &Path) -> Result<(), OpError> {
+        Err(OpError::Refused("hors sujet"))
     }
     fn stop_instance(&self) -> Result<crate::ops::Stopped, OpError> {
         Ok(crate::ops::Stopped::NotRunning)

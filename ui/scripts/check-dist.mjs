@@ -1,6 +1,7 @@
 // Exigence : EX-016-08
-// The application's build must not contain the simulated backend (spec 016) nor the simulated installation (spec
-// 019): their markers, their scenarios and the example snapshot are searched for in every file of `dist/`.
+// The application's build must not contain the simulated backend (spec 016), the simulated installation (spec 019)
+// nor the simulated uninstallation (spec 022): their markers, their scenarios and the example snapshot are searched
+// for in every file of `dist/`.
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -13,6 +14,8 @@ const MARKERS = [
   'clients-deux-emplacements',
   'mcp-proxy-simulated-installer',
   'mise-a-jour-echec',
+  'mcp-proxy-simulated-uninstaller',
+  'desinstallation-restes',
 ]
 
 function files(dir) {

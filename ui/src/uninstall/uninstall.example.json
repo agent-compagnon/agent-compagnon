@@ -1,0 +1,82 @@
+{
+  "complete": {
+    "atClose": [
+      "Programme mcp-proxy.exe",
+      "Données des fenêtres de MCP Proxy (%LOCALAPPDATA%\\com.mcpproxy.app)"
+    ],
+    "keptInstalled": false,
+    "left": [],
+    "removed": [
+      "Entrée « mcp-proxy » de Claude Desktop",
+      "Démarrage avec Windows",
+      "Raccourci « MCP Proxy » du menu Démarrer",
+      "Inscription des notifications de MCP Proxy",
+      "Exclusion des rapports d'erreur de Windows",
+      "Journaux, réglages et autres données (%LOCALAPPDATA%\\MCP Proxy)",
+      "Entrée « MCP Proxy » des applications installées",
+      "Dossier d'installation (%LOCALAPPDATA%\\Programs\\MCP Proxy)"
+    ]
+  },
+  "data": {
+    "clients": [
+      {
+        "detail": null,
+        "entry": "ours",
+        "file": "%APPDATA%\\Claude\\claude_desktop_config.json",
+        "label": "Claude Desktop",
+        "location": "claude-desktop"
+      },
+      {
+        "detail": "JSON invalide à la ligne 12",
+        "entry": "unreadable",
+        "file": "%LOCALAPPDATA%\\Packages\\Claude_pzs8sxrjxfjjc\\LocalCache\\Roaming\\Claude\\claude_desktop_config.json",
+        "label": "Claude Desktop (paquet MSIX)",
+        "location": "claude-desktop-msix"
+      },
+      {
+        "detail": "C:\\Outils\\mcp-proxy-dev.exe",
+        "entry": "other",
+        "file": "%APPDATA%\\Code\\User\\mcp.json",
+        "label": "VS Code",
+        "location": "vscode"
+      }
+    ],
+    "command": "answer_uninstall",
+    "data": "%LOCALAPPDATA%\\MCP Proxy",
+    "location": "%LOCALAPPDATA%\\Programs\\MCP Proxy",
+    "version": "0.2.0"
+  },
+  "notStopped": "MCP Proxy, ouvert, n'a pas pu être fermé (toujours ouvert après 20 s). Rien n'a été modifié. Quittez MCP Proxy depuis son icône, puis relancez la désinstallation.",
+  "withLeftovers": {
+    "atClose": [],
+    "keptInstalled": true,
+    "left": [
+      {
+        "failed": false,
+        "what": "Entrée « mcp-proxy » de Claude Desktop (paquet MSIX)",
+        "why": "fichier illisible (JSON invalide à la ligne 12) : regardez à la main s'il contient une entrée « mcp-proxy »"
+      },
+      {
+        "failed": false,
+        "what": "Entrée « mcp-proxy » de VS Code",
+        "why": "elle lance un autre programme (C:\\Outils\\mcp-proxy-dev.exe) : laissée"
+      },
+      {
+        "failed": false,
+        "what": "Exclusion des rapports d'erreur de Windows",
+        "why": "la valeur n'est pas celle que pose MCP Proxy : laissée"
+      },
+      {
+        "failed": true,
+        "what": "Journaux, réglages et autres données (%LOCALAPPDATA%\\MCP Proxy)",
+        "why": "non retiré (fichier utilisé par un autre programme) ; reste : %LOCALAPPDATA%\\MCP Proxy\\logs\\mcp-proxy-2026-11-23.log"
+      }
+    ],
+    "removed": [
+      "Entrée « mcp-proxy » de Claude Desktop",
+      "Démarrage avec Windows",
+      "Raccourci « MCP Proxy » du menu Démarrer",
+      "Inscription des notifications de MCP Proxy"
+    ]
+  }
+}

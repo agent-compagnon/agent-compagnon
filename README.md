@@ -49,7 +49,7 @@ protégé `vX.Y.Z`).
 crates/core              mcp-proxy-core       config (étape 1), secrets en mémoire (2a) ; filtre, politiques… à venir
 crates/auth              mcp-proxy-auth       méthodes d'authentification (étape 4)
 crates/gateway           mcp-proxy-gateway    registre, amont, middlewares, serveur MCP, pont, vue, assemblage
-crates/deploy            mcp-proxy-deploy     installation (7a), updater (7b, clés dans keys/), clients LLM (7e) ; désinstallation à venir
+crates/deploy            mcp-proxy-deploy     installation (7a), updater (7b, clés dans keys/), désinstallation (7d), clients LLM (7e)
 crates/testkit           mcp-proxy-testkit    faux MCP, faux SSO, faux Artifactory (étape 3b)
 crates/ci-check          mcp-proxy-ci-check   contrôle de .gitlab-ci.yml sans GitLab (`cargo xtask check-ci`, 7c)
 crates/modules/jira-local                     module MCP local Jira (étape 8)

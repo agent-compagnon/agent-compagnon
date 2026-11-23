@@ -62,6 +62,29 @@ mod tests {
         assert!(registration.icon_uri.ends_with(".png"));
     }
 
+    // Exigence : EX-022-06
+    #[test]
+    fn the_uninstallation_removes_what_the_application_writes() {
+        use mcp_proxy_deploy::uninstall::{AUMID_KEY, DATA_FOLDER, UninstallPaths};
+        let base = Path::new(r"/home/alice/AppData/Local");
+        let dirs = DataDirs::under(base);
+        let uninstall = UninstallPaths::new(base, Path::new("/home/alice/AppData/Roaming"));
+        assert_eq!(DataDirs::FOLDER, DATA_FOLDER);
+        assert_eq!(dirs.root, uninstall.data);
+        for path in [
+            &dirs.logs,
+            &dirs.catalog_cache,
+            &dirs.settings,
+            &dirs.settings_key,
+            &dirs.webview,
+            &dirs.notification_icon,
+            &dirs.update,
+        ] {
+            assert!(path.starts_with(&uninstall.data), "{}", path.display());
+        }
+        assert_eq!(aumid_registration(&dirs.notification_icon).unwrap().key, AUMID_KEY);
+    }
+
     // Exigence : EX-013-12
     #[test]
     fn icon_is_written_once() {

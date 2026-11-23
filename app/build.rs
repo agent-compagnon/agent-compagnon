@@ -5,7 +5,8 @@
 //! `restart_for_update`; spec 023: `get_llm_clients`, `preview_llm_client`, `apply_llm_client`),
 //! `submit_basic_credentials` to the Basic windows (`capabilities/basic.json`), `answer_confirmation` to the detail
 //! windows of the confirmations (`capabilities/confirm.json`), `answer_install` to the installation window
-//! (`capabilities/install.json`, spec 019), `deposit_login_header` to no static capability: each login window
+//! (`capabilities/install.json`, spec 019), `answer_uninstall` to the uninstallation window
+//! (`capabilities/uninstall.json`, spec 022), `deposit_login_header` to no static capability: each login window
 //! receives its own at runtime (spec 012).
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -31,6 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "submit_basic_credentials",
             "answer_confirmation",
             "answer_install",
+            "answer_uninstall",
         ])),
     )?;
     Ok(())

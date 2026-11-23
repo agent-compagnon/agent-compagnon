@@ -1,5 +1,6 @@
 //! `mcp-proxy.exe`: the application (notification icon, gateway, login windows) without argument, the `stdio` bridge
-//! with `stdio`; at a launch outside its installation folder, the installation (spec 019). Wiring only: the logic
+//! with `stdio`; at a launch outside its installation folder, the installation (spec 019); with `--uninstall`, the
+//! uninstallation (spec 022). Wiring only: the logic
 //! lives in `crates/` and is tested there. A library so that
 //! the WebView2 probe (`examples/webview_probe.rs`) runs the very login windows of the application.
 
@@ -18,6 +19,7 @@ mod notify;
 mod pipe;
 mod system;
 mod system_ops;
+mod uninstall;
 mod update;
 mod wer;
 
@@ -30,6 +32,7 @@ pub fn main() -> ExitCode {
     match parse_launch(std::env::args_os().skip(1)) {
         // The bridge never offers the installation, wherever it runs from.
         Ok(LaunchMode::Stdio) => bridge::run(),
+        Ok(LaunchMode::Uninstall) => uninstall::start(),
         Ok(mode) => install::start(mode),
         Err(error) => {
             bridge::write_stderr(&format!("MCP Proxy : {error}"));
