@@ -59,7 +59,7 @@ export const fr = {
     client: { claudeDesktop: 'Claude Desktop', vscode: 'VS Code' },
     variant: {
       'claude-desktop': 'installation classique',
-      'claude-desktop-msix': 'paquet MSIX (Microsoft Store)',
+      'claude-desktop-msix': 'paquet MSIX (installeur officiel)',
       vscode: 'profil par défaut',
     },
     label: {
@@ -81,7 +81,7 @@ export const fr = {
     otherServers: (count: number) =>
       count === 0 ? '' : `${plural(count, 'autre serveur', 'autres serveurs')} dans ce fichier.`,
     twoLocations:
-      "Claude Desktop a deux fichiers de configuration sur ce poste. Installé par son paquet MSIX (Microsoft Store), il lit celui du paquet, et non celui qu'ouvre son bouton « Edit Config ». Configurez celui que lit votre installation, ou les deux, puis vérifiez dans Claude Desktop (Settings, Developer) que « mcp-proxy » y figure.",
+      "Claude Desktop a deux fichiers de configuration sur ce poste. Installé par l'installeur officiel (paquet MSIX), il lit celui du paquet, et non celui qu'ouvre son bouton « Edit Config ». Configurez celui que lit votre installation, ou les deux, puis vérifiez dans Claude Desktop (Settings, Developer) que « mcp-proxy » y figure.",
     probablyIgnored: 'Sans doute pas lu : Claude Desktop installé par son paquet MSIX lit le fichier du paquet.',
     install: 'Installer',
     remove: 'Retirer',

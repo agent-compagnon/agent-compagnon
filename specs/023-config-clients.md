@@ -32,7 +32,7 @@ Réalisation (amendement du 2026-11-23) :
   composant `select`, I017.9) ; une entrée, « Clients LLM… », à laquelle la spec 024 ajoutera « Auto-diagnostic »
   (`ui/src/components/AppMenu.vue`).
 - **Dialogue** (`ui/src/components/clients/`) : une ligne par **emplacement** (Claude Desktop en a deux, voir
-  « Adaptateurs ») avec le client, la variante (« installation classique », « paquet MSIX (Microsoft Store) »,
+  « Adaptateurs ») avec le client, la variante (« installation classique », « paquet MSIX (installeur officiel) »,
   « profil par défaut »), le fichier écrit depuis `%APPDATA%` ou `%LOCALAPPDATA%` (jamais le nom de
   l'utilisateur), l'état en toutes lettres, le nombre d'autres serveurs du fichier, puis « Installer » et
   « Retirer ». Un cinquième état : **fichier illisible**, avec sa raison (« JSON invalide à la ligne 12 »).
@@ -203,3 +203,7 @@ Avec des fichiers d'exemple :
   écriture, organisation du code, commandes, journal) et ce que la spec 022 utilisera. Chemins et formats revérifiés
   le 2026-11-22 (section « Adaptateurs »). Critères ajoutés : `EX-023-09` à `EX-023-16` (automatiques), `EX-023-17`
   et `EX-023-18` (recette). Aucun critère retiré.
+- **2026-11-23** — Libellé de la variante MSIX de Claude Desktop : « paquet MSIX (installeur officiel) » au lieu de
+  « paquet MSIX (Microsoft Store) ». Raison : la source (ticket `anthropics/claude-code#26073`) dit que l'installeur
+  officiel est un paquet MSIX ; elle ne parle pas du Microsoft Store, et le mot aurait fait croire à une personne
+  passée par le site que la remarque ne la concerne pas. Aucun critère touché.

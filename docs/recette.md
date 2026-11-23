@@ -513,7 +513,7 @@ Developer ; dans VS Code, par la commande « MCP: List Servers ».
   l'entrée « mcp-proxy » est retirée »), « Retirer » ; comparer avec la copie faite avant l'installation : seule
   l'entrée `mcp-proxy` a disparu, les autres serveurs, les autres clés et les commentaires sont là ; le client
   relancé ne liste plus MCP Proxy et ses autres serveurs marchent.
-- [ ] **EX-023-17** — Claude Desktop installé par le Microsoft Store ou son paquet MSIX : vérifier que le dossier
+- [ ] **EX-023-17** — Claude Desktop installé par son installeur officiel (paquet MSIX) : vérifier que le dossier
   `%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\` existe (sinon noter le vrai nom du dossier du paquet : le nom
   écrit dans l'appli est à corriger). Dans le dialogue, les deux lignes « installation classique » et « paquet MSIX »,
   la note des deux fichiers, la ligne classique « sans doute pas lu ». Installer **seulement** sur la ligne
