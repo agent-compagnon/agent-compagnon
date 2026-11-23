@@ -483,7 +483,7 @@ fn setup_ui(
 /// (spec 019): it exits as by « Quitter ».
 async fn follow_exit_request(app: AppHandle, gateway: Arc<Gateway>) {
     gateway.exit_requested().await;
-    tracing::info!("arrêt demandé par l'installation d'une nouvelle version");
+    tracing::info!("arrêt demandé par l'installation ou la désinstallation");
     app.exit(0);
 }
 

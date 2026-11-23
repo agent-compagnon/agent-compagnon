@@ -438,7 +438,7 @@ impl Gateway {
                 let stop = || {
                     self.journal.record_event(
                         tracing::Level::INFO,
-                        "arrêt demandé par l'installation d'une nouvelle version de MCP Proxy",
+                        "arrêt demandé par l'installation ou la désinstallation de MCP Proxy",
                     );
                     self.exit_requested.send_replace(true);
                 };

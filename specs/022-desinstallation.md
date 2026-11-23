@@ -171,3 +171,8 @@ Réalisation : `mcp_proxy_deploy::uninstall` (`plan`, `decide`, `Item`, `ClientD
   restes `*.__relocated__.exe` et `*.__selfdelete__.exe`. L'entrée est aussi réécrite à chaque démarrage de l'exe
   installé. Critères ajoutés : `EX-022-06` à `EX-022-12` (automatiques), `EX-022-13` à `EX-022-16` (recette). Aucun
   critère retiré.
+- **2026-11-23** — Libellé du journal quand l'appli s'arrête à la demande du canal de contrôle : « arrêt demandé
+  par l'installation ou la désinstallation de MCP Proxy », au lieu de « … par l'installation d'une nouvelle
+  version … » (spec 019). Raison : la désinstallation emprunte le même canal, qui ne dit pas qui demande l'arrêt ;
+  après une désinstallation incomplète, le journal resté sur le disque aurait dit une chose fausse. Aucun critère
+  touché.

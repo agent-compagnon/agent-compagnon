@@ -631,7 +631,7 @@ async fn a_proved_control_client_stops_the_assembled_gateway() {
     assert!(
         events
             .iter()
-            .any(|e| e == "arrêt demandé par l'installation d'une nouvelle version de MCP Proxy"),
+            .any(|e| e == "arrêt demandé par l'installation ou la désinstallation de MCP Proxy"),
         "{events:?}"
     );
     // The connection stays open until the process ends; ending it releases the client.

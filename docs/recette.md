@@ -338,8 +338,8 @@ la version du dépôt, puis la même après avoir monté `version` dans `Cargo.t
   une session active. Lancer `mcp-proxy-0.1.1.exe` : la fenêtre « Mettre à jour MCP Proxy » dit « La version 0.1.0
   est installée. Cet exe est la version 0.1.1. ». « Lancer la version 0.1.0 » : rien n'est remplacé, la fenêtre de
   l'appli en cours passe devant. Relancer `mcp-proxy-0.1.1.exe`, « Mettre à jour » : l'icône disparaît puis revient ;
-  le journal de l'ancienne instance se termine par « arrêt demandé par l'installation d'une nouvelle version de MCP
-  Proxy » ; l'en-tête de la fenêtre affiche la version 0.1.1 ; la valeur `Run` est inchangée ; `mcp-proxy.exe.old`
+  le journal de l'ancienne instance se termine par « arrêt demandé par l'installation ou la désinstallation de
+  MCP Proxy » ; l'en-tête de la fenêtre affiche la version 0.1.1 ; la valeur `Run` est inchangée ; `mcp-proxy.exe.old`
   n'existe plus, ou existe tant que le pont de l'ancienne version tourne (il disparaît à la mise à jour suivante). Le
   client LLM retrouve ses outils après relance de son serveur MCP (la session est à rouvrir). Noter si un client qui
   relance aussitôt son pont fait repartir l'ancienne version (I019.7).
