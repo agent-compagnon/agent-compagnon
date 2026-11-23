@@ -38,7 +38,8 @@ les décisions et leurs raisons dans `DECISIONS.md`.
 ## Architecture
 
 ```
-Client LLM ──stdio──▶ mcp-proxy.exe stdio          (pont : aucun secret, aucune logique)
+Client LLM ──stdio──▶ mcp-proxy.exe stdio          (pont : aucun secret, aucune logique ; survit au redémarrage
+                          │                           de l'appli : attend 60 s, refait la preuve, spec 026)
                           │ named pipe \\.\pipe\mcp-proxy.<utilisateur>   (tokio, première instance, clients
                           │   distants rejetés ; preuve mutuelle DPAPI avant tout octet MCP ; rôle `controle` :
                           │   arrêt demandé par l'installation d'une nouvelle version ou la désinstallation,
@@ -335,3 +336,7 @@ clé AUMID `HKCU\Software\Classes\AppUserModelId\McpProxy.Desktop` (spec 013), e
   du pipe gagne `ping`, sans effet. `deploy` dépend de `futures` (contrôles menés de front). Fait sur la bibliothèque
   standard : sous Windows, la poignée de sortie standard d'un exe fenêtré lancé sans redirection est nulle
   (`as_raw_handle`, constaté dans les sources de `std`, non exécuté ici).
+- **2026-11-23** — Spec 026 : le pont `stdio` devient `gateway::bridge::ResilientRelay` (relais message par message,
+  attente de l'appli après une coupure, preuve à chaque reconnexion, rejeu de l'ancien protocole, relance seulement
+  après un plantage) ; l'appli écrit la marque `arret-volontaire` de son dossier de données à chaque arrêt volontaire.
+  Aucune dépendance ajoutée, protocole du pipe inchangé.

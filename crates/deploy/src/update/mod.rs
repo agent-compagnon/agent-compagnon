@@ -29,6 +29,6 @@ pub use keys::{DEV_KEY_FINGERPRINT, KeyError, KeyId, KeyRing, check_release, emb
 pub use manifest::{HEADER, MANIFEST_MAX, Manifest, ManifestError};
 pub use replace::{
     Cleanup, ExeReplacer, RenameReplacer, ReplaceError, ReplaceStep, UpdatePaths, VerifiedExe, clean_leftovers,
-    is_leftover,
+    clear_backup, is_leftover,
 };
 pub use schedule::{FIRST_CHECK_DELAY, check_interval};

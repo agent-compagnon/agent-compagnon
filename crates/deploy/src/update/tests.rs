@@ -1285,3 +1285,49 @@ fn addresses_of_the_repository() {
     assert_eq!(check_interval(0), Duration::from_secs(3600));
     assert_eq!(FIRST_CHECK_DELAY, Duration::from_secs(60));
 }
+
+// Exigence : EX-026-20
+#[test]
+fn a_backup_still_run_by_a_bridge_never_stops_an_update() {
+    let paths = install_paths();
+    let (mut world, verified) = replaceable();
+    world.files.insert(paths.backup.clone(), exe("1.2.0"));
+    let ops = Arc::new(FakeSystem::new(world.clone()));
+    // A bridge of 1.2.0 still runs the `.old` of the previous update, and the application runs 1.3.0.
+    ops.run(&paths.backup);
+    ops.run(&paths.exe);
+    let replacer = RenameReplacer::new(Arc::clone(&ops) as Arc<dyn SystemOps>, paths.clone());
+    replacer.replace(&verified).unwrap();
+    let after = ops.world();
+    let first = paths.dir.join("mcp-proxy.exe.old-1.__relocated__.exe");
+    assert_eq!(after.files.get(&first), Some(&exe("1.2.0")));
+    assert_eq!(
+        after.files.get(&paths.backup),
+        Some(&exe("1.3.0")),
+        "still run: it stays"
+    );
+    assert_eq!(after.files.get(&paths.exe), Some(&exe("1.4.0")));
+
+    // The next one, both images still run: another name.
+    clear_backup(ops.as_ref(), &paths).unwrap();
+    let after = ops.world();
+    let second = paths.dir.join("mcp-proxy.exe.old-2.__relocated__.exe");
+    assert_eq!(after.files.get(&second), Some(&exe("1.3.0")));
+    assert!(!after.files.contains_key(&paths.backup));
+    assert!(is_leftover("mcp-proxy.exe.old-2.__relocated__.exe"));
+
+    // Removed by the cleanup at a start where nothing runs them any more; left while they run.
+    assert_eq!(clean_leftovers(ops.as_ref(), &update_paths()).left, 2);
+    let free = FakeSystem::new(ops.world());
+    clean_leftovers(&free, &update_paths());
+    assert!(!free.world().files.contains_key(&first) && !free.world().files.contains_key(&second));
+
+    // Held by another program (neither removed nor renamed): the replacement fails as before.
+    let ops = Arc::new(FakeSystem::new(world));
+    ops.hold(&paths.backup);
+    let error = RenameReplacer::new(Arc::clone(&ops) as Arc<dyn SystemOps>, paths.clone())
+        .replace(&verified)
+        .unwrap_err();
+    assert_eq!(error.step, ReplaceStep::ClearBackup);
+    assert_eq!(ops.world().files.get(&paths.exe), Some(&exe("1.3.0")));
+}

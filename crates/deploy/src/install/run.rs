@@ -341,7 +341,11 @@ pub fn update(ops: &dyn SystemOps, paths: &InstallPaths, source: &Path) -> Resul
     clear_leftover(ops, &paths.staged);
     let result = ops.copy_file(source, &paths.staged);
     transaction.step(Step::Copy, result, Some(Done::Staged(paths.staged.clone())))?;
-    clear_leftover(ops, &paths.backup);
+    // A `.old` still run by a bridge is set aside under a name of leftover (spec 026); if that fails too, the step
+    // below fails and names it.
+    if ops.exists(&paths.backup) {
+        let _ = crate::update::clear_backup(ops, paths);
+    }
     let result = ops.rename(&paths.exe, &paths.backup);
     let aside = Done::SetAside {
         exe: paths.exe.clone(),

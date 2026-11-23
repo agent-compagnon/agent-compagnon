@@ -769,3 +769,23 @@ fn the_window_shows_versions_and_no_path() {
     assert_eq!(update.view()["installedVersion"], "0.1.0-rc.1");
     assert_eq!((INSTALL_WINDOW, INSTALL_COMMAND), ("install", "answer_install"));
 }
+
+// Exigence : EX-026-20
+#[test]
+fn an_update_sets_aside_a_backup_still_run_by_a_bridge() {
+    let paths = paths();
+    let mut world = installed();
+    world.files.insert(paths.backup.clone(), exe("0.0.9"));
+    let ops = FakeSystem::new(world);
+    ops.run(&paths.backup);
+    update(&ops, &paths, Path::new(SOURCE)).unwrap();
+    let world = ops.world();
+    assert_eq!(world.files.get(&paths.exe), Some(&exe("0.2.0")));
+    let aside = paths.dir.join("mcp-proxy.exe.old-1.__relocated__.exe");
+    assert_eq!(world.files.get(&aside), Some(&exe("0.0.9")));
+    assert!(
+        !world.files.contains_key(&paths.backup),
+        "0.1.0 was not running: removed"
+    );
+    assert_eq!(ops.launched(), vec![(paths.exe.clone(), vec![])]);
+}

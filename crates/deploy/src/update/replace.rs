@@ -4,7 +4,9 @@
 //! under `mcp-proxy.exe.new`, checked again, the installed exe is renamed `mcp-proxy.exe.old` (Windows lets a running
 //! exe be renamed, not replaced: the application itself and every bridge started by an LLM client hold it), then the
 //! new one takes its name. The running process keeps its image: the new version takes effect at the next start.
-//! `.old` cannot be removed while a process still runs it; it goes at the next start, with the other leftovers.
+//! `.old` cannot be removed while a process still runs it; it goes at the next start, with the other leftovers. A
+//! `.old` still run by a bridge of an older version (since spec 026, a bridge outlives the restarts of the
+//! application) is renamed under a name of leftover, so that it never stops an update.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -153,7 +155,7 @@ impl ExeReplacer for RenameReplacer {
             drop_staged();
             return Err(failed(ReplaceStep::CopyAltered, copied.err()));
         }
-        if let Err(error) = self.remove_if_present(&paths.backup) {
+        if let Err(error) = clear_backup(ops, paths) {
             drop_staged();
             return Err(failed(ReplaceStep::ClearBackup, Some(error)));
         }
@@ -180,6 +182,27 @@ impl ExeReplacer for RenameReplacer {
         }
         Ok(())
     }
+}
+
+/// Highest number tried for the name of a `.old` set aside.
+const SET_ASIDE_MAX: u32 = 64;
+
+/// Frees the name `mcp-proxy.exe.old`: removes the previous one, or, when a process still runs it (a bridge of an
+/// LLM client, which lives as long as its client), renames it `mcp-proxy.exe.old-<n>.__relocated__.exe`, a name of
+/// leftover that the cleanup at start and the uninstallation remove once it is free. Windows lets a running exe be
+/// renamed, not removed.
+pub fn clear_backup(ops: &dyn SystemOps, paths: &InstallPaths) -> Result<(), OpError> {
+    let error = match ops.remove_file(&paths.backup) {
+        Err(error) if !error.is_not_found() => error,
+        _ => return Ok(()),
+    };
+    let free = (1..=SET_ASIDE_MAX)
+        .map(|n| paths.dir.join(format!("{BACKUP_NAME}-{n}.__relocated__.exe")))
+        .find(|candidate| !ops.exists(candidate));
+    let Some(aside) = free else { return Err(error) };
+    ops.rename(&paths.backup, &aside).map_err(|_| error)?;
+    tracing::info!("mise à jour : ancienne version encore utilisée par un client LLM, mise de côté");
+    Ok(())
 }
 
 /// What the cleanup at start removed, and what it could not.

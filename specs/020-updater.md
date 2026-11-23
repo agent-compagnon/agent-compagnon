@@ -117,8 +117,9 @@ Réalisation (amendement du 2026-11-22) :
   le dossier d'installation, nouvelle empreinte de la copie (elle doit être l'exe vérifié), exe installé renommé en
   `mcp-proxy.exe.old` (un exe en cours, tenu par l'appli ou par un pont, se renomme mais ne se remplace pas), `.new`
   renommé en `mcp-proxy.exe` ; un échec remet l'ancien exe et retire la copie. `.old` reste jusqu'au démarrage
-  suivant ; un `.old` encore tenu par un pont d'une version antérieure fait échouer le remplacement, réessayé à la
-  vérification suivante. Une fois le nouvel exe en place, l'entrée « Applications installées » (spec 022) prend sa
+  suivant ; un `.old` encore tenu par un pont d'une version antérieure est renommé
+  `mcp-proxy.exe.old-<n>.__relocated__.exe` (nom de reste, retiré par le nettoyage une fois libre, spec 026) ; s'il ne
+  peut pas l'être non plus, le remplacement échoue et la vérification suivante réessaie. Une fois le nouvel exe en place, l'entrée « Applications installées » (spec 022) prend sa
   version, au mieux (un échec est journalisé, le remplacement n'est pas défait) ; elle est de toute façon réécrite au
   démarrage suivant de l'exe installé, avec le nettoyage des restes.
 - **Téléchargement** : client à part, anonyme (ni identifiant, ni cookie, ni `Referer`), TLS natif, `https` (`http`
@@ -137,7 +138,8 @@ Réalisation (amendement du 2026-11-22) :
 - **Release critique** : après la notification, au moins une minute de délai, puis attente qu'aucun appel ne soit en
   cours (appels comptés de leur arrivée à leur réponse, ceux qui attendent une connexion ou une confirmation
   compris), qu'aucune connexion ne soit demandée et qu'aucune confirmation n'attende ; puis redémarrage.
-- **Nettoyage au démarrage** : `mcp-proxy.exe.old`, `mcp-proxy.exe.new`, `*.__relocated__.exe`,
+- **Nettoyage au démarrage** : `mcp-proxy.exe.old`, `mcp-proxy.exe.new`, `*.__relocated__.exe` (dont les `.old` mis
+  de côté, spec 026),
   `*.__selfdelete__.exe` du dossier d'installation et tout le contenu de `update\` ; le journal ne donne que des
   nombres.
 
@@ -225,3 +227,8 @@ Pipeline de publication (7c). Authenticode (`028-authenticode.md`).
   volontaire, la marque `arret-volontaire` ; les ponts des clients LLM se reconnectent à la nouvelle version sans
   relance du client. Aucun critère touché ; la recette `EX-020-20` ne demande plus de relancer le serveur MCP du
   client.
+- **2026-11-23** — Spec 026 : un `mcp-proxy.exe.old` encore exécuté par un pont ne fait plus échouer le remplacement :
+  il est renommé `mcp-proxy.exe.old-<n>.__relocated__.exe`, retiré par le nettoyage au démarrage une fois libre.
+  Raison : les ponts résilients vivent autant que leur client, et chaque mise à jour suivante aurait échoué. Prouvé
+  par `EX-026-20` ; aucun critère de la 020 touché (`EX-020-13` inchangé : un `.old` tenu par un autre programme fait
+  toujours échouer l'étape).

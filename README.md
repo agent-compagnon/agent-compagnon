@@ -61,7 +61,7 @@ crates/deploy            mcp-proxy-deploy     installation (7a), updater (7b, cl
 crates/testkit           mcp-proxy-testkit    faux MCP, faux SSO, faux Jira, faux Artifactory, capture des logs
 crates/ci-check          mcp-proxy-ci-check   contrôle de .gitlab-ci.yml sans GitLab (`cargo xtask check-ci`, 7c)
 crates/modules/jira-local                     module MCP local Jira (étape 8)
-app/                     mcp-proxy            appli Tauri et pont stdio, Windows uniquement, câblage seulement
+app/                     mcp-proxy            appli Tauri et pont stdio (résilient : survit au redémarrage de l'appli, spec 026), Windows uniquement, câblage seulement
 ui/                                           interface Vue : onglets Connexions, MCP et Journal, dialogues, fenêtres d'installation, de désinstallation, de saisie et de confirmation
 config/default.toml                           config embarquée dans l'exe, validée au démarrage
 xtask/                                        cargo xtask

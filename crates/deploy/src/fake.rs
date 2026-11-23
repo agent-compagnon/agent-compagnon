@@ -77,6 +77,8 @@ struct State {
     aliases: BTreeMap<PathBuf, PathBuf>,
     /// Paths held by another program: removing or renaming them fails, every time.
     held: BTreeSet<PathBuf>,
+    /// Images of running exes: they cannot be removed nor replaced, but they can be renamed (the image follows).
+    running: BTreeSet<PathBuf>,
 }
 
 #[derive(Debug, Default)]
@@ -131,6 +133,12 @@ impl FakeSystem {
         self.state().held.insert(path.to_path_buf());
     }
 
+    /// `path` is the image of a running exe (a bridge of an LLM client): removing it or renaming another file over it
+    /// fails with « accès refusé »; renaming it works, and the image follows the file.
+    pub fn run(&self, path: &Path) {
+        self.state().running.insert(path.to_path_buf());
+    }
+
     /// `alias` resolves to `path`, as a short name or a link would.
     pub fn alias(&self, alias: impl Into<PathBuf>, path: impl Into<PathBuf>) {
         self.state().aliases.insert(alias.into(), path.into());
@@ -147,6 +155,15 @@ impl FakeSystem {
             Op::RemoveDirAll(path) => state.held.iter().any(|h| h.starts_with(path)),
             _ => false,
         };
+        let image = match &op {
+            Op::RemoveFile(path) | Op::Rename { to: path, .. } => state.running.contains(path),
+            Op::RemoveDirAll(path) => state.running.iter().any(|r| r.starts_with(path)),
+            _ => false,
+        };
+        let renamed = match &op {
+            Op::Rename { from, to } if state.running.contains(from) => Some((from.clone(), to.clone())),
+            _ => None,
+        };
         state.log.push(op);
         if state.fail_at.contains(&index) {
             return Err(kind(io::ErrorKind::PermissionDenied));
@@ -157,7 +174,18 @@ impl FakeSystem {
                 code: Some(32),
             });
         }
-        change(&mut state.world)
+        if image {
+            return Err(OpError::Io {
+                kind: io::ErrorKind::PermissionDenied,
+                code: Some(5),
+            });
+        }
+        change(&mut state.world)?;
+        if let Some((from, to)) = renamed {
+            state.running.remove(&from);
+            state.running.insert(to);
+        }
+        Ok(())
     }
 }
 

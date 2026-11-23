@@ -77,7 +77,8 @@ Réalisation (amendement du 2026-11-22) :
   copie sous `.new`, exe installé renommé en `mcp-proxy.exe.old` (un exe tenu par un pont se renomme, il ne se
   remplace pas), `.new` renommé en `mcp-proxy.exe`, entrée « Applications installées » à la nouvelle version,
   raccourci s'il manque, lancement, puis suppression de `.old` (laissé pour la mise à jour suivante si un pont le
-  tient encore) ; la valeur `Run` n'est pas touchée. Chaque étape faite est notée ; une étape qui échoue défait les
+  tient encore ; depuis la spec 026, cette mise à jour le renomme alors en reste `mcp-proxy.exe.old-<n>.__relocated__.exe`
+  avant de mettre l'exe installé de côté) ; la valeur `Run` n'est pas touchée. Chaque étape faite est notée ; une étape qui échoue défait les
   précédentes dans l'ordre inverse (fichiers retirés, ancien exe remis, dossiers créés retirés, raccourci créé
   retiré, valeur `Run` et entrée « Applications installées » remises à l'identique) ; ce qui n'a pas pu être défait est nommé dans le message.
 - **Démarrage automatique** : valeur `MCP Proxy` sous `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`,
@@ -185,3 +186,6 @@ Mises à jour (7b). Désinstallation (7d).
   pendant l'installation ou la mise à jour et se reconnectent à celle que l'installation lance, sans que le client
   soit redémarré. La limite connue d'I019.7 ne vaut plus que pour un pont lancé pendant ces secondes par un client
   qui démarre. Aucun critère touché ; la recette `EX-019-15` ne demande plus de relancer le serveur MCP du client.
+- **2026-11-23** — Spec 026 : à la mise à jour, un `mcp-proxy.exe.old` encore exécuté par un pont est renommé en reste
+  (`mcp-proxy.exe.old-<n>.__relocated__.exe`) au lieu d'empêcher la mise de côté de l'exe installé. Prouvé par
+  `EX-026-20` ; aucun critère de la 019 touché.

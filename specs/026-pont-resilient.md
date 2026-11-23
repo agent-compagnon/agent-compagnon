@@ -2,7 +2,7 @@
 id: "026"
 titre: "Pont stdio résilient : survivre au redémarrage de l'appli"
 etape: "9"
-statut: "en cours"
+statut: "implémentée"
 depend_de: ["011", "020"]
 suivi: "github#27"
 ---
@@ -88,6 +88,10 @@ Réalisation (amendement du 2026-11-23) :
   la preuve, la preuve d'un pont plus ancien échouerait à chaque essai : rien n'est relayé, le pont s'arrête au bout
   de 60 s en le disant, et le client est à redémarrer (comportement d'avant cette spec). Un écart au niveau MCP est
   arrêté par la vérification du rejeu.
+- **Remplacement de l'exe** : un pont vit désormais autant que son client, et garde l'image de l'exe qui l'a lancé,
+  renommé `mcp-proxy.exe.old` par une mise à jour. Pour qu'il n'empêche jamais la suivante (specs 019 et 020), un
+  `.old` qui ne peut pas être supprimé est renommé `mcp-proxy.exe.old-<n>.__relocated__.exe`, un nom de reste que le
+  nettoyage au démarrage et la désinstallation retirent une fois libre (`mcp_proxy_deploy::update::clear_backup`).
 - **Plusieurs ponts** : chacun relance au plus une fois par coupure ; l'instance unique ne garde qu'une appli, les
   lancements suivants lui passent la main (fenêtre principale montrée, spec 011).
 
@@ -131,6 +135,9 @@ pipe. Temps de tokio : tests en horloge suspendue (`start_paused`), sans attente
   erreurs du pont ne rendent que l'identifiant.
 - **EX-026-15** — Bout en bout avec la vraie passerelle, client de l'ancien protocole et client 2026-07-28 : après
   le redémarrage (nouvelle passerelle sans secret), un appel déclenche la connexion à la demande puis est servi.
+- **EX-026-20** — Remplacement de l'exe (updater et fenêtre d'installation) avec un `mcp-proxy.exe.old` encore exécuté
+  par un pont : il est mis de côté sous un nom de reste et la mise à jour réussit ; le nettoyage au démarrage le
+  retire une fois libre ; un `.old` tenu autrement fait toujours échouer le remplacement.
 
 ## Vérification
 
@@ -167,3 +174,7 @@ pipe. Temps de tokio : tests en horloge suspendue (`start_paused`), sans attente
   « Réalisation », critères `EX-026-10` à `EX-026-15` (automatiques) et `EX-026-16` à `EX-026-19` (recette). Aucun
   critère retiré. Raison : les specs 019, 020 et 022, écrites après celle-ci, arrêtent et relancent l'appli
   elles-mêmes, ou retirent l'exe ; points laissés ouverts par le texte, tranchés par l'option la plus sûre.
+- **2026-11-23** — Remplacement de l'exe : un `.old` encore exécuté par un pont est mis de côté sous un nom de reste
+  au lieu de faire échouer la mise à jour (specs 019 et 020 amendées), critère `EX-026-20` ajouté ; statut `en cours`
+  → `implémentée`. Raison : un pont résilient vit autant que son client ; sans cela, après une première mise à jour,
+  toutes les suivantes échoueraient tant qu'un client LLM resterait ouvert, release critique comprise (I026.15).

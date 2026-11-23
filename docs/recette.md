@@ -419,8 +419,8 @@ numéro plus élevé que la précédente : l'updater n'essaie que la plus haute.
   pont `stdio` à l'exe installé : la mise en place réussit malgré l'exe tenu, le client continue de lister et
   d'appeler les outils jusqu'au redémarrage, puis après lui, **sans relance de son serveur MCP** (spec 026). Tant que le
   pont de l'ancienne version tourne, `mcp-proxy.exe.old` peut rester ; quitter le client puis relancer l'appli : il
-  a disparu. Noter si un `.old` encore tenu fait échouer la mise à jour suivante (« ancienne version encore utilisée
-  par un client LLM »).
+  a disparu. Sans fermer le client, publier une version suivante : la mise à jour réussit, et l'ancien `.old` est
+  renommé `mcp-proxy.exe.old-1.__relocated__.exe` (spec 026), retiré à un démarrage où plus aucun pont ne le tient.
 
 ## 021 — Pipeline GitLab de release
 
