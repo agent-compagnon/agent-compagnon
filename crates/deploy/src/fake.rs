@@ -58,6 +58,8 @@ pub struct World {
     pub aumid: bool,
     /// The value `mcp-proxy.exe` of the exclusion from error reports.
     pub wer: Option<u32>,
+    /// Files and folders with the read-only attribute.
+    pub read_only: BTreeSet<PathBuf>,
     /// Exes whose deletion is scheduled for the end of the process.
     pub deleted_at_exit: Vec<PathBuf>,
     /// The exe scheduled for deletion stays in its folder until the end of the process (it could not be moved).
@@ -382,6 +384,22 @@ impl SystemOps for FakeSystem {
             Ok(())
         })?;
         Ok(removal)
+    }
+
+    fn aumid_registered(&self) -> Result<bool, OpError> {
+        Ok(self.state().world.aumid)
+    }
+
+    fn wer_exclusion(&self) -> Result<Option<u32>, OpError> {
+        Ok(self.state().world.wer)
+    }
+
+    fn read_only(&self, path: &Path) -> Result<bool, OpError> {
+        let state = self.state();
+        if !state.world.exists(path) {
+            return Err(not_found());
+        }
+        Ok(state.world.read_only.contains(path))
     }
 
     fn remove_wer_exclusion(&self) -> Result<Removal, OpError> {

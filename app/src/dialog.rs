@@ -5,6 +5,21 @@ use std::path::PathBuf;
 
 use rfd::{FileDialog, MessageButtons, MessageDialog, MessageLevel};
 
+/// The report of `mcp-proxy.exe doctor` launched without redirection: where it was written.
+pub fn report(title: &str, message: &str, failed: bool) {
+    let level = if failed {
+        MessageLevel::Warning
+    } else {
+        MessageLevel::Info
+    };
+    let _ = MessageDialog::new()
+        .set_level(level)
+        .set_title(title)
+        .set_description(message)
+        .set_buttons(MessageButtons::Ok)
+        .show();
+}
+
 pub fn error(title: &str, message: &str) {
     let _ = MessageDialog::new()
         .set_level(MessageLevel::Error)

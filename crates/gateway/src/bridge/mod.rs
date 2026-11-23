@@ -13,7 +13,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-pub use self::control::{ControlRequest, STOP_TIMEOUT, StopError, request_stop, serve_control};
+pub use self::control::{ControlRequest, STOP_TIMEOUT, StopError, request_ping, request_stop, serve_control};
 pub use self::proof::{MAX_FRAME, NONCE_LEN, PROOF_TIMEOUT, PeerProof, ProofError, ProtectFailure, Role, prove};
 pub use self::relay::{RelayStats, relay};
 

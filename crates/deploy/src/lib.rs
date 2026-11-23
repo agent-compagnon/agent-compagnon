@@ -1,7 +1,8 @@
-//! Installation, uninstallation and updater. Everything that decides lives here and is tested under Linux; the
+//! Installation, uninstallation, updater, configuration of the LLM clients and self-diagnostic. Everything that decides lives here and is tested under Linux; the
 //! application only implements [`ops::SystemOps`] for Windows.
 
 pub mod clients;
+pub mod doctor;
 pub mod fake;
 pub mod install;
 pub mod ops;

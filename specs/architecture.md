@@ -42,7 +42,7 @@ Client LLM ──stdio──▶ mcp-proxy.exe stdio          (pont : aucun secre
                           │ named pipe \\.\pipe\mcp-proxy.<utilisateur>   (tokio, première instance, clients
                           │   distants rejetés ; preuve mutuelle DPAPI avant tout octet MCP ; rôle `controle` :
                           │   arrêt demandé par l'installation d'une nouvelle version ou la désinstallation,
-                          │   rien d'autre)
+                          │   `ping` sans effet de l'auto-diagnostic, rien d'autre)
                           ▼
                   mcp-proxy.exe                     (instance unique, icône de notification)
                   ├─ gateway  serveur MCP par connexion · registre d'outils · chaîne de middlewares
@@ -71,7 +71,7 @@ Répertoires à l'exécution : exe dans `%LOCALAPPDATA%\Programs\MCP Proxy\` (po
 lancement, spec 019 ; raccourci `MCP Proxy.lnk` du menu Démarrer ; démarrage automatique par la valeur `MCP Proxy`
 de `HKCU\…\CurrentVersion\Run`, `--autostart` ; entrée « Applications installées » `HKCU\…\CurrentVersion\Uninstall\MCP
 Proxy`, `--uninstall`, spec 022) ; données non secrètes dans
-`%LOCALAPPDATA%\MCP Proxy\` (`logs\`, `cache\catalog\`, `webview\`, `update\`, `settings.json`, `settings.key` : clé
+`%LOCALAPPDATA%\MCP Proxy\` (`logs\` avec les rapports `doctor-*.txt` de la spec 024, `cache\catalog\`, `webview\`, `update\`, `settings.json`, `settings.key` : clé
 du scellement des réglages et du cache, enveloppée par DPAPI, spec 014 ; `notification-icon.png`, spec 013) ; données
 WebView2 des fenêtres de l'appli (hors connexion) dans `%LOCALAPPDATA%\com.mcpproxy.app\`, posées par Tauri. Registre :
 clé AUMID `HKCU\Software\Classes\AppUserModelId\McpProxy.Desktop` (spec 013), exclusion WER (spec 011).
@@ -328,3 +328,10 @@ clé AUMID `HKCU\Software\Classes\AppUserModelId\McpProxy.Desktop` (spec 013), e
   dossier `%LOCALAPPDATA%\com.mcpproxy.app\` (données WebView2 que Tauri pose pour toute fenêtre sans dossier
   propre, constaté dans `tauri` 2.12.7). Fait sur la bibliothèque standard : sous Windows, `FileType::is_symlink`
   compte aussi les points de jonction.
+- **2026-11-23** — Spec 024 : auto-diagnostic dans `mcp_proxy_deploy::doctor` (trait `Check`, contrôles, sondes
+  derrière des traits, client réseau anonyme à part, rendu texte et structuré, fichier du rapport), assemblage dans
+  `mcp_proxy_gateway::doctor` (faits de la configuration, réglages lus sans effet, exposition, filtre), sondes Windows
+  dans `app/src/doctor.rs` ; argument `doctor` dans `gateway::launch`, avant l'instance unique. Le rôle `controle`
+  du pipe gagne `ping`, sans effet. `deploy` dépend de `futures` (contrôles menés de front). Fait sur la bibliothèque
+  standard : sous Windows, la poignée de sortie standard d'un exe fenêtré lancé sans redirection est nulle
+  (`as_raw_handle`, constaté dans les sources de `std`, non exécuté ici).

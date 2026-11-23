@@ -1,7 +1,8 @@
 //! What the main window asks for: log in to a session, disconnect it, choose the profile, resume the gateway, show
 //! the waiting confirmations (spec 016); expose an environment, cut an MCP, acknowledge the update of an MCP, reload
-//! its list (spec 017); export a diagnostic to the path the user chose in the save dialog (spec 018). The application only passes the arguments of its commands on; every check and every effect
-//! is here.
+//! its list (spec 017); export a diagnostic to the path the user chose in the save dialog (spec 018), with the
+//! self-diagnostic report (spec 024). The application only passes the arguments of its commands on; every check and
+//! every effect is here.
 //!
 //! The arguments come from the page: they are checked against the configuration and never echoed back. No command
 //! answers a confirmation: the detail window of spec 013 stays the only place where one is approved.
@@ -60,6 +61,9 @@ pub enum InterfaceError {
     /// `DiagnosticError`, already French and without content (« export de diagnostic impossible : … »).
     #[error("{0}")]
     Export(String),
+    /// The self-diagnostic could not give a report (spec 024): French, without content.
+    #[error("{0}")]
+    Doctor(String),
 }
 
 /// How « Exporter un diagnostic » ended, as the window shows it. Serialized `{ "status": "saved", "path": … }` or
@@ -315,9 +319,15 @@ impl Gateway {
     }
 
     /// « Exporter un diagnostic », once the user chose `chosen` in the save dialog: the archive of spec 009 (logs
-    /// filtered again, settings, state of the instances, last self-diagnostic report), written there. The journal
-    /// records the export, not its path. Runs off the async threads: the export reads and compresses the logs.
-    pub async fn export_diagnostic(&self, chosen: &Path) -> Result<PathBuf, InterfaceError> {
+    /// filtered again, settings, state of the instances, self-diagnostic report), written there. `doctor_report`:
+    /// the report of a diagnosis run for this export (spec 024), already filtered; `None`, the last `doctor-*.txt` of
+    /// the log folder. The journal records the export, not its path. Runs off the async threads: the export reads
+    /// and compresses the logs.
+    pub async fn export_diagnostic(
+        &self,
+        chosen: &Path,
+        doctor_report: Option<String>,
+    ) -> Result<PathBuf, InterfaceError> {
         let diagnostics = Diagnostics {
             version: env!("CARGO_PKG_VERSION").to_owned(),
             system: self.system().to_owned(),
@@ -330,7 +340,7 @@ impl Gateway {
         let state = DiagnosticState {
             settings: self.settings(),
             instances: instance_lines(self.watcher().tracker()),
-            doctor_report: None,
+            doctor_report,
         };
         let path = archive_path(chosen);
         let written = tokio::task::spawn_blocking(move || diagnostics.export(&path, &state))

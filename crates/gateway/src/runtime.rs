@@ -30,7 +30,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{RwLock, broadcast, watch};
 use tokio::task::JoinHandle;
 
-use crate::bridge::{PeerProof, ProofError, Role, prove, serve_control};
+use crate::bridge::{ControlRequest, PeerProof, ProofError, Role, prove, serve_control};
 use crate::journal::follow_tool_changes;
 use crate::journal_view::{JournalFeed, JournalView, filtered_json};
 use crate::modules;
@@ -179,7 +179,8 @@ pub struct Gateway {
     self_update: SelfUpdateState,
     utc_offset: i32,
     clock: Arc<dyn WallClock>,
-    log_dir: PathBuf,
+    /// The data folders: the logs, and the settings the self-diagnostic reads without effect.
+    dirs: DataDirs,
     system: String,
     _tasks: Vec<AbortOnDrop>,
     _log_guard: LogGuard,
@@ -344,7 +345,7 @@ impl Gateway {
             self_update,
             utc_offset: deps.utc_offset,
             clock: deps.clock,
-            log_dir: deps.dirs.logs,
+            dirs: deps.dirs,
             system: deps.system,
             _tasks: vec![AbortOnDrop(tool_changes), AbortOnDrop(forwarder)],
             _log_guard: log_guard,
@@ -364,7 +365,11 @@ impl Gateway {
     }
 
     pub(crate) fn log_dir(&self) -> &Path {
-        &self.log_dir
+        &self.dirs.logs
+    }
+
+    pub(crate) fn dirs(&self) -> &DataDirs {
+        &self.dirs
     }
 
     pub(crate) fn system(&self) -> &str {
@@ -442,12 +447,19 @@ impl Gateway {
                     );
                     self.exit_requested.send_replace(true);
                 };
-                if let Err(error) = serve_control(&mut stream, stop).await {
-                    tracing::warn!(%error, "demande de contrôle refusée");
-                    return Err(error);
+                let version = mcp_proxy_deploy::version::own_version().to_string();
+                match serve_control(&mut stream, &version, stop).await {
+                    // The self-diagnostic only asked whether the application answers: nothing else happens.
+                    Ok(ControlRequest::Ping) => Ok(()),
+                    Ok(ControlRequest::Stop) => {
+                        std::future::pending::<()>().await;
+                        Ok(())
+                    }
+                    Err(error) => {
+                        tracing::warn!(%error, "demande de contrôle refusée");
+                        Err(error)
+                    }
                 }
-                std::future::pending::<()>().await;
-                Ok(())
             }
             Ok(_) => {
                 tracing::info!("client connecté au canal");

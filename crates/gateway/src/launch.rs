@@ -1,4 +1,4 @@
-//! The launch modes of `mcp-proxy.exe` (specs 011, 019 and 022).
+//! The launch modes of `mcp-proxy.exe` (specs 011, 019, 022 and 024).
 
 use std::ffi::OsString;
 
@@ -21,16 +21,31 @@ pub enum LaunchMode {
     Stdio,
     /// `--uninstall`, from « Applications installées »: the uninstallation window, nothing else.
     Uninstall,
+    /// `doctor`: the self-diagnostic (spec 024), a process of its own that neither hands over to the running
+    /// instance nor shows its window.
+    Doctor,
 }
+
+/// The command of the self-diagnostic.
+pub const DOCTOR_ARG: &str = "doctor";
 
 /// Why the command line was refused. French, shown to whoever launched the exe.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum LaunchError {
-    #[error("argument inconnu : « {0} ». Utilisation : mcp-proxy.exe (appli) ou mcp-proxy.exe stdio (pont).")]
+    #[error(
+        "argument inconnu : « {0} ». Utilisation : mcp-proxy.exe (appli), mcp-proxy.exe stdio (pont) ou mcp-proxy.exe \
+         doctor (auto-diagnostic)."
+    )]
     Unknown(String),
-    #[error("argument illisible (caractères non Unicode). Utilisation : mcp-proxy.exe ou mcp-proxy.exe stdio.")]
+    #[error(
+        "argument illisible (caractères non Unicode). Utilisation : mcp-proxy.exe, mcp-proxy.exe stdio ou \
+         mcp-proxy.exe doctor."
+    )]
     NotUnicode,
-    #[error("trop d'arguments. Utilisation : mcp-proxy.exe (appli) ou mcp-proxy.exe stdio (pont).")]
+    #[error(
+        "trop d'arguments. Utilisation : mcp-proxy.exe (appli), mcp-proxy.exe stdio (pont) ou mcp-proxy.exe doctor \
+         (auto-diagnostic)."
+    )]
     TooMany,
 }
 
@@ -38,7 +53,7 @@ pub enum LaunchError {
 const QUOTED_MAX: usize = 64;
 
 /// Reads the arguments that follow the program name. Exact and case-sensitive: anything else is refused rather than
-/// guessed, and the other internal commands of step 7 (`doctor`) are not known yet.
+/// guessed.
 pub fn parse_launch<I>(args: I) -> Result<LaunchMode, LaunchError>
 where
     I: IntoIterator<Item = OsString>,
@@ -56,6 +71,7 @@ where
         AUTOSTART_ARG => Ok(LaunchMode::Autostart),
         NO_INSTALL_ARG => Ok(LaunchMode::InPlace),
         UNINSTALL_ARG => Ok(LaunchMode::Uninstall),
+        DOCTOR_ARG => Ok(LaunchMode::Doctor),
         other => Err(LaunchError::Unknown(other.chars().take(QUOTED_MAX).collect())),
     }
 }
@@ -75,7 +91,6 @@ mod tests {
         assert_eq!(parse(&["stdio"]), Ok(LaunchMode::Stdio));
         assert_eq!(parse(&["STDIO"]), Err(LaunchError::Unknown("STDIO".to_owned())));
         assert_eq!(parse(&["--stdio"]), Err(LaunchError::Unknown("--stdio".to_owned())));
-        assert_eq!(parse(&["doctor"]), Err(LaunchError::Unknown("doctor".to_owned())));
         assert_eq!(parse(&["stdio", "x"]), Err(LaunchError::TooMany));
         assert_eq!(parse(&[""]), Err(LaunchError::Unknown(String::new())));
         let long = "x".repeat(500);
@@ -115,6 +130,17 @@ mod tests {
         assert_eq!(parse(&["--uninstall", "--yes"]), Err(LaunchError::TooMany));
         assert_eq!(parse(&["stdio", "--uninstall"]), Err(LaunchError::TooMany));
         assert_eq!(UNINSTALL_ARG, "--uninstall");
+    }
+
+    // Exigence : EX-011-03
+    #[test]
+    fn the_command_of_the_self_diagnostic() {
+        assert_eq!(parse(&["doctor"]), Ok(LaunchMode::Doctor));
+        assert_eq!(parse(&["DOCTOR"]), Err(LaunchError::Unknown("DOCTOR".to_owned())));
+        assert_eq!(parse(&["--doctor"]), Err(LaunchError::Unknown("--doctor".to_owned())));
+        assert_eq!(parse(&["doctor", "--fix"]), Err(LaunchError::TooMany));
+        assert_eq!(parse(&["stdio", "doctor"]), Err(LaunchError::TooMany));
+        assert!(LaunchError::TooMany.to_string().contains("mcp-proxy.exe doctor"));
     }
 
     // Exigence : EX-011-03

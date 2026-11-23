@@ -172,7 +172,8 @@ pub fn run(start: AppStart) -> ExitCode {
             interface::restart_for_update,
             interface::get_llm_clients,
             interface::preview_llm_client,
-            interface::apply_llm_client
+            interface::apply_llm_client,
+            interface::run_doctor
         ])
         .setup(move |app| {
             // Tauri panics on a setup error: a failure here is explained, then the application exits.
@@ -238,6 +239,8 @@ pub fn run(start: AppStart) -> ExitCode {
         std::env::var_os("APPDATA").map(PathBuf::from),
         std::env::var_os("LOCALAPPDATA").map(PathBuf::from),
     )));
+    // « Auto-diagnostic » and the diagnostic export (spec 024): the probes of `mcp-proxy.exe doctor`.
+    app.manage(Arc::new(crate::doctor::probes()));
 
     let code = app.run_return(move |app, event| match event {
         // Closing the window hides it; only « Quitter » (explicit code) stops the application.

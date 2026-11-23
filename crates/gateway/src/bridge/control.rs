@@ -1,10 +1,11 @@
 //! The control channel of the pipe (spec 019): after the mutual proof, a client proved in the control role may ask
-//! the application to stop, and nothing else. The installation of a new version uses it before replacing the
-//! installed exe. A bridge proves itself in the bridge role and only ever relays MCP: no byte an LLM client sends
-//! reaches this channel.
+//! the application to stop, or ask whether it answers (`ping`, spec 024), and nothing else. The installation of a
+//! new version and the uninstallation ask for the stop; the self-diagnostic asks the ping, which has no effect at
+//! all: nothing is called, journaled or shown, and the connection closes after the answer. A bridge proves itself in
+//! the bridge role and only ever relays MCP: no byte an LLM client sends reaches this channel.
 //!
-//! The client sends one request frame, the application answers one frame, then keeps the connection open until its
-//! process ends. The client therefore learns that the application is gone when the pipe closes, within
+//! The client sends one request frame, the application answers one frame. After a stop, it keeps the connection open
+//! until its process ends: the client therefore learns that the application is gone when the pipe closes, within
 //! [`STOP_TIMEOUT`].
 
 use std::sync::Arc;
@@ -17,6 +18,11 @@ use super::proof::{PROOF_TIMEOUT, PeerProof, ProofError, Role, prove, read_frame
 
 const STOP_REQUEST: &[u8] = b"mcp-proxy.control.v1\0stop";
 const STOP_ACK: &[u8] = b"mcp-proxy.control.v1\0ok";
+const PING_REQUEST: &[u8] = b"mcp-proxy.control.v1\0ping";
+/// Followed by the version of the running application.
+const PONG_PREFIX: &[u8] = b"mcp-proxy.control.v1\0pong\0";
+/// Longest version accepted in an answer.
+const VERSION_MAX: usize = 64;
 /// From the acknowledgement to the end of the application's process: it refuses its confirmations, flushes its
 /// journal and closes its windows.
 pub const STOP_TIMEOUT: Duration = Duration::from_secs(20);
@@ -70,22 +76,55 @@ async fn wait_closed<P: AsyncRead + Unpin>(pipe: &mut P) -> Result<(), StopError
     gone.map_err(|_| StopError::StillRunning)
 }
 
+/// The self-diagnostic's side (spec 024): proves itself as [`Role::Control`] and asks whether the application
+/// answers. `Some(version)`: it answered with its version; `None`: it proved itself, then closed the channel, as a
+/// version older than the self-diagnostic does. The application stops nothing and shows nothing.
+pub async fn request_ping<P>(proof: Arc<dyn PeerProof>, mut pipe: P) -> Result<Option<String>, ProofError>
+where
+    P: AsyncRead + AsyncWrite + Unpin,
+{
+    prove(proof, Role::Control, &mut pipe).await?;
+    let answer = tokio::time::timeout(PROOF_TIMEOUT, async {
+        write_frame(&mut pipe, PING_REQUEST).await?;
+        read_frame(&mut pipe).await
+    })
+    .await
+    .map_err(|_| ProofError::Timeout)?;
+    let Ok(answer) = answer else { return Ok(None) };
+    let version = answer
+        .strip_prefix(PONG_PREFIX)
+        .filter(|v| !v.is_empty() && v.len() <= VERSION_MAX && v.iter().all(|b| b.is_ascii_graphic()))
+        .and_then(|v| std::str::from_utf8(v).ok())
+        .map(str::to_owned);
+    version.map(Some).ok_or(ProofError::Malformed)
+}
+
 /// What a proved control client asked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ControlRequest {
     Stop,
+    /// Answered with `version`; nothing else happens.
+    Ping,
 }
 
 /// The application's side, once the client proved the control role: reads the request (bounded by
-/// [`PROOF_TIMEOUT`]), calls `on_stop`, then acknowledges. Anything else than the stop request closes the
-/// connection, `on_stop` not called.
-pub async fn serve_control<S>(stream: &mut S, on_stop: impl FnOnce()) -> Result<ControlRequest, ProofError>
+/// [`PROOF_TIMEOUT`]). A stop calls `on_stop`, then acknowledges; a ping answers `version` and nothing else.
+/// Anything else closes the connection, `on_stop` not called.
+pub async fn serve_control<S>(
+    stream: &mut S,
+    version: &str,
+    on_stop: impl FnOnce(),
+) -> Result<ControlRequest, ProofError>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     let request = tokio::time::timeout(PROOF_TIMEOUT, read_frame(stream))
         .await
         .map_err(|_| ProofError::Timeout)??;
+    if request == PING_REQUEST {
+        write_frame(stream, &[PONG_PREFIX, version.as_bytes()].concat()).await?;
+        return Ok(ControlRequest::Ping);
+    }
     if request != STOP_REQUEST {
         return Err(ProofError::Malformed);
     }

@@ -44,7 +44,7 @@ pub fn start(mode: LaunchMode) -> ExitCode {
         LaunchMode::Autostart => Start::Autostart,
         LaunchMode::InPlace => Start::InPlace,
         // Dispatched before (`lib.rs`); never offers anything here.
-        LaunchMode::Stdio | LaunchMode::Uninstall => Start::Bridge,
+        LaunchMode::Stdio | LaunchMode::Uninstall | LaunchMode::Doctor => Start::Bridge,
     };
     let hidden = start == Start::Autostart;
     let (Some(paths), Ok(here)) = (install_paths(), std::env::current_exe()) else {

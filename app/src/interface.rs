@@ -1,4 +1,4 @@
-//! Commands of the main window (specs 016 to 018, 020, 023), each declared in `build.rs` and granted to the window `main` alone by
+//! Commands of the main window (specs 016 to 018, 020, 023, 024), each declared in `build.rs` and granted to the window `main` alone by
 //! `capabilities/main.json`. Wiring only: the checks and the effects live in `mcp_proxy_gateway::interface`. An
 //! error is a French text without any secret, shown by the window.
 
@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use mcp_proxy_gateway::clients_view::{ApplyOutcome, ClientsAccess, ClientsView, PreviewView};
 use mcp_proxy_gateway::control::GatewayControl;
+use mcp_proxy_gateway::doctor::{DoctorProbes, Save};
 use mcp_proxy_gateway::interface::{ExportOutcome, default_export_dir};
 use mcp_proxy_gateway::runtime::Gateway;
 use tauri::{Manager, WebviewWindow};
@@ -135,7 +136,15 @@ pub async fn export_diagnostic(window: WebviewWindow) -> Result<ExportOutcome, S
     let Some(chosen) = chosen else {
         return Ok(ExportOutcome::Cancelled);
     };
-    let path = gateway.export_diagnostic(&chosen).await.map_err(|e| e.to_string())?;
+    // A report of now, not a file of another day (spec 024); none if the diagnosis cannot run.
+    let report = match doctor_probes(&window) {
+        Some(probes) => gateway.diagnose(&probes, Save::No).await.map(|p| p.text),
+        None => None,
+    };
+    let path = gateway
+        .export_diagnostic(&chosen, report)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(ExportOutcome::Saved {
         path: path.display().to_string(),
     })
@@ -202,4 +211,20 @@ pub async fn apply_llm_client(
         .apply_llm_client(&access, id, action, fingerprint)
         .await
         .map_err(|e| e.to_string())
+}
+
+fn doctor_probes(window: &WebviewWindow) -> Option<Arc<DoctorProbes>> {
+    window
+        .app_handle()
+        .try_state::<Arc<DoctorProbes>>()
+        .map(|p| Arc::clone(p.inner()))
+}
+
+/// « Auto-diagnostic » (spec 024): every check, from inside the application; the report is also written to a new
+/// file of the log folder. Reads only: nothing is repaired.
+#[tauri::command]
+pub async fn run_doctor(window: WebviewWindow) -> Result<serde_json::Value, String> {
+    let gateway = gateway_for(&window)?;
+    let probes = doctor_probes(&window).ok_or_else(|| "auto-diagnostic indisponible".to_owned())?;
+    gateway.doctor_view(&probes).await.map_err(|e| e.to_string())
 }

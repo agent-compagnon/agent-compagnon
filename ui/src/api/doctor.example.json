@@ -1,0 +1,635 @@
+{
+  "failures": {
+    "at": "2026-11-23T10:00:00.000Z",
+    "checks": [
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "configuration chargée et valide (8 environnements, 5 MCP)",
+            "status": "ok"
+          }
+        ],
+        "id": "config",
+        "name": "Config",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": "Installez ou mettez à jour le « Microsoft Edge WebView2 Runtime » (programme d'installation « Evergreen » de Microsoft, sans droits d'administrateur), puis relancez MCP Proxy.",
+            "message": "runtime WebView2 absent : MCP Proxy ne peut ouvrir aucune fenêtre",
+            "status": "failure"
+          }
+        ],
+        "id": "webview",
+        "name": "WebView2",
+        "status": "failure"
+      },
+      {
+        "findings": [
+          {
+            "fix": "Désinstallez MCP Proxy depuis les paramètres de Windows (« Applications installées »), puis lancez l'exe téléchargé et choisissez « Installer ».",
+            "message": "version de l'exe installé illisible : l'installation est abîmée et ne sera jamais mise à jour",
+            "status": "failure"
+          }
+        ],
+        "id": "installation",
+        "name": "Installation",
+        "status": "failure"
+      },
+      {
+        "findings": [
+          {
+            "fix": "Redémarrez Windows. Joignez ce rapport à votre demande au support.",
+            "message": "état des notifications illisible : Windows ne dit pas si elles s'affichent ; les confirmations s'ouvrent dans une fenêtre au premier plan à la place",
+            "status": "failure"
+          }
+        ],
+        "id": "notifications",
+        "name": "Notifications",
+        "status": "failure"
+      },
+      {
+        "findings": [
+          {
+            "fix": "Redémarrez Windows ; si l'échec reste, un autre programme occupe le canal : signalez-le au support.",
+            "message": "le canal de MCP Proxy est tenu par un programme qui n'est pas MCP Proxy de cet utilisateur",
+            "status": "failure"
+          }
+        ],
+        "id": "app",
+        "name": "Appli",
+        "status": "failure"
+      },
+      {
+        "findings": [
+          {
+            "fix": "Ouvrez la fenêtre de MCP Proxy et choisissez un profil. Si cela se reproduit sans raison, un programme modifie le fichier des réglages : signalez-le au support.",
+            "message": "fichier des réglages refusé (sceau invalide : fichier modifié hors de MCP Proxy, ou scellé par une autre clé) : les réglages en cours s'appliquent jusqu'à l'arrêt, puis les plus stricts au prochain démarrage",
+            "status": "failure"
+          }
+        ],
+        "id": "settings",
+        "name": "Réglages",
+        "status": "failure"
+      },
+      {
+        "findings": [
+          {
+            "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
+            "message": "Artifactory (artifactory.corp.internal) injoignable : nom introuvable (résolution DNS en échec)",
+            "status": "failure"
+          }
+        ],
+        "id": "artifactory",
+        "name": "Artifactory",
+        "status": "failure"
+      },
+      {
+        "findings": [
+          {
+            "fix": "Cet exe ne doit pas être utilisé : installez une version publiée par le pipeline de release.",
+            "message": "cet exe embarque la clé de développement, dont la clé privée est publique : il refuse toute mise à jour",
+            "status": "failure"
+          }
+        ],
+        "id": "updateKey",
+        "name": "Clé de mise à jour",
+        "status": "failure"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "Claude Desktop : non installé",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Claude Desktop (paquet MSIX) : non installé",
+            "status": "ok"
+          },
+          {
+            "fix": "Corrigez le fichier %APPDATA%\\Code\\User\\mcp.json (il est peut-être en cours d'écriture par le client), ou copiez l'entrée depuis « Clients LLM… ».",
+            "message": "VS Code : fichier de configuration illisible (JSON invalide à la ligne 1)",
+            "status": "failure"
+          }
+        ],
+        "id": "clients",
+        "name": "Clients LLM",
+        "status": "failure"
+      },
+      {
+        "findings": [
+          {
+            "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
+            "message": "Kibana Logs en DEV (kibana-mcp.dev.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "status": "failure"
+          },
+          {
+            "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
+            "message": "Kibana Logs en INT (kibana-mcp.int.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "status": "failure"
+          },
+          {
+            "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
+            "message": "Kibana Logs en REC (kibana-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "status": "failure"
+          },
+          {
+            "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
+            "message": "GitLab Ops en DEV (gitlab-mcp.dev.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "status": "failure"
+          },
+          {
+            "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
+            "message": "GitLab Ops en REC (gitlab-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "status": "failure"
+          },
+          {
+            "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
+            "message": "Kubernetes Admin en DEV (k8s-mcp.dev.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "status": "failure"
+          },
+          {
+            "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
+            "message": "Kubernetes Admin en INT (k8s-mcp.int.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "status": "failure"
+          },
+          {
+            "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
+            "message": "Kubernetes Admin en REC (k8s-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "status": "failure"
+          },
+          {
+            "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
+            "message": "Base de données (lecture) en INT (db-mcp.int.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "status": "failure"
+          },
+          {
+            "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
+            "message": "Base de données (lecture) en REC (db-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "status": "failure"
+          },
+          {
+            "fix": "Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.",
+            "message": "Jira en REC (jira.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)",
+            "status": "failure"
+          }
+        ],
+        "id": "mcp",
+        "name": "MCP",
+        "status": "failure"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "écart non mesuré : aucun serveur n'a donné son heure (aucun serveur contacté ou joignable)",
+            "status": "ok"
+          }
+        ],
+        "id": "clock",
+        "name": "Horloge",
+        "status": "ok"
+      }
+    ],
+    "failures": 9,
+    "file": "%LOCALAPPDATA%\\MCP Proxy\\logs\\doctor-20261123-100000.txt",
+    "fileError": null,
+    "status": "failure",
+    "summary": "9 échecs",
+    "text": "MCP Proxy — auto-diagnostic\nVersion 0.1.0, 2026-11-23T10:00:00.000Z (UTC), lancé depuis la fenêtre de MCP Proxy.\nRésultat : 9 échecs.\n\n[ok] Config\n  - configuration chargée et valide (8 environnements, 5 MCP)\n\n[échec] WebView2\n  × runtime WebView2 absent : MCP Proxy ne peut ouvrir aucune fenêtre\n    À faire : Installez ou mettez à jour le « Microsoft Edge WebView2 Runtime » (programme d'installation « Evergreen » de Microsoft, sans droits d'administrateur), puis relancez MCP Proxy.\n\n[échec] Installation\n  × version de l'exe installé illisible : l'installation est abîmée et ne sera jamais mise à jour\n    À faire : Désinstallez MCP Proxy depuis les paramètres de Windows (« Applications installées »), puis lancez l'exe téléchargé et choisissez « Installer ».\n\n[échec] Notifications\n  × état des notifications illisible : Windows ne dit pas si elles s'affichent ; les confirmations s'ouvrent dans une fenêtre au premier plan à la place\n    À faire : Redémarrez Windows. Joignez ce rapport à votre demande au support.\n\n[échec] Appli\n  × le canal de MCP Proxy est tenu par un programme qui n'est pas MCP Proxy de cet utilisateur\n    À faire : Redémarrez Windows ; si l'échec reste, un autre programme occupe le canal : signalez-le au support.\n\n[échec] Réglages\n  × fichier des réglages refusé (sceau invalide : fichier modifié hors de MCP Proxy, ou scellé par une autre clé) : les réglages en cours s'appliquent jusqu'à l'arrêt, puis les plus stricts au prochain démarrage\n    À faire : Ouvrez la fenêtre de MCP Proxy et choisissez un profil. Si cela se reproduit sans raison, un programme modifie le fichier des réglages : signalez-le au support.\n\n[échec] Artifactory\n  × Artifactory (artifactory.corp.internal) injoignable : nom introuvable (résolution DNS en échec)\n    À faire : Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.\n\n[échec] Clé de mise à jour\n  × cet exe embarque la clé de développement, dont la clé privée est publique : il refuse toute mise à jour\n    À faire : Cet exe ne doit pas être utilisé : installez une version publiée par le pipeline de release.\n\n[échec] Clients LLM\n  - Claude Desktop : non installé\n  - Claude Desktop (paquet MSIX) : non installé\n  × VS Code : fichier de configuration illisible (JSON invalide à la ligne 1)\n    À faire : Corrigez le fichier %APPDATA%\\Code\\User\\mcp.json (il est peut-être en cours d'écriture par le client), ou copiez l'entrée depuis « Clients LLM… ».\n\n[échec] MCP\n  × Kibana Logs en DEV (kibana-mcp.dev.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n    À faire : Vérifiez la connexion au réseau de l'entreprise (VPN) : le nom du serveur n'est connu que sur ce réseau.\n  × Kibana Logs en INT (kibana-mcp.int.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Kibana Logs en REC (kibana-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × GitLab Ops en DEV (gitlab-mcp.dev.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × GitLab Ops en REC (gitlab-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Kubernetes Admin en DEV (k8s-mcp.dev.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Kubernetes Admin en INT (k8s-mcp.int.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Kubernetes Admin en REC (k8s-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Base de données (lecture) en INT (db-mcp.int.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Base de données (lecture) en REC (db-mcp.rec.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n  × Jira en REC (jira.corp.internal) : injoignable, nom introuvable (résolution DNS en échec)\n\n[ok] Horloge\n  - écart non mesuré : aucun serveur n'a donné son heure (aucun serveur contacté ou joignable)\n\nRapport enregistré dans %LOCALAPPDATA%\\MCP Proxy\\logs\\doctor-20261123-100000.txt\n",
+    "version": "0.1.0",
+    "viewpoint": "app",
+    "warnings": 0
+  },
+  "ok": {
+    "at": "2026-11-23T10:00:00.000Z",
+    "checks": [
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "configuration chargée et valide (8 environnements, 5 MCP)",
+            "status": "ok"
+          }
+        ],
+        "id": "config",
+        "name": "Config",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "runtime présent (version 131.0.2903.70), suffisant pour les connexions sans trace (InPrivate)",
+            "status": "ok"
+          }
+        ],
+        "id": "webview",
+        "name": "WebView2",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "exe installé en version 0.1.0, lancé depuis l'installation, dossier sans lecture seule, raccourci du menu Démarrer, identité des notifications (AUMID), exclusion des rapports d'erreur Windows, démarrage avec Windows activé, entrée « Applications installées » en version 0.1.0",
+            "status": "ok"
+          }
+        ],
+        "id": "installation",
+        "name": "Installation",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "notifications activées pour MCP Proxy",
+            "status": "ok"
+          }
+        ],
+        "id": "notifications",
+        "name": "Notifications",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "cette instance en version 0.1.0, canal des clients LLM joignable",
+            "status": "ok"
+          }
+        ],
+        "id": "app",
+        "name": "Appli",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "sceau des réglages valide ; profil « Développeur », environnements exposés : DEV, INT, REC",
+            "status": "ok"
+          }
+        ],
+        "id": "settings",
+        "name": "Réglages",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "Artifactory (artifactory.corp.internal) joignable ; à jour (dernière version publiée : 0.1.0, canal stable)",
+            "status": "ok"
+          }
+        ],
+        "id": "artifactory",
+        "name": "Artifactory",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "une clé de mise à jour embarquée, qui n'est pas la clé de développement",
+            "status": "ok"
+          }
+        ],
+        "id": "updateKey",
+        "name": "Clé de mise à jour",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "Claude Desktop : configuré",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Claude Desktop (paquet MSIX) : non installé",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "VS Code : non installé",
+            "status": "ok"
+          }
+        ],
+        "id": "clients",
+        "name": "Clients LLM",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "Kibana Logs en DEV (kibana-mcp.dev.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Kibana Logs en INT (kibana-mcp.int.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Kibana Logs en REC (kibana-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "GitLab Ops en DEV (gitlab-mcp.dev.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "GitLab Ops en REC (gitlab-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Kubernetes Admin en DEV (k8s-mcp.dev.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Kubernetes Admin en INT (k8s-mcp.int.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Kubernetes Admin en REC (k8s-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Base de données (lecture) en INT (db-mcp.int.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Base de données (lecture) en REC (db-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Jira en REC (jira.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          }
+        ],
+        "id": "mcp",
+        "name": "MCP",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "à l'heure des serveurs (écart de 0 s au plus)",
+            "status": "ok"
+          }
+        ],
+        "id": "clock",
+        "name": "Horloge",
+        "status": "ok"
+      }
+    ],
+    "failures": 0,
+    "file": "%LOCALAPPDATA%\\MCP Proxy\\logs\\doctor-20261123-100000.txt",
+    "fileError": null,
+    "status": "ok",
+    "summary": "tout va bien",
+    "text": "MCP Proxy — auto-diagnostic\nVersion 0.1.0, 2026-11-23T10:00:00.000Z (UTC), lancé depuis la fenêtre de MCP Proxy.\nRésultat : tout va bien.\n\n[ok] Config\n  - configuration chargée et valide (8 environnements, 5 MCP)\n\n[ok] WebView2\n  - runtime présent (version 131.0.2903.70), suffisant pour les connexions sans trace (InPrivate)\n\n[ok] Installation\n  - exe installé en version 0.1.0, lancé depuis l'installation, dossier sans lecture seule, raccourci du menu Démarrer, identité des notifications (AUMID), exclusion des rapports d'erreur Windows, démarrage avec Windows activé, entrée « Applications installées » en version 0.1.0\n\n[ok] Notifications\n  - notifications activées pour MCP Proxy\n\n[ok] Appli\n  - cette instance en version 0.1.0, canal des clients LLM joignable\n\n[ok] Réglages\n  - sceau des réglages valide ; profil « Développeur », environnements exposés : DEV, INT, REC\n\n[ok] Artifactory\n  - Artifactory (artifactory.corp.internal) joignable ; à jour (dernière version publiée : 0.1.0, canal stable)\n\n[ok] Clé de mise à jour\n  - une clé de mise à jour embarquée, qui n'est pas la clé de développement\n\n[ok] Clients LLM\n  - Claude Desktop : configuré\n  - Claude Desktop (paquet MSIX) : non installé\n  - VS Code : non installé\n\n[ok] MCP\n  - Kibana Logs en DEV (kibana-mcp.dev.corp.internal) : nom résolu, connexion sécurisée établie\n  - Kibana Logs en INT (kibana-mcp.int.corp.internal) : nom résolu, connexion sécurisée établie\n  - Kibana Logs en REC (kibana-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie\n  - GitLab Ops en DEV (gitlab-mcp.dev.corp.internal) : nom résolu, connexion sécurisée établie\n  - GitLab Ops en REC (gitlab-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie\n  - Kubernetes Admin en DEV (k8s-mcp.dev.corp.internal) : nom résolu, connexion sécurisée établie\n  - Kubernetes Admin en INT (k8s-mcp.int.corp.internal) : nom résolu, connexion sécurisée établie\n  - Kubernetes Admin en REC (k8s-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie\n  - Base de données (lecture) en INT (db-mcp.int.corp.internal) : nom résolu, connexion sécurisée établie\n  - Base de données (lecture) en REC (db-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie\n  - Jira en REC (jira.corp.internal) : nom résolu, connexion sécurisée établie\n\n[ok] Horloge\n  - à l'heure des serveurs (écart de 0 s au plus)\n\nRapport enregistré dans %LOCALAPPDATA%\\MCP Proxy\\logs\\doctor-20261123-100000.txt\n",
+    "version": "0.1.0",
+    "viewpoint": "app",
+    "warnings": 0
+  },
+  "warnings": {
+    "at": "2026-11-23T10:00:00.000Z",
+    "checks": [
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "configuration chargée et valide (8 environnements, 5 MCP)",
+            "status": "ok"
+          }
+        ],
+        "id": "config",
+        "name": "Config",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "runtime présent (version 131.0.2903.70), suffisant pour les connexions sans trace (InPrivate)",
+            "status": "ok"
+          }
+        ],
+        "id": "webview",
+        "name": "WebView2",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "exe installé en version 0.1.0, lancé depuis l'installation, dossier sans lecture seule, raccourci du menu Démarrer, identité des notifications (AUMID), exclusion des rapports d'erreur Windows, entrée « Applications installées » en version 0.1.0",
+            "status": "ok"
+          },
+          {
+            "fix": "Fermez les clients LLM (Claude Desktop, VS Code), puis quittez et relancez MCP Proxy : l'exe installé le supprime à son démarrage.",
+            "message": "reste d'une mise à jour dans le dossier d'installation : mcp-proxy.exe.old",
+            "status": "warning"
+          },
+          {
+            "fix": "Dans le menu de l'icône de MCP Proxy, décochez puis recochez « Démarrer avec Windows ».",
+            "message": "la valeur « MCP Proxy » du démarrage de Windows lance un autre programme que l'exe installé",
+            "status": "warning"
+          }
+        ],
+        "id": "installation",
+        "name": "Installation",
+        "status": "warning"
+      },
+      {
+        "findings": [
+          {
+            "fix": "Paramètres de Windows, « Système », « Notifications » : activez les notifications, puis celles de « MCP Proxy » dans la liste des applications.",
+            "message": "notifications désactivées pour MCP Proxy ; les confirmations s'ouvrent dans une fenêtre au premier plan à la place",
+            "status": "warning"
+          }
+        ],
+        "id": "notifications",
+        "name": "Notifications",
+        "status": "warning"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "cette instance en version 0.1.0, canal des clients LLM joignable",
+            "status": "ok"
+          }
+        ],
+        "id": "app",
+        "name": "Appli",
+        "status": "ok"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "sceau des réglages valide ; profil « Développeur », environnements exposés : DEV, INT, REC",
+            "status": "ok"
+          },
+          {
+            "fix": "Menu de l'icône de MCP Proxy, « Reprendre », ou le bandeau de la fenêtre.",
+            "message": "passerelle suspendue : tous les appels des clients LLM sont refusés",
+            "status": "warning"
+          }
+        ],
+        "id": "settings",
+        "name": "Réglages",
+        "status": "warning"
+      },
+      {
+        "findings": [
+          {
+            "fix": "Téléchargez la dernière version publiée et lancez-la : elle propose de mettre à jour l'installation.",
+            "message": "Artifactory (artifactory.corp.internal) joignable ; la version 0.2.0 est disponible (version en place : 0.1.0), mais cet exe ne se met pas à jour seul",
+            "status": "warning"
+          }
+        ],
+        "id": "artifactory",
+        "name": "Artifactory",
+        "status": "warning"
+      },
+      {
+        "findings": [
+          {
+            "fix": "Installez une version publiée par le pipeline de release ; en attendant, mettez à jour à la main.",
+            "message": "aucune clé de mise à jour embarquée : cet exe ne se met jamais à jour (construction hors du pipeline de release)",
+            "status": "warning"
+          }
+        ],
+        "id": "updateKey",
+        "name": "Clé de mise à jour",
+        "status": "warning"
+      },
+      {
+        "findings": [
+          {
+            "fix": "Fenêtre de MCP Proxy, menu en haut à droite, « Clients LLM… » : « Installer » pour ce client.",
+            "message": "Claude Desktop : configuré avec un autre exe que l'exe installé",
+            "status": "warning"
+          },
+          {
+            "fix": null,
+            "message": "Claude Desktop (paquet MSIX) : non installé",
+            "status": "ok"
+          },
+          {
+            "fix": "Fenêtre de MCP Proxy, menu en haut à droite, « Clients LLM… » : « Installer » pour ce client.",
+            "message": "VS Code : installé, non configuré",
+            "status": "warning"
+          }
+        ],
+        "id": "clients",
+        "name": "Clients LLM",
+        "status": "warning"
+      },
+      {
+        "findings": [
+          {
+            "fix": null,
+            "message": "Kibana Logs en DEV (kibana-mcp.dev.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Kibana Logs en INT (kibana-mcp.int.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Kibana Logs en REC (kibana-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": "Réessayez dans quelques minutes ; si l'erreur reste, signalez-la au support du serveur MCP.",
+            "message": "GitLab Ops en DEV (gitlab-mcp.dev.corp.internal) : joignable, mais répond HTTP 503 (serveur en erreur, ou proxy qui ne le joint pas)",
+            "status": "warning"
+          },
+          {
+            "fix": null,
+            "message": "GitLab Ops en REC (gitlab-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Kubernetes Admin en DEV (k8s-mcp.dev.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Kubernetes Admin en INT (k8s-mcp.int.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Kubernetes Admin en REC (k8s-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Base de données (lecture) en INT (db-mcp.int.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Base de données (lecture) en REC (db-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          },
+          {
+            "fix": null,
+            "message": "Jira en REC (jira.corp.internal) : nom résolu, connexion sécurisée établie",
+            "status": "ok"
+          }
+        ],
+        "id": "mcp",
+        "name": "MCP",
+        "status": "warning"
+      },
+      {
+        "findings": [
+          {
+            "fix": "Réglez l'heure de Windows : Paramètres, « Heure et langue », « Date et heure », activez « Régler l'heure automatiquement » puis « Synchroniser maintenant ». Les échéances des connexions en dépendent.",
+            "message": "l'horloge de ce poste est en avance de 3 min sur celle des serveurs",
+            "status": "warning"
+          }
+        ],
+        "id": "clock",
+        "name": "Horloge",
+        "status": "warning"
+      }
+    ],
+    "failures": 0,
+    "file": "%LOCALAPPDATA%\\MCP Proxy\\logs\\doctor-20261123-100000.txt",
+    "fileError": null,
+    "status": "warning",
+    "summary": "8 avertissements",
+    "text": "MCP Proxy — auto-diagnostic\nVersion 0.1.0, 2026-11-23T10:00:00.000Z (UTC), lancé depuis la fenêtre de MCP Proxy.\nRésultat : 8 avertissements.\n\n[ok] Config\n  - configuration chargée et valide (8 environnements, 5 MCP)\n\n[ok] WebView2\n  - runtime présent (version 131.0.2903.70), suffisant pour les connexions sans trace (InPrivate)\n\n[avertissement] Installation\n  - exe installé en version 0.1.0, lancé depuis l'installation, dossier sans lecture seule, raccourci du menu Démarrer, identité des notifications (AUMID), exclusion des rapports d'erreur Windows, entrée « Applications installées » en version 0.1.0\n  ! reste d'une mise à jour dans le dossier d'installation : mcp-proxy.exe.old\n    À faire : Fermez les clients LLM (Claude Desktop, VS Code), puis quittez et relancez MCP Proxy : l'exe installé le supprime à son démarrage.\n  ! la valeur « MCP Proxy » du démarrage de Windows lance un autre programme que l'exe installé\n    À faire : Dans le menu de l'icône de MCP Proxy, décochez puis recochez « Démarrer avec Windows ».\n\n[avertissement] Notifications\n  ! notifications désactivées pour MCP Proxy ; les confirmations s'ouvrent dans une fenêtre au premier plan à la place\n    À faire : Paramètres de Windows, « Système », « Notifications » : activez les notifications, puis celles de « MCP Proxy » dans la liste des applications.\n\n[ok] Appli\n  - cette instance en version 0.1.0, canal des clients LLM joignable\n\n[avertissement] Réglages\n  - sceau des réglages valide ; profil « Développeur », environnements exposés : DEV, INT, REC\n  ! passerelle suspendue : tous les appels des clients LLM sont refusés\n    À faire : Menu de l'icône de MCP Proxy, « Reprendre », ou le bandeau de la fenêtre.\n\n[avertissement] Artifactory\n  ! Artifactory (artifactory.corp.internal) joignable ; la version 0.2.0 est disponible (version en place : 0.1.0), mais cet exe ne se met pas à jour seul\n    À faire : Téléchargez la dernière version publiée et lancez-la : elle propose de mettre à jour l'installation.\n\n[avertissement] Clé de mise à jour\n  ! aucune clé de mise à jour embarquée : cet exe ne se met jamais à jour (construction hors du pipeline de release)\n    À faire : Installez une version publiée par le pipeline de release ; en attendant, mettez à jour à la main.\n\n[avertissement] Clients LLM\n  ! Claude Desktop : configuré avec un autre exe que l'exe installé\n    À faire : Fenêtre de MCP Proxy, menu en haut à droite, « Clients LLM… » : « Installer » pour ce client.\n  - Claude Desktop (paquet MSIX) : non installé\n  ! VS Code : installé, non configuré\n\n[avertissement] MCP\n  - Kibana Logs en DEV (kibana-mcp.dev.corp.internal) : nom résolu, connexion sécurisée établie\n  - Kibana Logs en INT (kibana-mcp.int.corp.internal) : nom résolu, connexion sécurisée établie\n  - Kibana Logs en REC (kibana-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie\n  ! GitLab Ops en DEV (gitlab-mcp.dev.corp.internal) : joignable, mais répond HTTP 503 (serveur en erreur, ou proxy qui ne le joint pas)\n    À faire : Réessayez dans quelques minutes ; si l'erreur reste, signalez-la au support du serveur MCP.\n  - GitLab Ops en REC (gitlab-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie\n  - Kubernetes Admin en DEV (k8s-mcp.dev.corp.internal) : nom résolu, connexion sécurisée établie\n  - Kubernetes Admin en INT (k8s-mcp.int.corp.internal) : nom résolu, connexion sécurisée établie\n  - Kubernetes Admin en REC (k8s-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie\n  - Base de données (lecture) en INT (db-mcp.int.corp.internal) : nom résolu, connexion sécurisée établie\n  - Base de données (lecture) en REC (db-mcp.rec.corp.internal) : nom résolu, connexion sécurisée établie\n  - Jira en REC (jira.corp.internal) : nom résolu, connexion sécurisée établie\n\n[avertissement] Horloge\n  ! l'horloge de ce poste est en avance de 3 min sur celle des serveurs\n    À faire : Réglez l'heure de Windows : Paramètres, « Heure et langue », « Date et heure », activez « Régler l'heure automatiquement » puis « Synchroniser maintenant ». Les échéances des connexions en dépendent.\n\nRapport enregistré dans %LOCALAPPDATA%\\MCP Proxy\\logs\\doctor-20261123-100000.txt\n",
+    "version": "0.1.0",
+    "viewpoint": "app",
+    "warnings": 8
+  }
+}

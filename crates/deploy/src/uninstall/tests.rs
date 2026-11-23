@@ -706,6 +706,12 @@ impl SystemOps for Disk {
     fn remove_aumid(&self) -> Result<crate::ops::Removal, OpError> {
         Ok(crate::ops::Removal::Absent)
     }
+    fn aumid_registered(&self) -> Result<bool, OpError> {
+        Ok(false)
+    }
+    fn wer_exclusion(&self) -> Result<Option<u32>, OpError> {
+        Ok(None)
+    }
     fn remove_wer_exclusion(&self) -> Result<crate::ops::Removal, OpError> {
         Ok(crate::ops::Removal::Absent)
     }

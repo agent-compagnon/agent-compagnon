@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Main window of MCP Proxy: reads the snapshot, listens to its changes, and sends the commands of the interface: log in or out of a session, choose the profile, resume the gateway, show the waiting confirmations (spec 016); expose an environment, cut an MCP, acknowledge the update of an MCP, reload its list (spec 017); read the journal and export a diagnostic through the save dialog of the application (spec 018); restart to apply an update already put in place (spec 020); read the configuration of the LLM clients, preview then apply the addition or removal of MCP Proxy, by location and action only (spec 023). Never answers a confirmation. No remote URL.",
+  "description": "Main window of MCP Proxy: reads the snapshot, listens to its changes, and sends the commands of the interface: log in or out of a session, choose the profile, resume the gateway, show the waiting confirmations (spec 016); expose an environment, cut an MCP, acknowledge the update of an MCP, reload its list (spec 017); read the journal and export a diagnostic through the save dialog of the application (spec 018); restart to apply an update already put in place (spec 020); read the configuration of the LLM clients, preview then apply the addition or removal of MCP Proxy, by location and action only (spec 023); run the self-diagnostic, which reads only (spec 024). Never answers a confirmation. No remote URL.",
   "windows": ["main"],
   "permissions": [
     "allow-get-snapshot",
@@ -20,6 +20,7 @@
     "allow-get-llm-clients",
     "allow-preview-llm-client",
     "allow-apply-llm-client",
+    "allow-run-doctor",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

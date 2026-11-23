@@ -208,6 +208,11 @@ pub trait SystemOps: Send + Sync {
         Ok(std::fs::metadata(path)?.len())
     }
 
+    /// The read-only attribute of a file or a folder (the self-diagnostic, spec 024, never writes to find out).
+    fn read_only(&self, path: &Path) -> Result<bool, OpError> {
+        Ok(std::fs::metadata(path)?.permissions().readonly())
+    }
+
     /// Writes the shortcut whole or not at all (temporary file then rename), replacing an existing one.
     fn write_shortcut(&self, shortcut: &Shortcut) -> Result<(), OpError>;
 
@@ -230,6 +235,13 @@ pub trait SystemOps: Send + Sync {
 
     /// `HKCU\Software\Classes\AppUserModelId\McpProxy.Desktop` (spec 013), a key of values only.
     fn remove_aumid(&self) -> Result<Removal, OpError>;
+
+    /// Whether that key exists. Read only.
+    fn aumid_registered(&self) -> Result<bool, OpError>;
+
+    /// The DWORD named `mcp-proxy.exe` of the exclusion from error reports, `None` when absent or of another type.
+    /// Read only.
+    fn wer_exclusion(&self) -> Result<Option<u32>, OpError>;
 
     /// The DWORD `1` named `mcp-proxy.exe` under `HKCU\Software\Microsoft\Windows\Windows Error
     /// Reporting\ExcludedApplications` (spec 011); any other value of that name is not ours.

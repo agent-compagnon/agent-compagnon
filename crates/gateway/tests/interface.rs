@@ -561,7 +561,7 @@ async fn a_diagnostic_is_exported_to_the_chosen_path_and_a_failure_leaves_nothin
 
     // The name typed without extension gets `.zip`; any case of `.zip` is kept.
     let chosen = dir.0.join("pour-le-support");
-    let path = gateway.export_diagnostic(&chosen).await.unwrap();
+    let path = gateway.export_diagnostic(&chosen, None).await.unwrap();
     assert_eq!(path, dir.0.join("pour-le-support.zip"));
     let names = unzip_names(&path);
     for expected in [
@@ -584,7 +584,7 @@ async fn a_diagnostic_is_exported_to_the_chosen_path_and_a_failure_leaves_nothin
 
     // A folder that does not exist: a clear error, nothing written, the failure journaled.
     let missing = dir.0.join("absent").join("diagnostic.zip");
-    let error = gateway.export_diagnostic(&missing).await.unwrap_err();
+    let error = gateway.export_diagnostic(&missing, None).await.unwrap_err();
     assert!(matches!(error, InterfaceError::Export(_)), "{error:?}");
     assert!(
         error.to_string().starts_with("export de diagnostic impossible : "),

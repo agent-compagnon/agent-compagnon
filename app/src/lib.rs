@@ -1,6 +1,6 @@
 //! `mcp-proxy.exe`: the application (notification icon, gateway, login windows) without argument, the `stdio` bridge
 //! with `stdio`; at a launch outside its installation folder, the installation (spec 019); with `--uninstall`, the
-//! uninstallation (spec 022). Wiring only: the logic
+//! uninstallation (spec 022); with `doctor`, the self-diagnostic (spec 024). Wiring only: the logic
 //! lives in `crates/` and is tested there. A library so that
 //! the WebView2 probe (`examples/webview_probe.rs`) runs the very login windows of the application.
 
@@ -11,6 +11,7 @@ mod app;
 mod bridge;
 mod confirm;
 pub mod dialog;
+mod doctor;
 mod dpapi;
 mod install;
 mod interface;
@@ -33,6 +34,8 @@ pub fn main() -> ExitCode {
         // The bridge never offers the installation, wherever it runs from.
         Ok(LaunchMode::Stdio) => bridge::run(),
         Ok(LaunchMode::Uninstall) => uninstall::start(),
+        // Before the single instance: the running application is asked, never handed over to.
+        Ok(LaunchMode::Doctor) => doctor::start(),
         Ok(mode) => install::start(mode),
         Err(error) => {
             bridge::write_stderr(&format!("MCP Proxy : {error}"));

@@ -2,7 +2,8 @@
 //! (`capabilities/main.json`) `get_snapshot` and the commands of the interface (spec 016: `connect_session`,
 //! `disconnect_session`, `set_profile`, `resume_gateway`, `show_confirmations`; spec 017: `set_environment_exposed`,
 //! `set_mcp_exposed`, `acknowledge_mcp_update`, `reload_mcp`; spec 018: `get_journal`, `export_diagnostic`; spec 020:
-//! `restart_for_update`; spec 023: `get_llm_clients`, `preview_llm_client`, `apply_llm_client`),
+//! `restart_for_update`; spec 023: `get_llm_clients`, `preview_llm_client`, `apply_llm_client`; spec 024:
+//! `run_doctor`),
 //! `submit_basic_credentials` to the Basic windows (`capabilities/basic.json`), `answer_confirmation` to the detail
 //! windows of the confirmations (`capabilities/confirm.json`), `answer_install` to the installation window
 //! (`capabilities/install.json`, spec 019), `answer_uninstall` to the uninstallation window
@@ -28,6 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "get_llm_clients",
             "preview_llm_client",
             "apply_llm_client",
+            "run_doctor",
             "deposit_login_header",
             "submit_basic_credentials",
             "answer_confirmation",

@@ -7,7 +7,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use mcp_proxy_gateway::bridge::{
-    ControlRequest, PeerProof, ProofError, ProtectFailure, Role, StopError, prove, request_stop, serve_control,
+    ControlRequest, PeerProof, ProofError, ProtectFailure, Role, StopError, prove, request_ping, request_stop,
+    serve_control,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream, duplex};
 use zeroize::Zeroizing;
@@ -44,7 +45,7 @@ async fn application(
     if role != Role::Control {
         return Ok((role, None));
     }
-    let request = serve_control(stream, || stopped.store(true, Ordering::SeqCst)).await?;
+    let request = serve_control(stream, "1.2.3", || stopped.store(true, Ordering::SeqCst)).await?;
     Ok((role, Some(request)))
 }
 
@@ -142,4 +143,71 @@ async fn a_server_that_does_not_acknowledge_stops_nothing() {
     app_end.write_all(&2u32.to_be_bytes()).await.unwrap();
     app_end.write_all(b"no").await.unwrap();
     assert_eq!(client.await.unwrap(), Err(StopError::Refused));
+}
+
+// Exigence : EX-024-10
+#[tokio::test]
+async fn a_ping_answers_the_version_and_stops_nothing() {
+    let (client_end, mut app_end) = duplex(4096);
+    let stopped = Arc::new(AtomicBool::new(false));
+    let client = tokio::spawn(request_ping(user(1), client_end));
+    let served = application(&mut app_end, Arc::clone(&stopped)).await.unwrap();
+    assert_eq!(served, (Role::Control, Some(ControlRequest::Ping)));
+    assert_eq!(client.await.unwrap(), Ok(Some("1.2.3".to_owned())));
+    assert!(!stopped.load(Ordering::SeqCst));
+}
+
+// Exigence : EX-024-10
+#[tokio::test]
+async fn a_ping_of_another_user_is_refused() {
+    let (client_end, mut app_end) = duplex(4096);
+    let stopped = Arc::new(AtomicBool::new(false));
+    let client = tokio::spawn(request_ping(user(2), client_end));
+    assert_eq!(
+        application(&mut app_end, Arc::clone(&stopped)).await,
+        Err(ProofError::Foreign)
+    );
+    drop(app_end);
+    assert!(client.await.unwrap().is_err());
+    assert!(!stopped.load(Ordering::SeqCst));
+}
+
+// Exigence : EX-024-10
+#[tokio::test]
+async fn an_application_older_than_the_ping_proves_itself_then_closes() {
+    let (client_end, mut app_end) = duplex(4096);
+    let client = tokio::spawn(request_ping(user(1), client_end));
+    assert_eq!(prove(user(1), Role::Server, &mut app_end).await, Ok(Role::Control));
+    // What a version that knows only the stop does with any other request.
+    let mut len = [0u8; 4];
+    app_end.read_exact(&mut len).await.unwrap();
+    let mut request = vec![0u8; u32::from_be_bytes(len) as usize];
+    app_end.read_exact(&mut request).await.unwrap();
+    assert_eq!(request, b"mcp-proxy.control.v1\0ping");
+    drop(app_end);
+    assert_eq!(client.await.unwrap(), Ok(None));
+}
+
+// Exigence : EX-024-10
+#[tokio::test]
+async fn a_malformed_pong_is_refused() {
+    for answer in [
+        &b"mcp-proxy.control.v1\0pong\0"[..],
+        b"mcp-proxy.control.v1\0pong\x001.0 beta",
+        b"pong",
+    ] {
+        let (client_end, mut app_end) = duplex(4096);
+        let client = tokio::spawn(request_ping(user(1), client_end));
+        assert_eq!(prove(user(1), Role::Server, &mut app_end).await, Ok(Role::Control));
+        let mut len = [0u8; 4];
+        app_end.read_exact(&mut len).await.unwrap();
+        let mut request = vec![0u8; u32::from_be_bytes(len) as usize];
+        app_end.read_exact(&mut request).await.unwrap();
+        app_end
+            .write_all(&u32::try_from(answer.len()).unwrap().to_be_bytes())
+            .await
+            .unwrap();
+        app_end.write_all(answer).await.unwrap();
+        assert_eq!(client.await.unwrap(), Err(ProofError::Malformed));
+    }
 }

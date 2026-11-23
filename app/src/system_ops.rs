@@ -226,6 +226,23 @@ impl SystemOps for WindowsOps {
         remove_key_of_values(AUMID_KEY)
     }
 
+    fn aumid_registered(&self) -> Result<bool, OpError> {
+        Ok(open(AUMID_KEY, KEY_QUERY_VALUE)?.is_some())
+    }
+
+    fn wer_exclusion(&self) -> Result<Option<u32>, OpError> {
+        let Some(key) = open(WER_KEY, KEY_QUERY_VALUE)? else {
+            return Ok(None);
+        };
+        match key.get_value::<u32, _>(EXE_NAME) {
+            Ok(value) => Ok(Some(value)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            // Another type of value under that name.
+            Err(error) if error.kind() == std::io::ErrorKind::InvalidData => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+    }
+
     fn remove_wer_exclusion(&self) -> Result<Removal, OpError> {
         let Some(key) = open(WER_KEY, KEY_QUERY_VALUE | KEY_SET_VALUE)? else {
             return Ok(Removal::Absent);

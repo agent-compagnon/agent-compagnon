@@ -4,6 +4,7 @@ pub mod bridge;
 pub mod clients_view;
 pub mod control;
 mod convert;
+pub mod doctor;
 pub mod interface;
 pub mod journal;
 pub mod journal_view;

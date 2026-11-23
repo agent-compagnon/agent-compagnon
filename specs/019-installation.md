@@ -65,7 +65,8 @@ Réalisation (amendement du 2026-11-22) :
   (l'appli depuis l'emplacement courant, relancée avec `--no-install`) ou « Quitter ».
 - **Arrêt de l'instance en cours** (cas 1 comme cas 2 : une appli lancée sans installation tient le pipe) : par un
   canal de contrôle authentifié par la preuve mutuelle de la spec 011, rôle `controle`. L'appli n'accepte de ce
-  rôle qu'une demande d'arrêt, journalisée, et quitte comme par « Quitter » ; le pont prouve toujours le rôle `pont`,
+  rôle qu'une demande d'arrêt, journalisée, et quitte comme par « Quitter » (et, depuis la spec 024, le `ping` sans
+  effet de l'auto-diagnostic) ; le pont prouve toujours le rôle `pont`,
   si bien que rien de ce qu'envoie un client LLM n'atteint ce canal. Le client attend, 20 s au plus, que l'appli
   ferme le canal en terminant son processus. Instance qui ne s'arrête pas : message, rien n'est modifié.
 - **Étapes et retour arrière** : installation = arrêt de l'instance, dossiers créés un à un, copie sous
@@ -174,3 +175,6 @@ Mises à jour (7b). Désinstallation (7d).
   (`HKCU\…\Uninstall\MCP Proxy`) avec la version lue dans l'exe mis en place, comme une étape de la transaction
   (défaite par un retour arrière : entrée retirée, ou remise à l'identique si elle existait). Les tests d'ordre et de
   retour arrière (`EX-019-02`) comptent cette étape. Aucun critère touché.
+- **2026-11-23** — Spec 024 : le canal de contrôle accepte aussi `ping`, la demande sans effet de l'auto-diagnostic
+  (l'appli répond sa version et ferme le canal : ni arrêt, ni journal). Aucun critère de la 019 touché ; `EX-024-10`
+  le prouve.
