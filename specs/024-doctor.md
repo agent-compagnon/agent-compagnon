@@ -38,7 +38,7 @@ Chaque contrôle rend `ok`, `avertissement` ou `échec`, un message, et **quoi f
 |---|---|
 | Config | Chargée et valide |
 | WebView2 | Runtime présent, version suffisante pour le mode InPrivate |
-| Installation | Exe à l'emplacement attendu, dossier inscriptible, raccourci et AUMID (registre) présents, exclusion WER posée |
+| Installation | Exe à l'emplacement attendu, dossier inscriptible, raccourci et AUMID (registre) présents, exclusion WER posée, entrée « Applications installées » à la version de l'exe (spec 022) |
 | Notifications | Toasts activés pour l'appli |
 | Appli | Instance en cours, pipe joignable |
 | Réglages | Sceau valide (5d) |
@@ -85,3 +85,8 @@ Chaque contrôle rend `ok`, `avertissement` ou `échec`, un message, et **quoi f
   est écrit sur la sortie standard (visible quand elle est redirigée) et toujours dans un fichier du dossier des
   logs dont le chemin est indiqué. Le contrôle « Installation » vérifie aussi l'exclusion WER. Critère retiré :
   `EX-024-05` ; ajoutés : `EX-024-08` et `EX-024-09`.
+- **2026-11-23** — Spec 022 : le contrôle « Installation » vérifie aussi l'entrée « Applications installées »
+  (`HKCU\…\Uninstall\MCP Proxy`) : présente, `UninstallString` qui désigne l'exe installé, `DisplayVersion` égale à la
+  marque de version de l'exe. De quoi s'en servir : `SystemOps::uninstall_entry` et `uninstall::entry_for` (valeurs
+  attendues), `uninstall::launch` (l'exe lancé est-il l'exe installé). Une entrée absente se répare d'elle-même au
+  démarrage de l'exe installé : avertissement, pas échec. Aucun critère touché.

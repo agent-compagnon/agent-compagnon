@@ -1180,3 +1180,33 @@ fn the_folders_are_those_of_the_earlier_specs() {
     assert_eq!(config["identifier"], WINDOW_DATA_FOLDER);
     assert_eq!(AUMID_KEY, r"Software\Classes\AppUserModelId\McpProxy.Desktop");
 }
+
+// Exigence : EX-022-08
+#[test]
+fn an_exe_that_cannot_be_scheduled_for_deletion_is_named_with_what_to_do() {
+    let p = paths();
+    let index = removal_ops(installed())
+        .iter()
+        .position(|op| matches!(op, Op::DeleteRunningExe(_)))
+        .unwrap();
+    let ops = FakeSystem::new(installed());
+    ops.fail_at(index);
+    let run = uninstall(ops, &full_plan());
+    match outcome(&run.report, &Item::Exe) {
+        Outcome::Failed { left, .. } => assert_eq!(
+            left,
+            vec![
+                r"%LOCALAPPDATA%\Programs\MCP Proxy\mcp-proxy.exe.old et son dossier, à supprimer une fois cette fenêtre fermée"
+                    .to_owned()
+            ]
+        ),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(outcome(&run.report, &Item::UninstallEntry), Outcome::Removed);
+    assert_eq!(outcome(&run.report, &Item::InstallFolder), Outcome::KeptToRetry);
+    let world = run.ops.world();
+    assert!(world.files.contains_key(&p.install.backup) && world.deleted_at_exit.is_empty());
+    let view = report_view(&run.report);
+    assert_eq!(view["atClose"], json!([]));
+    assert_eq!(view["left"][0]["failed"], true);
+}

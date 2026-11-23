@@ -79,7 +79,7 @@ Les numéros sont des identifiants, pas un ordre : l'ordre de réalisation suit 
 | [019](019-installation.md) | 7a | Installation au premier lancement | implémentée | 011 | 18 |
 | [020](020-updater.md) | 7b | Updater Artifactory : signature ed25519, remplacement de l'exe, canal bêta | implémentée | 011, 019 | 20 |
 | [021](021-pipeline-gitlab.md) | 7c | Pipeline GitLab de release | implémentée | 001, 020 | 15 |
-| [022](022-desinstallation.md) | 7d | Désinstallation propre | en cours | 019 | 16 |
+| [022](022-desinstallation.md) | 7d | Désinstallation propre | implémentée | 019 | 16 |
 | [023](023-config-clients.md) | 7e | Configuration automatique des clients LLM | implémentée | 016, 019 | 18 |
 | [024](024-doctor.md) | 7f | Auto-diagnostic (`doctor`) | prévue | 009, 011, 019, 020 | 8 |
 | [025](025-module-jira-local.md) | 8 | Module MCP local d'exemple (`jira-local`) | implémentée | 002, 007, 010 | 12 |

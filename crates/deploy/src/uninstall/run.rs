@@ -410,11 +410,16 @@ fn one(ctx: &Context<'_>, item: &Item) -> Outcome {
         Item::UninstallEntry => uninstall_entry(ctx),
         Item::Exe => match ctx.ops.delete_running_exe(&ctx.paths.install.backup) {
             Ok(()) => Outcome::AtClose,
+            // Moved out of its folder before the helper could start: it waits in the temporary folder.
+            Err(error) if !ctx.ops.exists(&ctx.paths.install.backup) => failed(
+                &error,
+                vec![r"%TEMP%\.mcp-proxy.….__relocated__.exe, à supprimer une fois cette fenêtre fermée".to_owned()],
+            ),
             Err(error) => failed(
                 &error,
                 vec![format!(
-                    "%LOCALAPPDATA%\\{PROGRAMS_FOLDER}\\{INSTALL_FOLDER}\\mcp-proxy.exe.old, à supprimer une fois \
-                     cette fenêtre fermée"
+                    "%LOCALAPPDATA%\\{PROGRAMS_FOLDER}\\{INSTALL_FOLDER}\\mcp-proxy.exe.old et son dossier, à \
+                     supprimer une fois cette fenêtre fermée"
                 )],
             ),
         },
